@@ -1,0 +1,31 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.egg-info/
+.eggs/
+dist/
+build/
+*.log
+
+# Virtual environments
+lek_scraper_env/
+venv/
+.venv/
+env/
+
+# Large pipeline assets not needed for the app
+lekwankwa-historical-vault/
+archive_v2/
+crawl4ai-main/
+data_sample.zip
+
+# IDE / OS
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Secrets / env
+.env
+*.env
