@@ -14,7 +14,10 @@ import pandas as pd
 #  PATH RESOLUTION
 # ──────────────────────────────────────────────────────────────
 BASE_DIR    = pathlib.Path(__file__).parent.resolve()
-NEUDATA_DIR = BASE_DIR / "neudata submission"
+NEUDATA_DIR = next(
+    (BASE_DIR / d for d in ["Neudata submission", "neudata submission"] if (BASE_DIR / d).exists()),
+    BASE_DIR / "Neudata submission",
+)
 LOGO_PATH   = pathlib.Path.home() / "Downloads" / "Company Logo.jpeg"
 
 # ──────────────────────────────────────────────────────────────
