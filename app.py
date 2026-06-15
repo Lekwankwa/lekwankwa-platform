@@ -20,11 +20,11 @@ NEUDATA_DIR = next(
 )
 LOGO_PATH   = next(
     (p for p in [
+        BASE_DIR / "streamlit" / "logo.jpeg",
         BASE_DIR / "logo.jpeg",
-        BASE_DIR / "logo.jpg",
         pathlib.Path.home() / "Downloads" / "Company Logo.jpeg",
     ] if p.exists()),
-    BASE_DIR / "logo.jpeg",
+    BASE_DIR / "streamlit" / "logo.jpeg",
 )
 
 # ──────────────────────────────────────────────────────────────
