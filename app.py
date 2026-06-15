@@ -18,7 +18,14 @@ NEUDATA_DIR = next(
     (BASE_DIR / d for d in ["Neudata submission", "neudata submission"] if (BASE_DIR / d).exists()),
     BASE_DIR / "Neudata submission",
 )
-LOGO_PATH   = pathlib.Path.home() / "Downloads" / "Company Logo.jpeg"
+LOGO_PATH   = next(
+    (p for p in [
+        BASE_DIR / "logo.jpeg",
+        BASE_DIR / "logo.jpg",
+        pathlib.Path.home() / "Downloads" / "Company Logo.jpeg",
+    ] if p.exists()),
+    BASE_DIR / "logo.jpeg",
+)
 
 # ──────────────────────────────────────────────────────────────
 #  DATASET CATALOG
