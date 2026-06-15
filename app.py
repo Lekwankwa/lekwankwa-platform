@@ -257,6 +257,8 @@ def inject_css() -> None:
         .main .block-container {
             padding-top: 2.5rem;
             padding-bottom: 4rem;
+            padding-left: 1.5rem;
+            padding-right: 1.5rem;
             max-width: 1100px;
         }
 
@@ -278,7 +280,7 @@ def inject_css() -> None:
         }
         div[data-testid="metric-container"] div[data-testid="stMetricValue"] {
             color: #ffffff !important;
-            font-size: 1.6rem !important;
+            font-size: 1.4rem !important;
             font-weight: 700;
         }
 
@@ -294,11 +296,10 @@ def inject_css() -> None:
             border-radius: 5px;
             padding: 0.55rem 1.4rem;
             letter-spacing: 0.04em;
+            width: 100%;
             transition: opacity 0.15s ease;
         }
-        div[data-testid="stDownloadButton"] button:hover {
-            opacity: 0.85;
-        }
+        div[data-testid="stDownloadButton"] button:hover { opacity: 0.85; }
 
         /* ── Select box ── */
         div[data-baseweb="select"] {
@@ -306,39 +307,62 @@ def inject_css() -> None:
             border-radius: 6px;
         }
 
-        /* ── Price table ── */
-        .price-table-row {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 1rem 1.4rem;
-            border-bottom: 1px solid #1a1a1a;
-            background-color: #0a0a0a;
-            transition: background 0.15s;
-        }
-        .price-table-row:hover { background-color: #131313; }
-        .price-table-row:last-child { border-bottom: none; }
-        .price-table-header {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 0.65rem 1.4rem;
-            background-color: #111111;
-            border-bottom: 1px solid #2a2a2a;
-        }
+        /* ── Price table — desktop ── */
         .price-table-wrap {
             border: 1px solid #2a2a2a;
             border-radius: 8px;
             overflow: hidden;
             margin-bottom: 2rem;
         }
-        .col-product  { flex: 2.8; font-weight: 600; font-size: 0.96rem; color: #ffffff; }
-        .col-coverage { flex: 2.2; font-size: 0.82rem; color: #888888; }
-        .col-source   { flex: 1.8; font-size: 0.82rem; color: #888888; }
-        .col-records  { flex: 1;   font-size: 0.82rem; color: #aaaaaa; text-align: right; }
+        .price-table-header {
+            display: flex;
+            align-items: center;
+            padding: 0.65rem 1.4rem;
+            background-color: #111111;
+            border-bottom: 1px solid #2a2a2a;
+        }
+        .price-table-row {
+            display: flex;
+            align-items: center;
+            padding: 1rem 1.4rem;
+            border-bottom: 1px solid #1a1a1a;
+            background-color: #0a0a0a;
+            transition: background 0.15s;
+            gap: 0.5rem;
+        }
+        .price-table-row:hover { background-color: #131313; }
+        .price-table-row:last-child { border-bottom: none; }
+        .col-product  { flex: 2.8; font-weight: 600; font-size: 0.93rem; color: #ffffff; }
+        .col-coverage { flex: 2.2; font-size: 0.8rem; color: #888888; }
+        .col-source   { flex: 1.8; font-size: 0.8rem; color: #888888; }
+        .col-records  { flex: 1;   font-size: 0.8rem; color: #aaaaaa; text-align: right; }
         .col-price    { flex: 1.4; font-size: 1.05rem; font-weight: 700; color: #ffffff; text-align: right; }
-        .col-header   { flex: 1;   font-size: 0.7rem; color: #555555; text-transform: uppercase; letter-spacing: 0.1em; }
+        .col-header   { flex: 1;   font-size: 0.68rem; color: #555555; text-transform: uppercase; letter-spacing: 0.1em; }
         .col-header.right { text-align: right; }
+
+        /* ── Price cards — mobile ── */
+        .price-card-grid {
+            display: none;
+            flex-direction: column;
+            gap: 0.6rem;
+            margin-bottom: 2rem;
+        }
+        .price-card {
+            background-color: #0a0a0a;
+            border: 1px solid #1e1e1e;
+            border-radius: 8px;
+            padding: 1rem 1.1rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 1rem;
+        }
+        .price-card-left { flex: 1; }
+        .price-card-name { font-size: 0.92rem; font-weight: 600; color: #ffffff; margin-bottom: 0.25rem; }
+        .price-card-meta { font-size: 0.75rem; color: #666666; line-height: 1.5; }
+        .price-card-right { text-align: right; flex-shrink: 0; }
+        .price-card-price { font-size: 1.1rem; font-weight: 700; color: #ffffff; }
+        .price-card-records { font-size: 0.72rem; color: #555555; margin-top: 0.15rem; }
 
         /* ── Vault bundle ── */
         .vault-box {
@@ -372,6 +396,12 @@ def inject_css() -> None:
             text-transform: uppercase;
             letter-spacing: 0.1em;
             margin-top: 0.15rem;
+        }
+        .vault-body-flex {
+            display: flex;
+            align-items: flex-end;
+            gap: 2rem;
+            flex-wrap: wrap;
         }
 
         /* ── Compliance banner ── */
@@ -412,14 +442,50 @@ def inject_css() -> None:
             line-height: 1.5;
         }
 
-        /* ── Stage badge ── */
+        /* ── Feature pillars grid ── */
+        .pillars-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 1rem;
+            margin-top: 0.5rem;
+        }
+        .pillar-card {
+            padding: 1.2rem;
+            border: 1px solid #1e1e1e;
+            border-radius: 8px;
+            background: #080808;
+        }
+        .pillar-eyebrow {
+            font-size: 0.7rem;
+            color: #555;
+            text-transform: uppercase;
+            letter-spacing: 0.12em;
+            margin-bottom: 0.5rem;
+        }
+        .pillar-title {
+            font-size: 1rem;
+            font-weight: 700;
+            color: #fff;
+            margin-bottom: 0.5rem;
+        }
+        .pillar-body {
+            font-size: 0.82rem;
+            color: #666;
+            line-height: 1.55;
+        }
+
+        /* ── Stage badges ── */
+        .stages-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 0.5rem;
+            margin-bottom: 1.5rem;
+        }
         .stage-pass {
-            display: inline-block;
             background-color: #0f0f0f;
             border: 1px solid #2a2a2a;
             border-radius: 5px;
             padding: 0.75rem 1rem;
-            margin: 0.3rem;
         }
         .stage-pass .badge-num  { font-size: 0.65rem; color: #555555; text-transform: uppercase; letter-spacing: 0.1em; }
         .stage-pass .badge-name { font-size: 0.9rem; font-weight: 600; color: #ffffff; margin: 0.2rem 0; }
@@ -435,6 +501,70 @@ def inject_css() -> None:
             font-size: 0.76rem;
             color: #888888;
             margin: 0 0.2rem 0.4rem 0;
+        }
+
+        /* ═══════════════════════════════════════
+           MOBILE RESPONSIVE  (max-width: 768px)
+        ═══════════════════════════════════════ */
+        @media (max-width: 768px) {
+
+            /* Main padding */
+            .main .block-container {
+                padding-left: 0.8rem;
+                padding-right: 0.8rem;
+                padding-top: 1.2rem;
+            }
+
+            /* Section titles */
+            .section-title {
+                font-size: 1.4rem;
+            }
+            .section-sub {
+                font-size: 0.85rem;
+            }
+
+            /* Hide desktop table, show mobile cards */
+            .price-table-wrap  { display: none !important; }
+            .price-card-grid   { display: flex !important; }
+
+            /* Vault box */
+            .vault-box {
+                padding: 1.2rem 1rem;
+            }
+            .vault-headline { font-size: 1.1rem; }
+            .vault-price    { font-size: 2rem; }
+            .vault-body-flex {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 1rem;
+            }
+
+            /* Pillars: single column */
+            .pillars-grid {
+                grid-template-columns: 1fr;
+            }
+
+            /* Stage badges: 1 column */
+            .stages-grid {
+                grid-template-columns: 1fr;
+            }
+
+            /* Compliance banner */
+            .compliance-banner {
+                font-size: 0.8rem;
+                padding: 0.75rem 1rem;
+            }
+
+            /* Meta pills wrap */
+            .meta-pill {
+                font-size: 0.7rem;
+                padding: 0.2rem 0.5rem;
+            }
+
+            /* Metric value smaller */
+            div[data-testid="metric-container"] div[data-testid="stMetricValue"] {
+                font-size: 1.1rem !important;
+            }
         }
         </style>
         """,
@@ -562,6 +692,7 @@ def page_showroom() -> None:
         unsafe_allow_html=True,
     )
 
+    # Desktop table
     header_html = (
         "<div class='price-table-wrap'>"
         "  <div class='price-table-header'>"
@@ -572,7 +703,6 @@ def page_showroom() -> None:
         "    <span class='col-header col-price right'>Archive Price</span>"
         "  </div>"
     )
-
     rows_html = ""
     for item in PRICING:
         price_fmt = f"${item['price_usd']:,.0f}"
@@ -585,9 +715,27 @@ def page_showroom() -> None:
             f"  <span class='col-price'>{price_fmt}</span>"
             f"</div>"
         )
-
     rows_html += "</div>"
-    st.markdown(header_html + rows_html, unsafe_allow_html=True)
+
+    # Mobile cards
+    cards_html = "<div class='price-card-grid'>"
+    for item in PRICING:
+        price_fmt = f"${item['price_usd']:,.0f}"
+        cards_html += (
+            f"<div class='price-card'>"
+            f"  <div class='price-card-left'>"
+            f"    <div class='price-card-name'>{item['product']}</div>"
+            f"    <div class='price-card-meta'>{item['coverage']}<br>{item['source']}</div>"
+            f"  </div>"
+            f"  <div class='price-card-right'>"
+            f"    <div class='price-card-price'>{price_fmt}</div>"
+            f"    <div class='price-card-records'>{item['records']} records</div>"
+            f"  </div>"
+            f"</div>"
+        )
+    cards_html += "</div>"
+
+    st.markdown(header_html + rows_html + cards_html, unsafe_allow_html=True)
 
     # ── Enterprise Vault Bundle ──
     st.markdown(
@@ -600,18 +748,21 @@ def page_showroom() -> None:
         "  <div class='vault-sub' style='margin-top:0.6rem;'>"
         "    Permanent corporate access to the entire historical library across all six data products."
         "  </div>"
-        "  <div style='display:flex; align-items:flex-end; gap:2rem; flex-wrap:wrap;'>"
+        "  <div class='vault-body-flex'>"
         "    <div>"
         "      <div class='vault-price'>$325,000</div>"
         "      <div class='vault-price-label'>One-off CAPEX · Historical Data License</div>"
         "    </div>"
-        "    <div style='flex:1; min-width:220px;'>"
+        "    <div style='flex:1; min-width:200px;'>"
         "      <div style='font-size:0.78rem; color:#555555; margin-bottom:0.6rem;'>"
         "        Includes all six products:</div>"
-        "      <div style='font-size:0.82rem; color:#aaaaaa; line-height:1.8;'>"
-        "        US Consumer Demand Core &nbsp;·&nbsp; US Electricity Volume Tracker<br>"
-        "        US Wages &amp; Labour &nbsp;·&nbsp; US Housing Supply &amp; Shelter<br>"
-        "        US Trade Flows (HS-Code Level) &nbsp;·&nbsp; Global Macro Baseline (IMF)"
+        "      <div style='font-size:0.82rem; color:#aaaaaa; line-height:1.9;'>"
+        "        US Consumer Demand Core<br>"
+        "        US Electricity Volume Tracker<br>"
+        "        US Wages &amp; Labour<br>"
+        "        US Housing Supply &amp; Shelter<br>"
+        "        US Trade Flows (HS-Code Level)<br>"
+        "        Global Macro Baseline (IMF)"
         "      </div>"
         "    </div>"
         "  </div>"
@@ -636,49 +787,32 @@ def page_showroom() -> None:
         "<div class='section-eyebrow'>Why Lekwankwa</div>",
         unsafe_allow_html=True,
     )
-    c1, c2, c3 = st.columns(3)
-    with c1:
-        st.markdown(
-            "<div style='padding:1.2rem; border:1px solid #1e1e1e; border-radius:8px;"
-            " background:#080808; height:100%;'>"
-            "<div style='font-size:0.72rem; color:#555; text-transform:uppercase;"
-            " letter-spacing:0.12em; margin-bottom:0.5rem;'>PIT Guarantee</div>"
-            "<div style='font-size:1rem; font-weight:700; color:#fff;"
-            " margin-bottom:0.5rem;'>Zero Look-Ahead Bias</div>"
-            "<div style='font-size:0.82rem; color:#666; line-height:1.55;'>"
-            "Every record carries actual publication timestamps and full revision history. "
-            "Bitemporal model with separate valid-time and knowledge-time dimensions."
-            "</div></div>",
-            unsafe_allow_html=True,
-        )
-    with c2:
-        st.markdown(
-            "<div style='padding:1.2rem; border:1px solid #1e1e1e; border-radius:8px;"
-            " background:#080808; height:100%;'>"
-            "<div style='font-size:0.72rem; color:#555; text-transform:uppercase;"
-            " letter-spacing:0.12em; margin-bottom:0.5rem;'>Schema Standard</div>"
-            "<div style='font-size:1rem; font-weight:700; color:#fff;"
-            " margin-bottom:0.5rem;'>Flat Parquet · SDMX 2.1</div>"
-            "<div style='font-size:0.82rem; color:#666; line-height:1.55;'>"
-            "100% flat-schema Parquet files. No nested JSON. No proprietary formats. "
-            "SDMX-aligned column naming, ISO 8601 timestamps, ISO 3166-1 geo codes."
-            "</div></div>",
-            unsafe_allow_html=True,
-        )
-    with c3:
-        st.markdown(
-            "<div style='padding:1.2rem; border:1px solid #1e1e1e; border-radius:8px;"
-            " background:#080808; height:100%;'>"
-            "<div style='font-size:0.72rem; color:#555; text-transform:uppercase;"
-            " letter-spacing:0.12em; margin-bottom:0.5rem;'>Source Integrity</div>"
-            "<div style='font-size:1rem; font-weight:700; color:#fff;"
-            " margin-bottom:0.5rem;'>Gov-API Only Pipeline</div>"
-            "<div style='font-size:0.82rem; color:#666; line-height:1.55;'>"
-            "All data sourced exclusively from EIA, BLS, US Census, IMF, and USDA "
-            "official APIs. Zero web-scraping. Full lineage logged per record."
-            "</div></div>",
-            unsafe_allow_html=True,
-        )
+    st.markdown(
+        "<div class='pillars-grid'>"
+        "  <div class='pillar-card'>"
+        "    <div class='pillar-eyebrow'>PIT Guarantee</div>"
+        "    <div class='pillar-title'>Zero Look-Ahead Bias</div>"
+        "    <div class='pillar-body'>Every record carries actual publication timestamps "
+        "    and full revision history. Bitemporal model with separate valid-time and "
+        "    knowledge-time dimensions.</div>"
+        "  </div>"
+        "  <div class='pillar-card'>"
+        "    <div class='pillar-eyebrow'>Schema Standard</div>"
+        "    <div class='pillar-title'>Flat Parquet · SDMX 2.1</div>"
+        "    <div class='pillar-body'>100% flat-schema Parquet files. No nested JSON. "
+        "    No proprietary formats. SDMX-aligned column naming, ISO 8601 timestamps, "
+        "    ISO 3166-1 geo codes.</div>"
+        "  </div>"
+        "  <div class='pillar-card'>"
+        "    <div class='pillar-eyebrow'>Source Integrity</div>"
+        "    <div class='pillar-title'>Gov-API Only Pipeline</div>"
+        "    <div class='pillar-body'>All data sourced exclusively from EIA, BLS, "
+        "    US Census, IMF, and USDA official APIs. Zero web-scraping. "
+        "    Full lineage logged per record.</div>"
+        "  </div>"
+        "</div>",
+        unsafe_allow_html=True,
+    )
 
 
 # ──────────────────────────────────────────────────────────────
@@ -835,7 +969,7 @@ def page_quality_hub() -> None:
         ("09", "Changelog Generation",      "312 entries across all versions"),
     ]
 
-    badges_html = "<div style='display:flex; flex-wrap:wrap; gap:0;'>"
+    badges_html = "<div class='stages-grid'>"
     for num, name, detail in stage_defs:
         badges_html += (
             f"<div class='stage-pass'>"
