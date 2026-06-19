@@ -294,3 +294,47 @@ data_quality_certified : True
 | Overall validation | 9 / 9 stages PASS | Schema PASS; data audit ongoing |
 | Schema standard | SDMX 2.1 aligned | SDMX 2.1 aligned |
 | Delivery format | Apache Parquet (flat) | Apache Parquet (flat) |
+
+---
+
+## Provenance Fields — Pipeline Bookkeeping
+
+These two fields are present on every record (except Global Macro which omits conversion_timestamp) and appear in the delivery sample. They are pipeline bookkeeping fields — **not** PIT or publication metadata.
+
+### `data_quality_certified` (boolean)
+
+| Attribute | Value |
+|-----------|-------|
+| Type | boolean |
+| Nullable | No |
+| Coverage | All 5 products · All 32 countries |
+| True | Record passed all 9 automated validation stages |
+| False | Record carries one or more quality flags (retained, not suppressed; documented in validation reports) |
+
+**Backtesting note**: It is safe to include `False` records in backtests if the accompanying outlier/sanity reports confirm the flag is a boundary annotation, not a data error. Review the validation reports shipped with the archive before discarding any `False` records.
+
+**Sample file note**: Wages (CES/CPS) and Housing sample records may show `False` due to a pending schema v2.0 recertification sweep. Full production vault records reflect the final certified state. Food, Trade, and Global Macro samples show `True`.
+
+---
+
+### `conversion_timestamp` (datetime, UTC)
+
+| Attribute | Value |
+|-----------|-------|
+| Type | datetime ISO 8601 (UTC) |
+| Nullable | Yes (absent in Global Macro sample) |
+| Coverage | Food, Wages, Housing, Trade — all 32 countries |
+
+**Definition**: The UTC datetime when the Lekwankwa ingestion pipeline last wrote or updated this record in the vault partition. This is a **batch processing bookkeeping field only** — it records when the ETL process materialized the record to disk.
+
+> **This is NOT a publication date, NOT a PIT event, and NOT a data quality timestamp.**
+
+**Distinction from `as_of_date`**:
+
+| Field | Meaning | Use for PIT? |
+|-------|---------|-------------|
+| `published_date` / `official_release_date` | Actual government publication date | **Yes — primary PIT gate** |
+| `as_of_date` | Knowledge cutoff for this revision snapshot (should equal published_date) | Reference only |
+| `conversion_timestamp` | When the Lekwankwa pipeline ran and wrote the record | **No — pipeline internal only** |
+
+**Known inconsistency**: In the Wages, Housing, and Trade samples, `as_of_date` was set to the pipeline run date (`2026-06-19T10:00:00Z`) rather than the original publication date. This is documented in the per-product changelogs. Always use `published_date` or `official_release_date` as the PIT gate for backtesting — never `conversion_timestamp` or `as_of_date`.

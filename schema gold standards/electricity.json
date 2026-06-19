@@ -1,0 +1,35 @@
+{
+  "product_name": "Lekwankwa Electricity & Power Grid Index",
+  "version": "2026.3.0",
+  "system_last_updated": "2026-06-09T11:45:00Z",
+  "market_records": [
+    {
+      "iso_alpha3": "DEU",
+      "country_name": "Germany",
+      "currency": "EUR",
+      "market_tier": "Developed",
+      "source_metadata": {
+        "source_agency": "ENTSO-E",
+        "source_sub_category": "GENERATION",
+        "portal_url": "https://transparency.entsoe.eu",
+        "sovereign_series_id": "ENTSOE-DEU-GENERATION",
+        "release_frequency": "Monthly"
+      },
+      "items": [
+        {
+          "data_vintage_id": "ENTSOE-DEU-SOLAR-2026-05-v1",
+          "confidence_tier": "PRIMARY",
+          "sovereign_series_id": "ENTSOE-DEU-SOLAR",
+          "reporting_date": "2026-05-01",
+          "official_release_date": "2026-06-15",
+          "as_of_date": "2026-06-15T11:00:00Z",
+          "energy_source_type": "SOLAR",
+          "generation_output_mwh": 4850300,
+          "total_grid_load_mwh": 42100400,
+          "installed_capacity_mw": 68200,
+          "is_revised_figure": false
+        }
+      ]
+    }
+  ]
+}

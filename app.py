@@ -181,15 +181,7 @@ COVERAGE_TABLE = [
         "products":  "4 / 5",
         "pit_model": "RELEASE_DATE_ONLY (SSB Statbank)",
         "live_feed": "Food · Wages · Trade",
-        "status":    "4 READY · Housing PENDING",
-    },
-    {
-        "region":    "Switzerland (CHE)",
-        "countries": "1",
-        "products":  "0 / 5",
-        "pit_model": "—",
-        "live_feed": "—",
-        "status":    "BLOCKED",
+        "status":    "4 READY · Housing unavailable",
     },
 ]
 
@@ -778,7 +770,7 @@ def page_showroom() -> None:
     # ── Key metrics ──
     col1, col2, col3, col4 = st.columns(4)
     col1.metric("Products", "5")
-    col2.metric("Countries", "32")
+    col2.metric("Countries", "31 Active")
     col3.metric("Records Certified", "336K+")
     col4.metric("Validation", "9 / 9 PASS")
 
@@ -844,7 +836,7 @@ def page_showroom() -> None:
     for item in PRICING:
         arch_fmt = f"${item['archive_usd']:,.0f}"
         if item["live"]:
-            live_fmt = f"${item['live_usd']:,.0f}<span class='live-badge'>LIVE</span>"
+            live_fmt = "<span class='live-badge'>Coming Soon</span>"
         else:
             live_fmt = "<span class='archive-only'>Archive only</span>"
         rows_html += (
@@ -863,7 +855,7 @@ def page_showroom() -> None:
     for item in PRICING:
         arch_fmt = f"${item['archive_usd']:,.0f}"
         if item["live"]:
-            live_html = f"<div class='price-card-live'>Live: ${item['live_usd']:,.0f}/yr</div>"
+            live_html = "<div class='price-card-live'>Live feed: Coming Soon</div>"
         else:
             live_html = "<div class='price-card-archive-only'>Archive only</div>"
         cards_html += (
@@ -1010,13 +1002,17 @@ def page_showroom() -> None:
 # ──────────────────────────────────────────────────────────────
 def page_sandbox() -> None:
     st.markdown(
-        "<div class='section-eyebrow'>Institutional Data Access</div>"
+        "<div class='section-eyebrow'>Institutional Data Access — Free Sample</div>"
         "<div class='section-title'>Data Sandbox &amp; Schema Dictionaries</div>"
         "<div class='section-sub'>"
-        "Select a USA dataset to inspect the 3-year sample slice (2015–2017), "
-        "download the Parquet file, and review the full schema dictionary inline. "
-        "All sample data uses the Golden Record Schema v5.0 — the same schema "
-        "applied across all 32 countries in the production vault."
+        "Free 36-month sample — point-in-time compliant with full vintage history, "
+        "including all revision events captured. Run your own backtest before purchasing "
+        "the complete historical archive."
+        "<br><br>"
+        "Select a USA dataset below to inspect the sample (2015–2017), download the "
+        "Parquet file, and review the full schema dictionary inline. All sample data uses "
+        "the Golden Record Schema v5.0 — the same schema applied across all 32 countries "
+        "in the production vault."
         "</div>",
         unsafe_allow_html=True,
     )

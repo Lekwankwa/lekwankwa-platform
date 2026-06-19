@@ -1,0 +1,53 @@
+{
+  "product_name": "Lekwankwa Agricultural Commodities & Inputs Index",
+  "version": "2026.5.1",
+  "system_last_updated": "2026-06-11T14:30:00Z",
+  "provenance_fields": {
+    "_description": "Pipeline and quality bookkeeping fields present on every vault record across all 5 products and all 32 countries.",
+    "data_quality_certified": {
+      "type": "boolean",
+      "nullable": false,
+      "coverage": "All 5 products · All 32 countries",
+      "definition": "True = record passed all 9 automated validation stages (PIT integrity, sanity checks, schema compliance, temporal consistency, referential integrity, lineage audit, Great Expectations universal validation, outlier extraction, changelog generation). False = record carries one or more known quality flags and should be used with caution. All flagged records are retained in delivery (none suppressed) and are fully documented in the accompanying validation reports shipped with each archive.",
+      "notes": "Wages (CES/CPS) and Housing sample parquets delivered here may show False for some records due to a pending schema v2.0 recertification sweep on those two products. Full production vault records reflect the final certified state. Food, Trade, and Global Macro sample records all show True.",
+      "backtesting_guidance": "For backtesting, it is safe to include False records if the accompanying outlier and sanity reports confirm the flag is a boundary-condition annotation rather than a data error. Never drop False records without reviewing the reports."
+    },
+    "conversion_timestamp": {
+      "type": "datetime (ISO 8601, UTC)",
+      "nullable": true,
+      "coverage": "Food, Wages, Housing, Trade · All 32 countries. ABSENT in Global Macro sample (IMF WEO ingestion pipeline does not populate this field).",
+      "definition": "The UTC datetime when the Lekwankwa ingestion pipeline last wrote or updated this record in the vault partition. This is a pipeline batch bookkeeping field only. It records when the ETL process materialized the record to disk — NOT the original data publication date, NOT a PIT event, and NOT a data quality timestamp.",
+      "distinction_from_as_of_date": "as_of_date = the knowledge cutoff for this revision snapshot — the date up to which this version of the record was considered current, typically equal to published_date or official_release_date. conversion_timestamp = when the Lekwankwa pipeline ran and wrote the record. In some products (Wages, Housing, Trade) as_of_date was set to the pipeline run date rather than the original publication date; this is a known inconsistency documented in the per-product changelogs. For PIT-correct backtesting, always use published_date or official_release_date as the gate — never conversion_timestamp or as_of_date.",
+      "client_guidance": "Do not interpret conversion_timestamp as a publication date, release date, or any event relevant to the underlying economic data. It exists solely to support pipeline debugging and vault lineage audits."
+    }
+  },
+  "market_records": [
+    {
+      "iso_alpha3": "USA",
+      "country_name": "United States",
+      "market_tier": "Developed",
+      "source_metadata": {
+        "source_agency": "USDA",
+        "source_sub_category": "AMS",
+        "portal_url": "https://www.ams.usda.gov/",
+        "release_frequency": "Bi-Weekly"
+      },
+      "items": [
+        {
+          "data_vintage_id": "USDA-GX_GR_210-2026-05-15-v1",
+          "confidence_tier": "PRIMARY",
+          "sovereign_series_id": "GX_GR_210",
+          "macro_metric_name": "UREA_GRANULAR_SPOT_PRICE_NOLA",
+          "reporting_date": "2026-05-15",
+          "official_release_date": "2026-05-21",
+          "as_of_date": "2026-05-21T09:00:00Z",
+          "observed_value": 315.0,
+          "unit_of_measure": "USD_PER_SHORT_TON",
+          "is_revised_figure": false,
+          "data_quality_certified": true,
+          "conversion_timestamp": "2026-06-19T10:00:00Z"
+        }
+      ]
+    }
+  ]
+}

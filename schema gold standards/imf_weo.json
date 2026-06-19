@@ -1,0 +1,154 @@
+{
+  "product_name": "Lekwankwa IMF World Economic Outlook — USA Macro Baseline",
+  "version": "2026.1.0",
+  "system_last_updated": "2026-06-14T00:00:00Z",
+  "provenance_fields": {
+    "_description": "Pipeline and quality bookkeeping fields present on every vault record across all 5 products and all 32 countries.",
+    "data_quality_certified": {
+      "type": "boolean",
+      "nullable": false,
+      "coverage": "All 5 products · All 32 countries",
+      "definition": "True = record passed all 9 automated validation stages (PIT integrity, sanity checks, schema compliance, temporal consistency, referential integrity, lineage audit, Great Expectations universal validation, outlier extraction, changelog generation). False = record carries one or more known quality flags and should be used with caution. All flagged records are retained in delivery (none suppressed) and are fully documented in the accompanying validation reports shipped with each archive.",
+      "notes": "Wages (CES/CPS) and Housing sample parquets delivered here may show False for some records due to a pending schema v2.0 recertification sweep on those two products. Full production vault records reflect the final certified state. Food, Trade, and Global Macro sample records all show True.",
+      "backtesting_guidance": "For backtesting, it is safe to include False records if the accompanying outlier and sanity reports confirm the flag is a boundary-condition annotation rather than a data error. Never drop False records without reviewing the reports."
+    },
+    "conversion_timestamp": {
+      "type": "datetime (ISO 8601, UTC)",
+      "nullable": true,
+      "coverage": "Food, Wages, Housing, Trade · All 32 countries. ABSENT in Global Macro sample (IMF WEO ingestion pipeline does not populate this field).",
+      "definition": "The UTC datetime when the Lekwankwa ingestion pipeline last wrote or updated this record in the vault partition. This is a pipeline batch bookkeeping field only. It records when the ETL process materialized the record to disk — NOT the original data publication date, NOT a PIT event, and NOT a data quality timestamp.",
+      "distinction_from_as_of_date": "as_of_date = the knowledge cutoff for this revision snapshot — the date up to which this version of the record was considered current, typically equal to published_date or official_release_date. conversion_timestamp = when the Lekwankwa pipeline ran and wrote the record. In some products (Wages, Housing, Trade) as_of_date was set to the pipeline run date rather than the original publication date; this is a known inconsistency documented in the per-product changelogs. For PIT-correct backtesting, always use published_date or official_release_date as the gate — never conversion_timestamp or as_of_date.",
+      "client_guidance": "Do not interpret conversion_timestamp as a publication date, release date, or any event relevant to the underlying economic data. It exists solely to support pipeline debugging and vault lineage audits."
+    }
+  },
+  "sdmx_compliance": {
+    "standard": "SDMX 2.1",
+    "codelist_version": "IMF DataMapper API v1",
+    "time_period_format": "YYYY",
+    "frequency_code": "A"
+  },
+  "market_records": [
+    {
+      "iso_alpha3": "USA",
+      "country_name": "United States",
+      "market_tier": "Developed",
+      "source_metadata": {
+        "source_agency": "IMF",
+        "source_sub_category": "WEO",
+        "portal_url": "https://www.imf.org/external/datamapper/",
+        "release_frequency": "Annual"
+      },
+      "items": [
+        {
+          "data_vintage_id": "IMF-PCPIPCH-USA-2024-v1",
+          "confidence_tier": "PRIMARY",
+          "sovereign_series_id": "PCPIPCH",
+          "macro_metric_name": "CPI_INFLATION_ANNUAL_PCT_CHANGE",
+          "reporting_date": "2024-01-01",
+          "official_release_date": "2024-04-01",
+          "as_of_date": "2024-04-01T00:00:00Z",
+          "observed_value": 2.9,
+          "unit_of_measure": "PERCENT",
+          "is_revised_figure": false,
+          "data_quality_certified": true
+        }
+      ]
+    }
+  ],
+  "sdmx_indicators": {
+    "PCPIPCH": {
+      "name": "CPI Inflation, % change",
+      "unit": "PERCENT",
+      "category": "prices"
+    },
+    "NGDP_RPCH": {
+      "name": "Real GDP Growth, % change",
+      "unit": "PERCENT",
+      "category": "output"
+    },
+    "NGDPD": {
+      "name": "GDP, Current Prices (USD billions)",
+      "unit": "USD_BILLIONS",
+      "category": "output"
+    },
+    "PPPGDP": {
+      "name": "GDP PPP (International $ billions)",
+      "unit": "INTL_DOLLAR_BN",
+      "category": "output"
+    },
+    "LUR": {
+      "name": "Unemployment Rate",
+      "unit": "PERCENT",
+      "category": "labor"
+    },
+    "BCA_NGDPD": {
+      "name": "Current Account Balance (% GDP)",
+      "unit": "PERCENT",
+      "category": "external"
+    },
+    "GGXWDG_NGDP": {
+      "name": "Gross Govt Debt (% GDP)",
+      "unit": "PERCENT",
+      "category": "fiscal"
+    },
+    "GGXCNL_NGDP": {
+      "name": "Govt Net Lending/Borrowing (% GDP)",
+      "unit": "PERCENT",
+      "category": "fiscal"
+    }
+  },
+  "vocabulary": {
+    "source": [
+      "imf_weo"
+    ],
+    "source_agency": [
+      "IMF"
+    ],
+    "source_sub_category": [
+      "WEO"
+    ],
+    "extraction_method": [
+      "api"
+    ],
+    "confidence_tier": [
+      "PRIMARY",
+      "SECONDARY",
+      "ESTIMATED"
+    ],
+    "unit_of_measure": [
+      "PERCENT",
+      "USD_BILLIONS",
+      "INTL_DOLLAR_BN"
+    ],
+    "frequency": [
+      "A"
+    ],
+    "country_code": [
+      "US"
+    ],
+    "iso_alpha3": [
+      "USA"
+    ]
+  },
+  "constraints": {
+    "observed_value_range": {
+      "PCPIPCH": [
+        -5.0,
+        50.0
+      ],
+      "NGDP_RPCH": [
+        -20.0,
+        20.0
+      ],
+      "LUR": [
+        0.0,
+        30.0
+      ]
+    },
+    "year_range": {
+      "min": 1980,
+      "max": 2031
+    },
+    "forecast_years_from": 2025
+  }
+}
