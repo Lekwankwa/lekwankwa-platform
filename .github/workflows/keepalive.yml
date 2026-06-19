@@ -1,0 +1,28 @@
+name: Keepalive
+
+on:
+  schedule:
+    - cron: '0 */8 * * *'   # every 8 hours
+  workflow_dispatch:          # allow manual trigger
+
+jobs:
+  keepalive:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure git
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Push keepalive commit
+        run: |
+          git commit --allow-empty -m "chore: keepalive [skip ci] $(date -u '+%Y-%m-%d %H:%M UTC')"
+          git push
