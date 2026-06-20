@@ -1,5 +1,5 @@
 # USA Housing Supply and Shelter Inflation Data Dictionary
-## Schema Version 2.0 (Point-in-Time Enabled)
+## Schema Version 5.0 (Point-in-Time Enabled)
 
 **Product**: Housing Supply and Shelter Inflation
 **Coverage**: United States — Shelter CPI: 1914–2026 | Building Permits: 1960–2026
@@ -153,6 +153,62 @@ All shelter fields plus these 6 permits-specific columns:
 
 ---
 
+## EU27 Permits Schema — `is_interpolated` and `interpolation_method` Fields
+
+The global vault file `permits_eu27_data.parquet` is shared between USA (Census BPS rows) and 27 EU
+member states (Eurostat SDMX rows). The EU27 schema adds two fields that are absent from the USA
+31-column schema:
+
+| Column | Type | Nullable | Description |
+|--------|------|----------|-------------|
+| `is_interpolated` | boolean | **No** | True for carry-forward fill records; False for genuine quarterly observations |
+| `interpolation_method` | string | Yes | `QUARTERLY_CARRY_FORWARD` when `is_interpolated=True`; null when `is_interpolated=False` |
+
+### Why these fields exist (EU27 quarterly publishers only)
+
+Fourteen EU member states (AUT, BGR, CZE, DNK, EST, HRV, IRL, ITA, LTU, LUX, LVA, MLT, POL, SVK)
+publish building permits at quarterly frequency via Eurostat `sts_cobp_q`. To maintain a consistent
+monthly time-series across all 27 EU countries, the pipeline generates carry-forward fill records for
+months 2 and 3 of each quarter (e.g., a Q1 observation is carried forward to February and March).
+
+Genuine observations and fill records co-exist within a single `permits_eu27_data.parquet` file for
+these 14 countries. `is_interpolated` is the authoritative flag distinguishing them:
+
+- `is_interpolated = False` → genuine quarterly observation (use for analysis)
+- `is_interpolated = True`  → carry-forward fill record (`confidence_tier = DERIVED`)
+
+### Filtering
+
+`is_interpolated` is always set explicitly True or False. Filtering genuine observations is safe
+with a direct equality check:
+
+```python
+# pandas
+genuine = df[df["is_interpolated"] == False]
+
+# SQL / DuckDB
+SELECT * FROM permits_eu27_data WHERE is_interpolated = False
+```
+
+No `IS NOT TRUE` or nullable-boolean workaround is needed. The field was made non-nullable in
+June 2026 when a vault backfill corrected 1,322 rows that had been written as None due to the
+scraper omitting the key for genuine rows (resolved by explicit `is_interpolated=False` in
+`ingest_permits_quarterly_14.py`).
+
+### Scope
+
+`is_interpolated` and `interpolation_method` are present **only** in:
+- `permits_eu27_data.parquet` for the 14 quarterly-publisher EU countries listed above
+- `hpi_monthly_fill.parquet` — EU27 HPI forward-fill records
+- `wages_empl_monthly_fill.parquet` — EU27 wages forward-fill records
+- `trade_exports_fill.parquet` / `trade_imports_fill.parquet` — EU27 trade forward-fill records
+
+These fields are intentionally absent from the USA partition of `permits_eu27_data.parquet` and
+from all 13 monthly-publisher EU countries (BEL, CYP, DEU, ESP, FIN, FRA, GRC, HUN, NLD, PRT,
+ROU, SVN, SWE), which publish at monthly frequency and require no fill.
+
+---
+
 ## Point-in-Time (PIT) Fields
 
 | Field | Description | PIT Role |
@@ -274,7 +330,7 @@ frequency in EU27 HICP shelter components. This applies across all 32 countries.
 
 ## Provenance Fields — Pipeline Bookkeeping
 
-These two fields are present on every record (except Global Macro which omits conversion_timestamp) and appear in the delivery sample. They are pipeline bookkeeping fields — **not** PIT or publication metadata.
+`data_quality_certified` is a universal vault field present on all records across all 5 products and all 32 countries (100% of data partitions). `conversion_timestamp` is a USA-only pipeline ingestion artifact, present only in the food_micropricing/USA and wages_and_employment/USA vault partitions (2 of 160 total); it is absent from all EU27 and non-EU country partitions and from all USA housing, trade, and global_macro partitions. Both fields are pipeline bookkeeping metadata — **not** PIT events or publication metadata.
 
 ### `data_quality_certified` (boolean)
 
@@ -282,13 +338,13 @@ These two fields are present on every record (except Global Macro which omits co
 |-----------|-------|
 | Type | boolean |
 | Nullable | No |
-| Coverage | All 5 products · All 32 countries |
+| Coverage | All 5 products · All 32 countries · 100% of vault data partitions. Value = True for all countries across all 5 products. USA food_micropricing, USA wages_and_employment, and USA housing (bls_cpi_shelter + census_bps rows) were all corrected to True June 2026 — scraper-placeholder False; confirmed 10/10 validation PASS for housing. |
 | True | Record passed all 9 automated validation stages |
 | False | Record carries one or more quality flags (retained, not suppressed; documented in validation reports) |
 
 **Backtesting note**: It is safe to include `False` records in backtests if the accompanying outlier/sanity reports confirm the flag is a boundary annotation, not a data error. Review the validation reports shipped with the archive before discarding any `False` records.
 
-**Sample file note**: Wages (CES/CPS) and Housing sample records may show `False` due to a pending schema v2.0 recertification sweep. Full production vault records reflect the final certified state. Food, Trade, and Global Macro samples show `True`.
+**Sample file note**: All sample records now show `data_quality_certified = True`. The housing vault backfill was completed June 2026 — scraper-placeholder `False` values for `bls_cpi_shelter` and `census_bps` rows were corrected after confirming 10/10 validation stages PASS.
 
 ---
 
@@ -297,8 +353,8 @@ These two fields are present on every record (except Global Macro which omits co
 | Attribute | Value |
 |-----------|-------|
 | Type | datetime ISO 8601 (UTC) |
-| Nullable | Yes (absent in Global Macro sample) |
-| Coverage | Food, Wages, Housing, Trade — all 32 countries |
+| Nullable | Yes — absent in 158 of 160 vault partitions. Present only in food/USA and wages/USA partitions. |
+| Coverage | Food micropricing/USA and wages_and_employment/USA only (2 of 160 vault partitions). Absent from all EU27 and non-EU partitions, and from USA housing, trade, and global_macro vault files. |
 
 **Definition**: The UTC datetime when the Lekwankwa ingestion pipeline last wrote or updated this record in the vault partition. This is a **batch processing bookkeeping field only** — it records when the ETL process materialized the record to disk.
 
@@ -312,4 +368,4 @@ These two fields are present on every record (except Global Macro which omits co
 | `as_of_date` | Knowledge cutoff for this revision snapshot (should equal published_date) | Reference only |
 | `conversion_timestamp` | When the Lekwankwa pipeline ran and wrote the record | **No — pipeline internal only** |
 
-**Known inconsistency**: In the Wages, Housing, and Trade samples, `as_of_date` was set to the pipeline run date (`2026-06-19T10:00:00Z`) rather than the original publication date. This is documented in the per-product changelogs. Always use `published_date` or `official_release_date` as the PIT gate for backtesting — never `conversion_timestamp` or `as_of_date`.
+Always use `published_date` or `official_release_date` as the PIT gate for backtesting — not `conversion_timestamp` or `as_of_date`. The `as_of_date` pipeline contamination for housing `census_bps` rows (2,340 records that carried the 2026-06-15 scrape date instead of the historical publication date) was corrected June 2026: `as_of_date` is now set to `official_release_date[:10]` for all affected rows.

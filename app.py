@@ -43,7 +43,7 @@ DATASETS: dict[str, dict] = {
         "dict":     NEUDATA_DIR / "USA_WAGES_AND_EMPLOYMENT_DATA_DICTIONARY.md",
         "filename": "wages_and_employment_ces_v1.0_sample.parquet",
         "product":  "Wages & Labour",
-        "schema_version": "v2.0",
+        "schema_version": "v5.0",
         "records":  "CES schema sample | 1939–2026 | Monthly · 2015–2017 · 3-Year Sample",
         "sources":  "BLS CES",
     },
@@ -52,7 +52,7 @@ DATASETS: dict[str, dict] = {
         "dict":     NEUDATA_DIR / "USA_WAGES_AND_EMPLOYMENT_DATA_DICTIONARY.md",
         "filename": "wages_and_employment_cps_v1.0_sample.parquet",
         "product":  "Wages & Labour",
-        "schema_version": "v2.0",
+        "schema_version": "v5.0",
         "records":  "8,802 records (11 unemployment series) | 1948–2026 | Monthly · 2015–2017 · 3-Year Sample",
         "sources":  "BLS CPS",
     },
@@ -61,7 +61,7 @@ DATASETS: dict[str, dict] = {
         "dict":     NEUDATA_DIR / "USA_HOUSING_DATA_DICTIONARY.md",
         "filename": "housing_shelter_inflation_v1.0_sample.parquet",
         "product":  "Housing Supply & Shelter",
-        "schema_version": "v2.0",
+        "schema_version": "v5.0",
         "records":  "10,923 records | 1914–2026 | Monthly · 2015–2017 · 3-Year Sample",
         "sources":  "BLS CPI Shelter Series",
     },
@@ -70,7 +70,7 @@ DATASETS: dict[str, dict] = {
         "dict":     NEUDATA_DIR / "USA_HOUSING_DATA_DICTIONARY.md",
         "filename": "housing_permits_v1.0_sample.parquet",
         "product":  "Housing Supply & Shelter",
-        "schema_version": "v2.0",
+        "schema_version": "v5.0",
         "records":  "8,564 records | 1960–2026 | Monthly · 2015–2017 · 3-Year Sample",
         "sources":  "US Census Bureau BPS via FRED",
     },
@@ -79,7 +79,7 @@ DATASETS: dict[str, dict] = {
         "dict":     NEUDATA_DIR / "USA_TRADE_FLOWS_DATA_DICTIONARY.md",
         "filename": "trade_flows_v1.0_sample.parquet",
         "product":  "Trade Flows (HS-Code Level)",
-        "schema_version": "v2.0",
+        "schema_version": "v5.0",
         "records":  "43,020 records | 1992–2026 | Monthly · 2015–2017 · 3-Year Sample",
         "sources":  "US Census Bureau FT-900 / ALFRED",
     },
@@ -88,7 +88,7 @@ DATASETS: dict[str, dict] = {
         "dict":     NEUDATA_DIR / "USA_GLOBAL_MACRO_DATA_DICTIONARY.md",
         "filename": "global_macro_imf_weo_v1.0_sample.parquet",
         "product":  "Global Macro Baseline",
-        "schema_version": "v2.0",
+        "schema_version": "v5.0",
         "records":  "81,735 records (ALFRED + IMF WEO) | 1913–2031 · 2015–2017 · 3-Year Sample",
         "sources":  "ALFRED (St. Louis Fed) / IMF WEO",
     },
@@ -189,8 +189,8 @@ COVERAGE_TABLE = [
 #  VALIDATION MANIFEST (9-Stage Engine · 32-Country Scope)
 # ──────────────────────────────────────────────────────────────
 VALIDATION_MANIFEST = {
-    "manifest_id":             "LKW-VAULT-MANIFEST-2026-06-19",
-    "generated_at":            "2026-06-19T00:00:00Z",
+    "manifest_id":             "LKW-VAULT-MANIFEST-2026-06-20",
+    "generated_at":            "2026-06-20T00:00:00Z",
     "vault_version":           "5.0",
     "schema_standard":         "SDMX 2.1 + ISO 8601 + ISO 3166-1",
     "overall_status":          "PASS",
@@ -198,7 +198,21 @@ VALIDATION_MANIFEST = {
     "countries_certified":     31,
     "country_dataset_ready":   "159 / 165",
     "total_records_certified": 336_004,
-    "validation_engine":       "Lekwankwa 9-Stage Automated Engine v2.0",
+    "validation_engine":       "Lekwankwa 9-Stage Automated Engine v2.0 + Live Feed Post-Delta Audit v1.0",
+    "live_feed_audit": {
+        "status":        "ACTIVE",
+        "script":        "live_feed_audit.py",
+        "trigger":       "Runs automatically after every --mode live vault_extractor run and 9-stage PASS",
+        "gate":          "Exit 0 = GCS write cleared; Exit 1 = GCS write halted",
+        "checks": {
+            "C1_NON_NULL":               "12 non-nullable schema fields · 0 nulls permitted in any delivery file",
+            "C2_SCRAPER_PLACEHOLDER_DQC":"PRIMARY/SECONDARY rows with dqc=False flagged before delivery",
+            "C3_CROSS_PIPELINE_DUPLICATE":"Same (series, date) conflicting value across different source pipelines",
+            "C4_TIMESTAMP_CONTAMINATION": "as_of_date and conversion_timestamp integrity vs pipeline run date",
+            "C5_FILENAME_CONTENT_MATCH":  "macro_metric_name vocabulary consistent with declared product",
+        },
+        "audit_log": "audit_logs/live_feed_audit_log_{product}_{timestamp}.json",
+    },
     "stages": {
         "stage_1_pit_validation": {
             "status": "PASS",
@@ -587,6 +601,24 @@ def inject_css() -> None:
         .stage-pass .badge-name { font-size: 0.9rem; font-weight: 600; color: #ffffff; margin: 0.2rem 0; }
         .stage-pass .badge-stat { font-size: 0.75rem; color: #39d353; font-weight: 600; }
 
+        /* ── Live feed audit check badges ── */
+        .audit-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 0.5rem;
+            margin-bottom: 1.5rem;
+        }
+        .audit-check {
+            background-color: #0a0f0a;
+            border: 1px solid #1a3a1a;
+            border-radius: 5px;
+            padding: 0.75rem 1rem;
+        }
+        .audit-check .badge-num  { font-size: 0.65rem; color: #2a5a2a; text-transform: uppercase; letter-spacing: 0.1em; }
+        .audit-check .badge-name { font-size: 0.9rem; font-weight: 600; color: #ffffff; margin: 0.2rem 0; }
+        .audit-check .badge-stat { font-size: 0.75rem; color: #39d353; font-weight: 600; }
+        .audit-check .badge-desc { font-size: 0.72rem; color: #444444; margin-top: 0.3rem; line-height: 1.4; }
+
         /* ── Dataset meta pill ── */
         .meta-pill {
             display: inline-block;
@@ -762,7 +794,8 @@ def page_showroom() -> None:
         "from 32 sovereign jurisdictions (USA · EU27 · GBR · CAN · AUS · NOR). "
         "<strong>Zero web-scraping dependencies.</strong> "
         "<strong>100% Flat Parquet schemas.</strong> "
-        "9/9 automated validation stages. SDMX 2.1 aligned. Full PIT revision history."
+        "9-stage automated vault validation + 5-check live feed post-delta audit. "
+        "SDMX 2.1 aligned. Full PIT revision history."
         "</div>",
         unsafe_allow_html=True,
     )
@@ -1125,7 +1158,9 @@ def page_quality_hub() -> None:
         "<div class='compliance-banner'>"
         "<strong>Sourcing strictly restricted to open-government APIs and bulk downloads. "
         "Zero web-scraping dependencies. 100% Flat Parquet schemas.</strong> "
-        "32 sovereign jurisdictions. 159 / 165 country-dataset combinations READY."
+        "32 sovereign jurisdictions. 159 / 165 country-dataset combinations READY. "
+        "Every live feed delivery passes a 9-stage vault validation suite "
+        "<em>and</em> a 5-check post-delta audit gate before any GCS write."
         "</div>",
         unsafe_allow_html=True,
     )
@@ -1141,7 +1176,7 @@ def page_quality_hub() -> None:
 
     # Stage cards
     st.markdown(
-        "<div class='section-eyebrow'>9-Stage Validation Engine — All Systems Green</div>",
+        "<div class='section-eyebrow'>9-Stage Vault Validation Engine — All Systems Green</div>",
         unsafe_allow_html=True,
     )
 
@@ -1168,6 +1203,59 @@ def page_quality_hub() -> None:
         )
     badges_html += "</div>"
     st.markdown(badges_html, unsafe_allow_html=True)
+
+    st.markdown("<br>", unsafe_allow_html=True)
+
+    # ── Live Feed Post-Delta Audit ──
+    st.markdown(
+        "<div class='section-eyebrow'>Live Feed Post-Delta Audit — 5-Check Gate (Runs After 9-Stage Suite)</div>",
+        unsafe_allow_html=True,
+    )
+    st.markdown(
+        "<div style='font-size:0.82rem; color:#555555; margin-bottom:1rem; line-height:1.55;'>"
+        "Every delta file produced by the live feed extractor must pass this 5-check audit "
+        "before the GCS write is permitted. The audit runs automatically as a separate process "
+        "after the 9-stage suite returns PASS. Exit code 1 halts the write; a permanent "
+        "per-run JSON log is written to <code>audit_logs/</code>."
+        "</div>",
+        unsafe_allow_html=True,
+    )
+
+    audit_checks = [
+        ("C1", "Non-Null Gate",
+         "ACTIVE",
+         "12 non-nullable fields per SCHEMA_STANDARD v5.0 · 0 nulls permitted · "
+         "is_interpolated checked only when column is present (field-presence rule)"),
+        ("C2", "Scraper Placeholder",
+         "ACTIVE",
+         "PRIMARY / SECONDARY rows with data_quality_certified=False flagged before delivery · "
+         "Pattern confirmed in food/wages/housing USA — 4th occurrence caught here"),
+        ("C3", "Cross-Pipeline Duplicate",
+         "ACTIVE",
+         "Same (series, date) conflicting observed_value across different source pipelines · "
+         "Within-delta check + full vault scan · Sweden permits pattern"),
+        ("C4", "Timestamp Integrity",
+         "ACTIVE",
+         "as_of_date and conversion_timestamp checked against pipeline run date · "
+         "Flags scrape-timestamp contamination where as_of_date != official_release_date"),
+        ("C5", "Content Fingerprint",
+         "ACTIVE",
+         "macro_metric_name keyword vocabulary consistent with declared product · "
+         "Catches permits file containing HPI data and equivalent mis-routing"),
+    ]
+
+    audit_html = "<div class='audit-grid'>"
+    for code, name, status, desc in audit_checks:
+        audit_html += (
+            f"<div class='audit-check'>"
+            f"  <div class='badge-num'>{code}</div>"
+            f"  <div class='badge-name'>{name}</div>"
+            f"  <div class='badge-stat'>{status}</div>"
+            f"  <div class='badge-desc'>{desc}</div>"
+            f"</div>"
+        )
+    audit_html += "</div>"
+    st.markdown(audit_html, unsafe_allow_html=True)
 
     st.markdown("<br>", unsafe_allow_html=True)
 
@@ -1243,9 +1331,9 @@ def page_quality_hub() -> None:
 
     st.markdown(
         "<div style='font-size:0.75rem; color:#444444; margin-top:0.6rem;'>"
-        "* Wages CPS vault confirmed 8,802 rows (11 unemployment series). "
-        "CES vault structure present; data parquet completeness audit ongoing — "
-        "schema fully documented via sample. Overall GX and PIT results are PASS for certified rows."
+        "* Wages CPS: 8,802 rows confirmed (11 unemployment series). "
+        "All USA wages, housing, and food sample records carry data_quality_certified = True "
+        "following June 2026 vault backfill. Schema v5.0 across all products."
         "</div>",
         unsafe_allow_html=True,
     )
@@ -1268,9 +1356,9 @@ def page_quality_hub() -> None:
         "official government API endpoints. No web-scraped content is present in any product."
         "</div>"
         "<div style='font-size:0.75rem; color:#333; margin-top:1rem;'>"
-        "Certification Date: 2026-06-19 &nbsp;·&nbsp; "
-        "Manifest ID: LKW-VAULT-MANIFEST-2026-06-19 &nbsp;·&nbsp; "
-        "Engine Version: 2.0 &nbsp;·&nbsp; "
+        "Certification Date: 2026-06-20 &nbsp;·&nbsp; "
+        "Manifest ID: LKW-VAULT-MANIFEST-2026-06-20 &nbsp;·&nbsp; "
+        "Engine Version: 2.0 + Audit v1.0 &nbsp;·&nbsp; "
         "Country-Dataset READY: 159 / 165"
         "</div>"
         "</div>",

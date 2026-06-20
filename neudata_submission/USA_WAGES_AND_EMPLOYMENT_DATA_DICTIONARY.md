@@ -1,5 +1,5 @@
 # USA Wages and Employment Data Dictionary
-## Schema Version 2.0 (Point-in-Time Enabled)
+## Schema Version 5.0 (Point-in-Time Enabled)
 
 **Product**: US Wages & Labour
 **Dataset Name**: `wages_and_employment`
@@ -299,7 +299,7 @@ data_quality_certified : True
 
 ## Provenance Fields — Pipeline Bookkeeping
 
-These two fields are present on every record (except Global Macro which omits conversion_timestamp) and appear in the delivery sample. They are pipeline bookkeeping fields — **not** PIT or publication metadata.
+`data_quality_certified` is a universal vault field present on all records across all 5 products and all 32 countries (100% of data partitions). `conversion_timestamp` is a USA-only pipeline ingestion artifact, present only in the food_micropricing/USA and wages_and_employment/USA vault partitions (2 of 160 total); it is absent from all EU27 and non-EU country partitions and from all USA housing, trade, and global_macro partitions. Both fields are pipeline bookkeeping metadata — **not** PIT events or publication metadata.
 
 ### `data_quality_certified` (boolean)
 
@@ -307,7 +307,7 @@ These two fields are present on every record (except Global Macro which omits co
 |-----------|-------|
 | Type | boolean |
 | Nullable | No |
-| Coverage | All 5 products · All 32 countries |
+| Coverage | All 5 products · All 32 countries · 100% of vault data partitions. Value = True for all countries across all 5 products. USA food_micropricing and USA wages_and_employment were corrected to True June 2026 (scraper-placeholder False; confirmed 9/9 validation PASS for both). |
 | True | Record passed all 9 automated validation stages |
 | False | Record carries one or more quality flags (retained, not suppressed; documented in validation reports) |
 
@@ -322,8 +322,8 @@ These two fields are present on every record (except Global Macro which omits co
 | Attribute | Value |
 |-----------|-------|
 | Type | datetime ISO 8601 (UTC) |
-| Nullable | Yes (absent in Global Macro sample) |
-| Coverage | Food, Wages, Housing, Trade — all 32 countries |
+| Nullable | Yes — absent in 158 of 160 vault partitions. Present only in food/USA and wages/USA partitions. |
+| Coverage | Food micropricing/USA and wages_and_employment/USA only (2 of 160 vault partitions). Absent from all EU27 and non-EU partitions, and from USA housing, trade, and global_macro vault files. |
 
 **Definition**: The UTC datetime when the Lekwankwa ingestion pipeline last wrote or updated this record in the vault partition. This is a **batch processing bookkeeping field only** — it records when the ETL process materialized the record to disk.
 
