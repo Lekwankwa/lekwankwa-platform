@@ -1,42 +1,41 @@
 """
 Release Calendar Extractor -- Lekwankwa Corporation
 
-Builds the master release calendar covering official upcoming release
-dates for every series across the validated 32-country catalog, then
-splits it into per-dataset and per-country exports for delivery.
+Produces a SINGLE master release calendar file covering all 5 products,
+all source agencies, and all country groups. Structured by product, with
+per-source-group next-release entries and full product version metadata
+drawn from the 2026 Product Catalog v2.
 
-CATALOG SCOPE (must match catalog_manifest.yaml exactly):
-  Countries: USA + EU27 (27 states) + GBR + CAN + AUS + NOR = 32 countries
-  CHE (Switzerland) is excluded -- BLOCKED, FSO Swiss Stats Explorer
-  returning HTTP 503, PENDING_INGESTION. Do not reference CHE anywhere
-  in output.
+Output: release_calendar_master.json (one file, written to --vault-root)
 
-  Datasets -- Archive + Live Feed eligible (3):
-    food_micropricing
-    wages_and_employment
-    trade_flows
+Schema:
+  {
+    "generated_at": "...",
+    "catalog_version": "2026_v2",
+    "schema_standard": "v5.0",
+    "products": {
+      "food_micropricing": {
+        "version": "v5.0",
+        "delivery_type": "archive_and_live_feed",
+        "sources": [ { "country_group": ..., "source_agency": ...,
+                       "series": [...], "pit_coverage_type": ...,
+                       "frequency": ..., "next_release_date": ... } ]
+      },
+      ...
+    }
+  }
 
-  Datasets -- Archive ONLY (2) -- mixed monthly/quarterly frequency:
-    Housing_Supply_and_Shelter_Inflation
-    global_macro
+CATALOG SCOPE:
+  32 countries: USA + EU27 (27) + GBR + CAN + AUS + NOR
+  CHE -- BLOCKED, FSO returning HTTP 503, omitted throughout
+  NOR housing -- PENDING_INGESTION, no confirmed SSB residential property table
 
-  NOR housing is PENDING (no confirmed SSB residential property table)
-  -- excluded from housing calendar entries for NOR specifically.
-
-OUTPUT -- all files written to vault root, NOT inside product= folders:
-  release_calendar_master.json
-  release_calendar_{dataset}.json   (5 files)
-  release_calendar_{dataset}.csv    (5 files)
-  release_calendar_{dataset}_{iso3}.json  (per country, per dataset)
-  release_calendar_{dataset}_{iso3}.csv
-
-Run modes:
+Run:
   python tools/release_calendar_extractor.py --vault-root /path/to/vault
   python tools/release_calendar_extractor.py --vault-root /path/to/vault --dry-run
 """
 
 import argparse
-import csv
 import json
 import logging
 import sys
@@ -54,352 +53,685 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+
 # -------------------------------------------------------------------------
-# CATALOG SCOPE -- must mirror catalog_manifest.yaml
+# PRODUCT CATALOG METADATA  (mirrors Lekwankwa_Product_Catalog_2026_v2)
 # -------------------------------------------------------------------------
+
+CATALOG_VERSION = "2026_v2"
+SCHEMA_STANDARD = "v5.0"
+
+# Ready status per (product_key, country_group) -- from catalog Table 1
+READY_STATUS: dict[tuple[str, str], str] = {
+    ("food_micropricing",                  "USA"):            "READY",
+    ("food_micropricing",                  "EU27"):           "READY",
+    ("food_micropricing",                  "GBR"):            "READY",
+    ("food_micropricing",                  "CAN"):            "READY",
+    ("food_micropricing",                  "AUS"):            "READY",
+    ("food_micropricing",                  "NOR"):            "READY",
+    ("wages_and_employment",               "USA"):            "READY",
+    ("wages_and_employment",               "EU27"):           "READY",
+    ("wages_and_employment",               "GBR"):            "READY",
+    ("wages_and_employment",               "CAN"):            "READY",
+    ("wages_and_employment",               "AUS"):            "READY",
+    ("wages_and_employment",               "NOR"):            "READY",
+    ("Housing_Supply_and_Shelter_Inflation","USA"):           "READY",
+    ("Housing_Supply_and_Shelter_Inflation","EU27"):          "READY",
+    ("Housing_Supply_and_Shelter_Inflation","GBR"):           "READY",
+    ("Housing_Supply_and_Shelter_Inflation","CAN"):           "READY",
+    ("Housing_Supply_and_Shelter_Inflation","AUS"):           "READY",
+    ("Housing_Supply_and_Shelter_Inflation","NOR"):           "PENDING_INGESTION",
+    ("trade_flows",                        "USA"):            "READY",
+    ("trade_flows",                        "EU27"):           "READY",
+    ("trade_flows",                        "GBR"):            "READY",
+    ("trade_flows",                        "CAN"):            "READY",
+    ("trade_flows",                        "AUS"):            "READY",
+    ("trade_flows",                        "NOR"):            "READY",
+    ("global_macro",                       "USA"):            "READY",
+    ("global_macro",                       "EU27"):           "READY",
+    ("global_macro",                       "GBR"):            "READY",
+    ("global_macro",                       "CAN"):            "READY",
+    ("global_macro",                       "AUS"):            "READY",
+    ("global_macro",                       "NOR"):            "READY",
+}
 
 EU27 = [
-    "AUT", "BEL", "BGR", "HRV", "CYP", "CZE", "DNK", "EST", "FIN", "FRA",
-    "DEU", "GRC", "HUN", "IRL", "ITA", "LVA", "LTU", "LUX", "MLT", "NLD",
-    "POL", "PRT", "ROU", "SVK", "SVN", "ESP", "SWE",
-]
-NON_EU = ["GBR", "CAN", "AUS", "NOR"]
-ALL_COUNTRIES = ["USA"] + EU27 + NON_EU  # 32 total -- CHE intentionally absent
-
-DATASETS = [
-    "food_micropricing",
-    "wages_and_employment",
-    "Housing_Supply_and_Shelter_Inflation",
-    "trade_flows",
-    "global_macro",
+    "AUT","BEL","BGR","HRV","CYP","CZE","DNK","EST","FIN","FRA",
+    "DEU","GRC","HUN","IRL","ITA","LVA","LTU","LUX","MLT","NLD",
+    "POL","PRT","ROU","SVK","SVN","ESP","SWE",
 ]
 
-LIVE_FEED_ELIGIBLE = {"food_micropricing", "wages_and_employment", "trade_flows"}
-ARCHIVE_ONLY = {"Housing_Supply_and_Shelter_Inflation", "global_macro"}
+PRODUCTS: dict[str, dict[str, Any]] = {
+    "food_micropricing": {
+        "catalog_name":    "Lekwankwa Food & Micropricing Archive",
+        "version":         "v5.0",
+        "delivery_type":   "archive_and_live_feed",
+        "live_feed":       True,
+        "frequency":       "Monthly",
+        "vault_records":   "137,336+ validated records (32 countries)",
+        "key_metrics": [
+            "global_coicop_code (UN COICOP Level 4)",
+            "observed_price_local (local currency as published)",
+            "price_usd_equivalent (IMF SDR fx converted)",
+            "unit_quantity_standardized (kg equivalents)",
+        ],
+        "sources": [
+            {
+                "country_group":    "USA",
+                "countries":        ["USA"],
+                "source_agency":    "BLS",
+                "source_detail":    "BLS CPI-U (CUUR/APU series) via ALFRED",
+                "pit_coverage_type":"FULL_VINTAGE",
+                "series":          ["CUUR0000SAF1 (Food at home)", "APU series (item-level)"],
+                "frequency":        "Monthly",
+            },
+            {
+                "country_group":    "EU27",
+                "countries":        EU27,
+                "source_agency":    "EUROSTAT",
+                "source_detail":    "Eurostat HICP (prc_hicp_midx, CP01 basket)",
+                "pit_coverage_type":"RELEASE_DATE_ONLY/structural_ceiling",
+                "series":          ["prc_hicp_midx -- CP01 Food and non-alcoholic beverages"],
+                "frequency":        "Monthly",
+            },
+            {
+                "country_group":    "GBR",
+                "countries":        ["GBR"],
+                "source_agency":    "ONS",
+                "source_detail":    "ONS CPI (CDID codes via api.beta.ons.gov.uk)",
+                "pit_coverage_type":"RELEASE_DATE_ONLY/accumulating",
+                "series":          ["CDID CPI Food series"],
+                "frequency":        "Monthly",
+            },
+            {
+                "country_group":    "CAN",
+                "countries":        ["CAN"],
+                "source_agency":    "STATCAN",
+                "source_detail":    "StatCan CPI (NDM CSV, vector-filtered)",
+                "pit_coverage_type":"RELEASE_DATE_ONLY/accumulating",
+                "series":          ["StatCan CPI Food vector"],
+                "frequency":        "Monthly",
+            },
+            {
+                "country_group":    "AUS",
+                "countries":        ["AUS"],
+                "source_agency":    "ABS",
+                "source_detail":    "ABS CPI (SDMX api.data.abs.gov.au)",
+                "pit_coverage_type":"RELEASE_DATE_ONLY/structural_ceiling",
+                "series":          ["ABS CPI Food sub-index"],
+                "frequency":        "Quarterly",
+            },
+            {
+                "country_group":    "NOR",
+                "countries":        ["NOR"],
+                "source_agency":    "SSB",
+                "source_detail":    "SSB Consumer Price Index (PX-Web Table)",
+                "pit_coverage_type":"RELEASE_DATE_ONLY/accumulating",
+                "series":          ["SSB CPI Food basket"],
+                "frequency":        "Monthly",
+            },
+        ],
+    },
 
-# Known coverage exceptions per catalog_manifest.yaml
-COVERAGE_EXCEPTIONS = {
-    ("Housing_Supply_and_Shelter_Inflation", "NOR"): "PENDING_INGESTION -- no confirmed SSB residential property table",
+    "wages_and_employment": {
+        "catalog_name":    "Lekwankwa Wages & Labor Archive",
+        "version":         "v5.0",
+        "delivery_type":   "archive_and_live_feed",
+        "live_feed":       True,
+        "frequency":       "Monthly",
+        "vault_records":   "Multi-source: CES + CPS (USA) + LFS (EU27 + non-EU)",
+        "key_metrics": [
+            "TOTAL_NONFARM_PAYROLLS (unit: THOUSANDS)",
+            "AVG_HOURLY_EARNINGS_PRIVATE (USD/hr -- USA/GBR only)",
+            "UNEMPLOYMENT_RATE_U3 (headline SA rate)",
+            "UNEMPLOYMENT_RATE_U6 (broad unemployment)",
+            "LABOR_FORCE_PARTICIPATION_RATE",
+        ],
+        "notes": "CAN/AUS/NOR use employment count as wage proxy -- no wage level series ingested",
+        "sources": [
+            {
+                "country_group":    "USA",
+                "countries":        ["USA"],
+                "source_agency":    "BLS",
+                "source_detail":    "BLS CES (CES* series) + BLS CPS (LNS* series) via ALFRED",
+                "pit_coverage_type":"FULL_VINTAGE",
+                "series":          [
+                    "CES0000000001 (Total Nonfarm Payrolls)",
+                    "CES0500000003 (Avg Hourly Earnings Private)",
+                    "LNS14000000 (Unemployment Rate U-3)",
+                    "LNS13327709 (Unemployment Rate U-6)",
+                    "LNS11300000 (Labor Force Participation Rate)",
+                ],
+                "frequency":        "Monthly",
+            },
+            {
+                "country_group":    "EU27",
+                "countries":        EU27,
+                "source_agency":    "EUROSTAT",
+                "source_detail":    "Eurostat LFS (lfsa series) + une_rt_m (unemployment)",
+                "pit_coverage_type":"RELEASE_DATE_ONLY/structural_ceiling",
+                "series":          ["lfsa_ergaed (employment)", "une_rt_m (unemployment rate)"],
+                "frequency":        "Monthly",
+            },
+            {
+                "country_group":    "GBR",
+                "countries":        ["GBR"],
+                "source_agency":    "ONS",
+                "source_detail":    "ONS LFS (AWE genuine wage data, CDID codes)",
+                "pit_coverage_type":"RELEASE_DATE_ONLY/accumulating",
+                "series":          ["ONS AWE (Average Weekly Earnings)", "ONS LFS unemployment"],
+                "frequency":        "Monthly",
+            },
+            {
+                "country_group":    "CAN",
+                "countries":        ["CAN"],
+                "source_agency":    "STATCAN",
+                "source_detail":    "StatCan LFS (employment count proxy -- no wage level series)",
+                "pit_coverage_type":"RELEASE_DATE_ONLY/accumulating",
+                "series":          ["StatCan LFS employment count"],
+                "frequency":        "Monthly",
+            },
+            {
+                "country_group":    "AUS",
+                "countries":        ["AUS"],
+                "source_agency":    "ABS",
+                "source_detail":    "ABS LFS (employment proxy)",
+                "pit_coverage_type":"RELEASE_DATE_ONLY/structural_ceiling",
+                "series":          ["ABS Labour Force Survey employment"],
+                "frequency":        "Monthly",
+            },
+            {
+                "country_group":    "NOR",
+                "countries":        ["NOR"],
+                "source_agency":    "SSB",
+                "source_detail":    "SSB LFS Table 07458 (quarterly 1997-2024)",
+                "pit_coverage_type":"RELEASE_DATE_ONLY/accumulating",
+                "series":          ["SSB Table 07458 (LFS)"],
+                "frequency":        "Quarterly",
+            },
+        ],
+    },
+
+    "Housing_Supply_and_Shelter_Inflation": {
+        "catalog_name":    "Lekwankwa Housing & Credit Archive",
+        "version":         "v5.0",
+        "delivery_type":   "archive_only",
+        "live_feed":       False,
+        "frequency":       "Monthly/Quarterly (mixed)",
+        "vault_records":   "Multi-layer: permits + HPI + CPI shelter",
+        "key_metrics": [
+            "AUTHORIZED_PERMITS_TOTAL_UNITS (unit: UNITS_SAAR)",
+            "CPI_RENT_OF_PRIMARY_RESIDENCE (INDEX -- BLS CUUR0000SEHA / Eurostat HICP CP041)",
+            "HOUSE_PRICE_INDEX_PURCHASE_ONLY (INDEX_2015_100, quarterly all markets)",
+        ],
+        "notes": "Archive only -- mixed monthly/quarterly frequency. NOR housing PENDING (no confirmed SSB residential property table).",
+        "sources": [
+            {
+                "country_group":    "USA",
+                "countries":        ["USA"],
+                "source_agency":    "CENSUS / BLS / FHFA",
+                "source_detail":    "Census BPS (PERMIT series via ALFRED) + BLS CPI Shelter (CUUR/CUSR) + FHFA HPI",
+                "pit_coverage_type":"FULL_VINTAGE",
+                "series":          [
+                    "PERMIT (New Private Housing Units Authorized)",
+                    "CUUR0000SEHA (CPI Rent of Primary Residence)",
+                    "FHFA HPI (Purchase Only, Quarterly)",
+                ],
+                "frequency":        "Monthly + Quarterly",
+            },
+            {
+                "country_group":    "EU27",
+                "countries":        EU27,
+                "source_agency":    "EUROSTAT",
+                "source_detail":    "Eurostat sts_cobp_m (permits) + prc_hpi_q (HPI quarterly) + HICP CP041 (rent)",
+                "pit_coverage_type":"RELEASE_DATE_ONLY/structural_ceiling",
+                "series":          [
+                    "sts_cobp_m (building permits monthly)",
+                    "prc_hpi_q (House Price Index quarterly)",
+                    "prc_hicp_midx CP041 (actual rentals for housing)",
+                ],
+                "frequency":        "Monthly + Quarterly",
+            },
+            {
+                "country_group":    "GBR",
+                "countries":        ["GBR"],
+                "source_agency":    "ONS",
+                "source_detail":    "ONS HPI + ONS Building Statistics",
+                "pit_coverage_type":"RELEASE_DATE_ONLY/accumulating",
+                "series":          ["ONS UK HPI", "ONS Building Statistics permits"],
+                "frequency":        "Monthly + Quarterly",
+            },
+            {
+                "country_group":    "CAN",
+                "countries":        ["CAN"],
+                "source_agency":    "STATCAN / CMHC",
+                "source_detail":    "StatCan + CMHC Housing Starts",
+                "pit_coverage_type":"RELEASE_DATE_ONLY/accumulating",
+                "series":          ["CMHC Housing Starts", "StatCan New Housing Price Index"],
+                "frequency":        "Monthly",
+            },
+            {
+                "country_group":    "AUS",
+                "countries":        ["AUS"],
+                "source_agency":    "ABS",
+                "source_detail":    "ABS RPPI (series_key_filter 0:0:8:0 -- confirmed after dataflow fix)",
+                "pit_coverage_type":"RELEASE_DATE_ONLY/structural_ceiling",
+                "series":          ["ABS RPPI (Residential Property Price Index)"],
+                "frequency":        "Quarterly",
+            },
+            {
+                "country_group":    "NOR",
+                "countries":        ["NOR"],
+                "source_agency":    "SSB",
+                "source_detail":    "PENDING -- no confirmed SSB residential property table",
+                "pit_coverage_type":"PENDING_INGESTION",
+                "series":          [],
+                "frequency":        "N/A",
+                "status":           "PENDING_INGESTION",
+            },
+        ],
+    },
+
+    "trade_flows": {
+        "catalog_name":    "Lekwankwa Trade Flows Archive (HS-Code Level)",
+        "version":         "v5.0",
+        "delivery_type":   "archive_and_live_feed",
+        "live_feed":       True,
+        "frequency":       "Monthly",
+        "vault_records":   "~43,020+ USA vault; HS2-chapter level across all 32 markets",
+        "key_metrics": [
+            "EXPORTS_FOB_{COMMODITY} (USD_MILLIONS, HS2-chapter)",
+            "IMPORTS_CIF_{COMMODITY} (USD_MILLIONS, HS2-chapter)",
+            "TRADE_BALANCE_GOODS (aggregate goods balance)",
+        ],
+        "notes": "GBR and AUS carry 90-day publication lag -- signals structurally 2 months behind USA/EU27",
+        "sources": [
+            {
+                "country_group":    "USA",
+                "countries":        ["USA"],
+                "source_agency":    "CENSUS / BEA",
+                "source_detail":    "Census FTD (HS-code level, FT-900 + full HS2 chapter series 2010+) via ALFRED",
+                "pit_coverage_type":"FULL_VINTAGE",
+                "series":          [
+                    "FT-900 HS2 Export chapters (96 series)",
+                    "FT-900 HS2 Import chapters (97 series)",
+                    "BOPGSTB (Trade Balance Goods & Services, ALFRED)",
+                ],
+                "frequency":        "Monthly",
+            },
+            {
+                "country_group":    "EU27",
+                "countries":        EU27,
+                "source_agency":    "EUROSTAT",
+                "source_detail":    "Eurostat COMEXT (full HS-code trade database)",
+                "pit_coverage_type":"RELEASE_DATE_ONLY/structural_ceiling",
+                "series":          ["DS-018995 (COMEXT extra-EU trade by HS chapter)"],
+                "frequency":        "Monthly",
+            },
+            {
+                "country_group":    "GBR",
+                "countries":        ["GBR"],
+                "source_agency":    "HMRC",
+                "source_detail":    "HMRC Overseas Trade Statistics",
+                "pit_coverage_type":"RELEASE_DATE_ONLY/accumulating",
+                "series":          ["HMRC OTS HS2-chapter exports and imports"],
+                "frequency":        "Monthly",
+                "publication_lag":  "~90 days",
+            },
+            {
+                "country_group":    "CAN",
+                "countries":        ["CAN"],
+                "source_agency":    "STATCAN",
+                "source_detail":    "StatCan International Trade (NDM CSV)",
+                "pit_coverage_type":"RELEASE_DATE_ONLY/accumulating",
+                "series":          ["StatCan International Merchandise Trade"],
+                "frequency":        "Monthly",
+            },
+            {
+                "country_group":    "AUS",
+                "countries":        ["AUS"],
+                "source_agency":    "ABS",
+                "source_detail":    "ABS International Trade (SDMX) -- 90-day publication lag confirmed",
+                "pit_coverage_type":"RELEASE_DATE_ONLY/structural_ceiling",
+                "series":          ["ABS International Trade in Goods and Services"],
+                "frequency":        "Monthly",
+                "publication_lag":  "~90 days",
+            },
+            {
+                "country_group":    "NOR",
+                "countries":        ["NOR"],
+                "source_agency":    "SSB",
+                "source_detail":    "SSB Table 12308 (monthly merchandise trade, stride-based PubliseringMnd dedup)",
+                "pit_coverage_type":"RELEASE_DATE_ONLY/accumulating",
+                "series":          ["SSB Table 12308 (merchandise trade)"],
+                "frequency":        "Monthly",
+            },
+        ],
+    },
+
+    "global_macro": {
+        "catalog_name":    "Lekwankwa Global Macro Baseline Archive",
+        "version":         "v5.0",
+        "delivery_type":   "archive_only",
+        "live_feed":       False,
+        "frequency":       "Monthly/Quarterly (mixed)",
+        "vault_records":   "81,735 validated records (USA: ALFRED + IMF WEO)",
+        "key_metrics": [
+            "GDP_GROWTH_QOQ (Quarterly SA, PERCENTAGE)",
+            "GDP_GROWTH_YOY (Annual growth rate, PERCENTAGE)",
+            "CPI_HEADLINE_YOY (Headline CPI inflation, PERCENTAGE)",
+            "CPI_CORE_YOY (Core ex-food-and-energy, PERCENTAGE)",
+            "INDUSTRIAL_PRODUCTION_MOM (Month-on-month SA, PERCENTAGE)",
+        ],
+        "notes": "Archive only -- GDP is natively quarterly across all 32 markets. USA via ALFRED delivers full multi-decade revision history including advance, second, and third estimate vintages.",
+        "sources": [
+            {
+                "country_group":    "USA",
+                "countries":        ["USA"],
+                "source_agency":    "BEA / FEDERAL RESERVE / BLS / IMF",
+                "source_detail":    "BEA (GDP/PCE) + Federal Reserve (INDPRO) + BLS (CPI) via ALFRED back to 1913; IMF WEO bi-annual",
+                "pit_coverage_type":"FULL_VINTAGE",
+                "series":          [
+                    "GDPC1 (Real GDP, ALFRED)",
+                    "CPIAUCSL (CPI All Urban, ALFRED)",
+                    "UNRATE (Unemployment Rate, ALFRED)",
+                    "PAYEMS (Nonfarm Payrolls, ALFRED)",
+                    "FEDFUNDS (Federal Funds Rate, ALFRED)",
+                    "INDPRO (Industrial Production, ALFRED)",
+                    "IMF WEO -- 8 indicators (NGDP_RPCH, LUR, PCPIPCH, etc.)",
+                ],
+                "frequency":        "Monthly + Quarterly + Bi-annual (IMF)",
+            },
+            {
+                "country_group":    "EU27",
+                "countries":        EU27,
+                "source_agency":    "EUROSTAT",
+                "source_detail":    "Eurostat National Accounts (nama_10) + Flash Estimates",
+                "pit_coverage_type":"RELEASE_DATE_ONLY/structural_ceiling",
+                "series":          [
+                    "nama_10_gdp (GDP main aggregates)",
+                    "Flash GDP estimates (t+30 days)",
+                ],
+                "frequency":        "Quarterly",
+            },
+            {
+                "country_group":    "GBR",
+                "countries":        ["GBR"],
+                "source_agency":    "ONS",
+                "source_detail":    "ONS GDP (monthly and quarterly)",
+                "pit_coverage_type":"RELEASE_DATE_ONLY/accumulating",
+                "series":          ["ONS GDP monthly estimate", "ONS Quarterly National Accounts"],
+                "frequency":        "Monthly + Quarterly",
+            },
+            {
+                "country_group":    "CAN",
+                "countries":        ["CAN"],
+                "source_agency":    "STATCAN",
+                "source_detail":    "StatCan National Accounts (NDM CSV) -- back to 1914",
+                "pit_coverage_type":"RELEASE_DATE_ONLY/accumulating",
+                "series":          ["StatCan GDP by industry", "StatCan National Accounts"],
+                "frequency":        "Monthly + Quarterly",
+            },
+            {
+                "country_group":    "AUS",
+                "countries":        ["AUS"],
+                "source_agency":    "ABS",
+                "source_detail":    "ABS National Accounts (SDMX ANA_AGG)",
+                "pit_coverage_type":"RELEASE_DATE_ONLY/structural_ceiling",
+                "series":          ["ABS ANA_AGG (National Accounts Aggregates)"],
+                "frequency":        "Quarterly",
+            },
+            {
+                "country_group":    "NOR",
+                "countries":        ["NOR"],
+                "source_agency":    "SSB",
+                "source_detail":    "SSB National Accounts Table 09190 (quarterly back to 1978)",
+                "pit_coverage_type":"RELEASE_DATE_ONLY/accumulating",
+                "series":          ["SSB Table 09190 (National Accounts)"],
+                "frequency":        "Quarterly",
+            },
+        ],
+    },
 }
 
 
 # -------------------------------------------------------------------------
 # SOURCE FETCHERS
-# Each returns a list of entry dicts. Each fetcher is isolated -- a failure
-# in one source must not halt extraction for any other source.
+# Each returns next_release_date (ISO string or None) for a given
+# product_key + country_group. Failures are silenced -- live dates are
+# best-effort; static metadata is always present.
 # -------------------------------------------------------------------------
 
-def fetch_bls(dry_run: bool = False) -> list[dict[str, Any]]:
-    """BLS -- CPI (food, housing shelter), Employment Situation (wages)."""
-    entries = []
+def _fetch_bls_next(product_key: str) -> str | None:
     try:
-        if dry_run:
-            logger.info("[BLS] dry-run -- skipping live scrape")
-            return entries
         import requests
         from bs4 import BeautifulSoup
-
-        url = "https://www.bls.gov/schedule/news_release/"
-        resp = requests.get(url, timeout=20, headers={"User-Agent": "Mozilla/5.0"})
+        resp = requests.get(
+            "https://www.bls.gov/schedule/news_release/",
+            timeout=20, headers={"User-Agent": "Mozilla/5.0"},
+        )
         resp.raise_for_status()
         soup = BeautifulSoup(resp.text, "html.parser")
-
-        rows = soup.select("table tr")
-        relevant_keywords = {
-            "Consumer Price Index": ("food_micropricing", "CPI_FOOD"),
-            "Employment Situation": ("wages_and_employment", "EMPLOYMENT_SITUATION"),
-        }
-        for row in rows:
+        target = {
+            "food_micropricing":    "Consumer Price Index",
+            "wages_and_employment": "Employment Situation",
+            "global_macro":         "Consumer Price Index",
+        }.get(product_key)
+        if not target:
+            return None
+        for row in soup.select("table tr"):
             text = row.get_text(" ", strip=True)
-            for keyword, (dataset, concept) in relevant_keywords.items():
-                if keyword in text:
-                    entries.append({
-                        "iso_alpha3": "USA",
-                        "dataset": dataset,
-                        "source_agency": "BLS",
-                        "series_concept": concept,
-                        "next_release_date": None,
-                        "release_frequency": "Monthly",
-                        "source_url": url,
-                        "raw_text": text[:200],
-                    })
-        logger.info(f"[BLS] {len(entries)} entries found")
+            if target in text:
+                for cell in row.find_all(["td", "th"]):
+                    t = cell.get_text(strip=True)
+                    if any(m in t for m in ["January","February","March","April","May","June",
+                                            "July","August","September","October","November","December"]):
+                        return t
+        return None
     except Exception as exc:
-        logger.warning(f"[BLS] fetch failed: {exc}")
-    return entries
+        logger.debug(f"[BLS] {product_key}: {exc}")
+        return None
 
 
-def fetch_census(dry_run: bool = False) -> list[dict[str, Any]]:
-    """Census Bureau -- Building Permits, International Trade."""
-    entries = []
+def _fetch_census_next(product_key: str) -> str | None:
     try:
-        if dry_run:
-            logger.info("[Census] dry-run -- skipping live scrape")
-            return entries
         import requests
         from bs4 import BeautifulSoup
-
-        url = "https://www.census.gov/economic-indicators/"
-        resp = requests.get(url, timeout=20, headers={"User-Agent": "Mozilla/5.0"})
+        resp = requests.get(
+            "https://www.census.gov/economic-indicators/",
+            timeout=20, headers={"User-Agent": "Mozilla/5.0"},
+        )
         resp.raise_for_status()
         soup = BeautifulSoup(resp.text, "html.parser")
-
-        relevant_keywords = {
-            "New Residential Construction": ("Housing_Supply_and_Shelter_Inflation", "AUTHORIZED_PERMITS_TOTAL_UNITS"),
-            "U.S. International Trade in Goods": ("trade_flows", "TRADE_BALANCE_GOODS"),
-        }
-        rows = soup.select("table tr") or soup.select("li")
-        for row in rows:
-            text = row.get_text(" ", strip=True)
-            for keyword, (dataset, concept) in relevant_keywords.items():
-                if keyword in text:
-                    entries.append({
-                        "iso_alpha3": "USA",
-                        "dataset": dataset,
-                        "source_agency": "CENSUS",
-                        "series_concept": concept,
-                        "next_release_date": None,
-                        "release_frequency": "Monthly",
-                        "source_url": url,
-                        "raw_text": text[:200],
-                    })
-        logger.info(f"[Census] {len(entries)} entries found")
+        target = {
+            "Housing_Supply_and_Shelter_Inflation": "New Residential Construction",
+            "trade_flows": "U.S. International Trade",
+        }.get(product_key)
+        if not target:
+            return None
+        for row in soup.select("table tr"):
+            if target in row.get_text():
+                cells = row.find_all("td")
+                if len(cells) >= 2:
+                    return cells[-1].get_text(strip=True) or None
+        return None
     except Exception as exc:
-        logger.warning(f"[Census] fetch failed: {exc}")
-    return entries
+        logger.debug(f"[Census] {product_key}: {exc}")
+        return None
 
 
-def fetch_bea(dry_run: bool = False) -> list[dict[str, Any]]:
-    """BEA -- GDP advance / second / third estimate, PCE."""
-    entries = []
+def _fetch_bea_next() -> str | None:
     try:
-        if dry_run:
-            logger.info("[BEA] dry-run -- skipping live scrape")
-            return entries
         import requests
         from bs4 import BeautifulSoup
-
-        url = "https://www.bea.gov/news/schedule"
-        resp = requests.get(url, timeout=20, headers={"User-Agent": "Mozilla/5.0"})
+        resp = requests.get(
+            "https://www.bea.gov/news/schedule",
+            timeout=20, headers={"User-Agent": "Mozilla/5.0"},
+        )
         resp.raise_for_status()
         soup = BeautifulSoup(resp.text, "html.parser")
-
-        rows = soup.select("table tr")
-        for row in rows:
-            text = row.get_text(" ", strip=True)
-            if "Gross Domestic Product" in text or "Personal Income" in text:
-                entries.append({
-                    "iso_alpha3": "USA",
-                    "dataset": "global_macro",
-                    "source_agency": "BEA",
-                    "series_concept": "GDP_GROWTH_QOQ" if "Gross Domestic Product" in text else "PCE",
-                    "next_release_date": None,
-                    "release_frequency": "Quarterly",
-                    "source_url": url,
-                    "raw_text": text[:200],
-                })
-        logger.info(f"[BEA] {len(entries)} entries found")
+        for row in soup.select("table tr"):
+            if "Gross Domestic Product" in row.get_text():
+                cells = row.find_all("td")
+                if cells:
+                    return cells[0].get_text(strip=True) or None
+        return None
     except Exception as exc:
-        logger.warning(f"[BEA] fetch failed: {exc}")
-    return entries
+        logger.debug(f"[BEA]: {exc}")
+        return None
 
 
-def fetch_eurostat(dry_run: bool = False) -> list[dict[str, Any]]:
-    """Eurostat -- HICP (food, housing rent), LFS (wages), HPI (housing),
-    COMEXT (trade), national accounts (macro). Covers all 27 EU states
-    via a single dataflow query per concept."""
-    entries = []
-    dataflows = {
-        "prc_hicp_midx": ("food_micropricing", "HICP_FOOD_CP01"),
-        "lfsa_ergaed":   ("wages_and_employment", "EU_UNEMPLOYMENT_RATE"),
-        "prc_hpi_q":     ("Housing_Supply_and_Shelter_Inflation", "HPI_TOTAL_Q"),
-        "DS-018995":     ("trade_flows", "EU_TRADE_BALANCE"),
-        "nama_10_gdp":   ("global_macro", "EU_GDP_GROWTH_QOQ"),
-    }
+def _fetch_eurostat_next(dataflow: str) -> str | None:
     try:
-        if dry_run:
-            logger.info("[Eurostat] dry-run -- skipping live scrape")
-            return entries
         import requests
-
-        for dataflow, (dataset, concept) in dataflows.items():
-            try:
-                url = f"https://ec.europa.eu/eurostat/api/dissemination/catalogue/toc/txt?dataflow={dataflow}"
-                requests.get(url, timeout=20)
-                freq = "Quarterly" if dataset in ARCHIVE_ONLY else "Monthly"
-                for iso3 in EU27:
-                    entries.append({
-                        "iso_alpha3": iso3,
-                        "dataset": dataset,
-                        "source_agency": "EUROSTAT",
-                        "series_concept": concept,
-                        "next_release_date": None,
-                        "release_frequency": freq,
-                        "source_url": "https://ec.europa.eu/eurostat/web/main/news/release-calendar",
-                        "dataflow": dataflow,
-                    })
-            except Exception as inner_exc:
-                logger.warning(f"[Eurostat] dataflow {dataflow} failed: {inner_exc}")
-        logger.info(f"[Eurostat] {len(entries)} entries found across {len(dataflows)} dataflows x 27 states")
-    except Exception as exc:
-        logger.warning(f"[Eurostat] fetch failed: {exc}")
-    return entries
-
-
-def fetch_ons(dry_run: bool = False) -> list[dict[str, Any]]:
-    """ONS -- GBR, all 5 datasets via api.beta.ons.gov.uk/v1/releases."""
-    entries = []
-    try:
-        if dry_run:
-            logger.info("[ONS] dry-run -- skipping live scrape")
-            return entries
-        import requests
-
-        url = "https://api.beta.ons.gov.uk/v1/releases"
-        resp = requests.get(url, timeout=20, params={"limit": 100})
-        resp.raise_for_status()
-        data = resp.json()
-        for item in data.get("items", []):
-            entries.append({
-                "iso_alpha3": "GBR",
-                "dataset": "wages_and_employment",
-                "source_agency": "ONS",
-                "series_concept": item.get("description", {}).get("title", "UNKNOWN"),
-                "next_release_date": item.get("description", {}).get("releaseDate"),
-                "release_frequency": "Monthly",
-                "source_url": url,
-            })
-        logger.info(f"[ONS] {len(entries)} entries found")
-    except Exception as exc:
-        logger.warning(f"[ONS] fetch failed: {exc}")
-    return entries
-
-
-def fetch_statcan(dry_run: bool = False) -> list[dict[str, Any]]:
-    """StatCan -- CAN, via WDS REST getChangedSeriesList + NDM CSV vectors."""
-    entries = []
-    try:
-        if dry_run:
-            logger.info("[StatCan] dry-run -- skipping live scrape")
-            return entries
-        import requests
-
-        url = "https://www150.statcan.gc.ca/t1/wds/rest/getChangedSeriesList"
+        url = f"https://ec.europa.eu/eurostat/api/dissemination/catalogue/toc/txt?dataflow={dataflow}"
         resp = requests.get(url, timeout=20)
         resp.raise_for_status()
-        data = resp.json()
-        for item in data if isinstance(data, list) else data.get("object", []):
-            entries.append({
-                "iso_alpha3": "CAN",
-                "dataset": "global_macro",
-                "source_agency": "STATCAN",
-                "series_concept": str(item.get("vectorId", "UNKNOWN")),
-                "next_release_date": item.get("releaseTime"),
-                "release_frequency": "Monthly",
-                "source_url": "https://www150.statcan.gc.ca/n1/dai-quo/sst-fst/release-diffusion-eng.htm",
-            })
-        logger.info(f"[StatCan] {len(entries)} entries found")
+        return None  # Eurostat TOC doesn't expose next-release dates directly
     except Exception as exc:
-        logger.warning(f"[StatCan] fetch failed: {exc}")
-    return entries
+        logger.debug(f"[Eurostat] {dataflow}: {exc}")
+        return None
 
 
-def fetch_abs(dry_run: bool = False) -> list[dict[str, Any]]:
-    """ABS -- AUS, scraped release calendar filtered by topic."""
-    entries = []
+def _fetch_ons_next(product_key: str) -> str | None:
     try:
-        if dry_run:
-            logger.info("[ABS] dry-run -- skipping live scrape")
-            return entries
+        import requests
+        resp = requests.get(
+            "https://api.beta.ons.gov.uk/v1/releases",
+            timeout=20, params={"limit": 50},
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        keyword = {
+            "food_micropricing":    "Consumer Price",
+            "wages_and_employment": "Labour Force",
+            "Housing_Supply_and_Shelter_Inflation": "House Price",
+            "trade_flows":          "Trade",
+            "global_macro":         "GDP",
+        }.get(product_key, "")
+        for item in data.get("items", []):
+            if keyword.lower() in item.get("description", {}).get("title", "").lower():
+                return item.get("description", {}).get("releaseDate")
+        return None
+    except Exception as exc:
+        logger.debug(f"[ONS] {product_key}: {exc}")
+        return None
+
+
+def _fetch_statcan_next(product_key: str) -> str | None:
+    try:
+        import requests
+        resp = requests.get(
+            "https://www150.statcan.gc.ca/t1/wds/rest/getChangedSeriesList",
+            timeout=20,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        items = data if isinstance(data, list) else data.get("object", [])
+        if items:
+            return items[0].get("releaseTime")
+        return None
+    except Exception as exc:
+        logger.debug(f"[StatCan] {product_key}: {exc}")
+        return None
+
+
+def _fetch_abs_next(product_key: str) -> str | None:
+    try:
         import requests
         from bs4 import BeautifulSoup
-
-        url = "https://www.abs.gov.au/release-calendar"
-        resp = requests.get(url, timeout=20, headers={"User-Agent": "Mozilla/5.0"})
+        resp = requests.get(
+            "https://www.abs.gov.au/release-calendar",
+            timeout=20, headers={"User-Agent": "Mozilla/5.0"},
+        )
         resp.raise_for_status()
         soup = BeautifulSoup(resp.text, "html.parser")
-
-        relevant = {
-            "Consumer Price Index": ("food_micropricing", "ABS_CPI"),
-            "Labour Force":         ("wages_and_employment", "ABS_LFS"),
-            "Building Approvals":   ("Housing_Supply_and_Shelter_Inflation", "ABS_PERMITS"),
-            "International Trade":  ("trade_flows", "ABS_TRADE"),
-            "National Accounts":    ("global_macro", "ABS_GDP"),
-        }
-        rows = soup.select("li") or soup.select("table tr")
-        for row in rows:
-            text = row.get_text(" ", strip=True)
-            for keyword, (dataset, concept) in relevant.items():
-                if keyword in text:
-                    freq = "Quarterly" if dataset in ARCHIVE_ONLY else "Monthly"
-                    entries.append({
-                        "iso_alpha3": "AUS",
-                        "dataset": dataset,
-                        "source_agency": "ABS",
-                        "series_concept": concept,
-                        "next_release_date": None,
-                        "release_frequency": freq,
-                        "source_url": url,
-                        "raw_text": text[:200],
-                    })
-        logger.info(f"[ABS] {len(entries)} entries found")
+        keyword = {
+            "food_micropricing":    "Consumer Price",
+            "wages_and_employment": "Labour Force",
+            "Housing_Supply_and_Shelter_Inflation": "Building Approvals",
+            "trade_flows":          "International Trade",
+            "global_macro":         "National Accounts",
+        }.get(product_key, "")
+        for item in soup.select("li"):
+            if keyword.lower() in item.get_text().lower():
+                return item.get_text(strip=True)[:60]
+        return None
     except Exception as exc:
-        logger.warning(f"[ABS] fetch failed: {exc}")
-    return entries
+        logger.debug(f"[ABS] {product_key}: {exc}")
+        return None
 
 
-def fetch_ssb(dry_run: bool = False) -> list[dict[str, Any]]:
-    """SSB -- NOR, via PX-Web metadata nextUpdate field per active table.
-    Housing is intentionally absent -- PENDING_INGESTION, no confirmed table."""
-    entries = []
-    ssb_tables = {
-        "09190": ("global_macro",           "SSB_GDP"),
-        "07458": ("wages_and_employment",   "SSB_LFS"),
-        "12308": ("trade_flows",            "SSB_TRADE"),
-        # housing -- PENDING_INGESTION, intentionally absent
-    }
+def _fetch_ssb_next(table_id: str) -> str | None:
     try:
-        if dry_run:
-            logger.info("[SSB] dry-run -- skipping live scrape")
-            return entries
         import requests
-
-        for table_id, (dataset, concept) in ssb_tables.items():
-            try:
-                url = f"https://data.ssb.no/api/v0/en/table/{table_id}"
-                resp = requests.get(url, timeout=20)
-                resp.raise_for_status()
-                meta = resp.json()
-                entries.append({
-                    "iso_alpha3": "NOR",
-                    "dataset": dataset,
-                    "source_agency": "SSB",
-                    "series_concept": concept,
-                    "next_release_date": meta.get("nextUpdate"),
-                    "release_frequency": "Quarterly" if dataset in ARCHIVE_ONLY else "Monthly",
-                    "source_url": url,
-                })
-            except Exception as inner_exc:
-                logger.warning(f"[SSB] table {table_id} failed: {inner_exc}")
-        logger.info(f"[SSB] {len(entries)} entries found")
+        resp = requests.get(
+            f"https://data.ssb.no/api/v0/en/table/{table_id}",
+            timeout=20,
+        )
+        resp.raise_for_status()
+        return resp.json().get("nextUpdate")
     except Exception as exc:
-        logger.warning(f"[SSB] fetch failed: {exc}")
-    return entries
+        logger.debug(f"[SSB] table {table_id}: {exc}")
+        return None
 
 
-# CHE intentionally has no fetcher -- BLOCKED, PENDING_INGESTION,
-# excluded from catalog per product catalog and prior build decisions.
-
-SOURCE_FETCHERS = {
-    "BLS":      fetch_bls,
-    "CENSUS":   fetch_census,
-    "BEA":      fetch_bea,
-    "EUROSTAT": fetch_eurostat,
-    "ONS":      fetch_ons,
-    "STATCAN":  fetch_statcan,
-    "ABS":      fetch_abs,
-    "SSB":      fetch_ssb,
+_SSB_TABLES = {
+    "food_micropricing":   "03013",   # CPI main table
+    "wages_and_employment":"07458",
+    "trade_flows":         "12308",
+    "global_macro":        "09190",
 }
+
+_EUROSTAT_DATAFLOWS = {
+    "food_micropricing":   "prc_hicp_midx",
+    "wages_and_employment":"une_rt_m",
+    "Housing_Supply_and_Shelter_Inflation": "sts_cobp_m",
+    "trade_flows":         "DS-018995",
+    "global_macro":        "nama_10_gdp",
+}
+
+
+def _enrich_source(source: dict, product_key: str, dry_run: bool) -> dict:
+    """Add next_release_date to a source dict. Returns a shallow copy."""
+    s = dict(source)
+    if dry_run:
+        s["next_release_date"] = None
+        s["release_date_source"] = "dry_run"
+        s["catalog_status"] = READY_STATUS.get((product_key, source["country_group"]), "UNKNOWN")
+        return s
+
+    nrd: str | None = None
+    cg = source["country_group"]
+    agency = source["source_agency"].split("/")[0].strip()
+
+    if cg == "USA":
+        if agency == "BLS":
+            nrd = _fetch_bls_next(product_key)
+        elif agency == "CENSUS":
+            nrd = _fetch_census_next(product_key)
+        elif agency == "BEA":
+            nrd = _fetch_bea_next()
+        # FHFA / FEDERAL RESERVE -- no public release calendar API
+    elif cg == "EU27":
+        df = _EUROSTAT_DATAFLOWS.get(product_key)
+        if df:
+            nrd = _fetch_eurostat_next(df)
+    elif cg == "GBR":
+        nrd = _fetch_ons_next(product_key)
+    elif cg == "CAN":
+        nrd = _fetch_statcan_next(product_key)
+    elif cg == "AUS":
+        nrd = _fetch_abs_next(product_key)
+    elif cg == "NOR":
+        tbl = _SSB_TABLES.get(product_key)
+        if tbl:
+            nrd = _fetch_ssb_next(tbl)
+
+    s["next_release_date"] = nrd
+    s["release_date_source"] = "live_fetch" if nrd else "unavailable"
+    s["catalog_status"] = READY_STATUS.get((product_key, cg), "UNKNOWN")
+    return s
 
 
 # -------------------------------------------------------------------------
@@ -407,103 +739,56 @@ SOURCE_FETCHERS = {
 # -------------------------------------------------------------------------
 
 def build_master(dry_run: bool = False) -> dict[str, Any]:
-    all_entries: list[dict[str, Any]] = []
-    source_results: dict[str, int] = {}
-    source_errors: list[str] = []
+    products_out: dict[str, Any] = {}
+    fetch_errors: list[str] = []
 
-    for source_name, fetcher in SOURCE_FETCHERS.items():
-        try:
-            entries = fetcher(dry_run=dry_run)
-            all_entries.extend(entries)
-            source_results[source_name] = len(entries)
-            if not entries and not dry_run:
-                source_errors.append(f"{source_name}: returned 0 entries")
-        except Exception as exc:
-            logger.error(f"[{source_name}] unhandled error: {exc}")
-            source_results[source_name] = 0
-            source_errors.append(f"{source_name}: {exc}")
+    for product_key, meta in PRODUCTS.items():
+        logger.info(f"Processing {product_key} ...")
+        enriched_sources = []
+        for source in meta["sources"]:
+            try:
+                enriched_sources.append(_enrich_source(source, product_key, dry_run))
+            except Exception as exc:
+                fetch_errors.append(f"{product_key}/{source['country_group']}: {exc}")
+                fallback = dict(source)
+                fallback["next_release_date"] = None
+                fallback["release_date_source"] = f"error: {exc}"
+                fallback["catalog_status"] = READY_STATUS.get(
+                    (product_key, source["country_group"]), "UNKNOWN"
+                )
+                enriched_sources.append(fallback)
 
-    # Apply known coverage exceptions
-    filtered = []
-    for e in all_entries:
-        key = (e.get("dataset"), e.get("iso_alpha3"))
-        if key in COVERAGE_EXCEPTIONS:
-            logger.info(f"Excluding entry {key}: {COVERAGE_EXCEPTIONS[key]}")
-            continue
-        if e.get("iso_alpha3") == "CHE":
-            logger.warning(f"Stripping unexpected CHE entry from {e.get('source_agency')} -- CHE excluded from catalog")
-            continue
-        filtered.append(e)
+        products_out[product_key] = {
+            "catalog_name":  meta["catalog_name"],
+            "version":       meta["version"],
+            "delivery_type": meta["delivery_type"],
+            "live_feed":     meta["live_feed"],
+            "frequency":     meta["frequency"],
+            "vault_records": meta["vault_records"],
+            "key_metrics":   meta["key_metrics"],
+            "notes":         meta.get("notes"),
+            "sources":       enriched_sources,
+        }
+        ready  = sum(1 for s in enriched_sources if s.get("catalog_status") == "READY")
+        total  = len(enriched_sources)
+        logger.info(f"  {product_key}: {ready}/{total} source groups READY")
 
     master = {
-        "generated_at": datetime.now(timezone.utc).isoformat(),
-        "catalog_scope": {
-            "countries":          ALL_COUNTRIES,
-            "country_count":      len(ALL_COUNTRIES),
-            "datasets":           DATASETS,
-            "live_feed_eligible": sorted(LIVE_FEED_ELIGIBLE),
-            "archive_only":       sorted(ARCHIVE_ONLY),
-            "known_exceptions":   {f"{k[0]}/{k[1]}": v for k, v in COVERAGE_EXCEPTIONS.items()},
+        "generated_at":    datetime.now(timezone.utc).isoformat(),
+        "catalog_version": CATALOG_VERSION,
+        "schema_standard": SCHEMA_STANDARD,
+        "scope": {
+            "total_countries":  32,
+            "country_groups":   ["USA", "EU27 (27 states)", "GBR", "CAN", "AUS", "NOR"],
+            "excluded":         "CHE -- BLOCKED (FSO Swiss Stats Explorer returning HTTP 503)",
+            "total_products":   len(PRODUCTS),
+            "live_feed_products": [k for k, v in PRODUCTS.items() if v["live_feed"]],
+            "archive_only_products": [k for k, v in PRODUCTS.items() if not v["live_feed"]],
         },
-        "source_run_summary": source_results,
-        "source_errors":      source_errors,
-        "entries":            filtered,
+        "fetch_errors": fetch_errors,
+        "products":     products_out,
     }
     return master
-
-
-# -------------------------------------------------------------------------
-# SPLIT -- per dataset, per dataset+country
-# -------------------------------------------------------------------------
-
-def split_master(master: dict[str, Any], vault_root: Path) -> dict[str, int]:
-    entries = master["entries"]
-    counts: dict[str, int] = {}
-
-    master_path = vault_root / "release_calendar_master.json"
-    master_path.write_text(json.dumps(master, indent=2), encoding="utf-8")
-    counts["master"] = len(entries)
-    logger.info(f"Wrote {master_path} ({len(entries)} entries)")
-
-    for dataset in DATASETS:
-        ds_entries = [e for e in entries if e.get("dataset") == dataset]
-
-        ds_json_path = vault_root / f"release_calendar_{dataset}.json"
-        ds_json_path.write_text(
-            json.dumps({"generated_at": master["generated_at"],
-                        "dataset": dataset, "entries": ds_entries}, indent=2),
-            encoding="utf-8",
-        )
-        ds_csv_path = vault_root / f"release_calendar_{dataset}.csv"
-        _write_csv(ds_csv_path, ds_entries)
-        counts[dataset] = len(ds_entries)
-        logger.info(f"Wrote {ds_json_path} and {ds_csv_path} ({len(ds_entries)} entries)")
-
-        for iso3 in sorted({e.get("iso_alpha3") for e in ds_entries if e.get("iso_alpha3")}):
-            c_entries = [e for e in ds_entries if e.get("iso_alpha3") == iso3]
-            c_json = vault_root / f"release_calendar_{dataset}_{iso3}.json"
-            c_json.write_text(
-                json.dumps({"generated_at": master["generated_at"],
-                            "dataset": dataset, "iso_alpha3": iso3,
-                            "entries": c_entries}, indent=2),
-                encoding="utf-8",
-            )
-            _write_csv(vault_root / f"release_calendar_{dataset}_{iso3}.csv", c_entries)
-            counts[f"{dataset}_{iso3}"] = len(c_entries)
-
-    return counts
-
-
-def _write_csv(path: Path, entries: list[dict[str, Any]]) -> None:
-    if not entries:
-        path.write_text("", encoding="utf-8")
-        return
-    fieldnames = sorted({k for e in entries for k in e.keys()})
-    with open(path, "w", newline="", encoding="utf-8") as fh:
-        writer = csv.DictWriter(fh, fieldnames=fieldnames)
-        writer.writeheader()
-        for e in entries:
-            writer.writerow(e)
 
 
 # -------------------------------------------------------------------------
@@ -513,9 +798,9 @@ def _write_csv(path: Path, entries: list[dict[str, Any]]) -> None:
 def main() -> int:
     parser = argparse.ArgumentParser(description="Lekwankwa Release Calendar Extractor")
     parser.add_argument("--vault-root", required=True,
-                        help="Path to vault root where calendar files will be written")
+                        help="Directory where release_calendar_master.json will be written")
     parser.add_argument("--dry-run", action="store_true",
-                        help="Skip live source fetches, validate logic only")
+                        help="Skip live source fetches; write static catalog metadata only")
     args = parser.parse_args()
 
     vault_root = Path(args.vault_root)
@@ -523,24 +808,30 @@ def main() -> int:
 
     logger.info("=" * 70)
     logger.info("LEKWANKWA RELEASE CALENDAR EXTRACTOR")
-    logger.info(f"Catalog scope: {len(ALL_COUNTRIES)} countries, {len(DATASETS)} datasets")
-    logger.info("CHE excluded -- BLOCKED, PENDING_INGESTION")
+    logger.info(f"Catalog: {CATALOG_VERSION} | Schema: {SCHEMA_STANDARD}")
+    logger.info(f"Products: {len(PRODUCTS)} | Vault root: {vault_root}")
+    if args.dry_run:
+        logger.info("DRY RUN -- static metadata only, no live fetches")
     logger.info("=" * 70)
 
     master = build_master(dry_run=args.dry_run)
-    counts = split_master(master, vault_root)
 
-    logger.info("=" * 70)
-    logger.info("RUN SUMMARY")
-    logger.info(f"Source results: {master['source_run_summary']}")
-    if master["source_errors"]:
-        logger.warning(f"Source errors/empty results: {master['source_errors']}")
-    logger.info(f"Total master entries: {counts['master']}")
-    for dataset in DATASETS:
-        logger.info(f"  {dataset}: {counts.get(dataset, 0)} entries")
+    out_path = vault_root / "release_calendar_master.json"
+    out_path.write_text(json.dumps(master, indent=2, default=str), encoding="utf-8")
+    logger.info(f"Written: {out_path}")
+
+    if master["fetch_errors"]:
+        logger.warning(f"Fetch errors ({len(master['fetch_errors'])}): {master['fetch_errors']}")
+
+    total_sources = sum(len(p["sources"]) for p in master["products"].values())
+    ready_sources = sum(
+        sum(1 for s in p["sources"] if s.get("catalog_status") == "READY")
+        for p in master["products"].values()
+    )
+    logger.info(f"Source groups: {ready_sources}/{total_sources} READY")
     logger.info("=" * 70)
 
-    return 0 if counts["master"] > 0 or args.dry_run else 1
+    return 0
 
 
 if __name__ == "__main__":
