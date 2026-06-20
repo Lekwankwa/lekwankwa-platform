@@ -116,7 +116,7 @@ PRICING = [
     },
     {
         "product":      "Housing Supply & Shelter",
-        "coverage":     "1914–2026 · CPI + Permits · 32 Countries",
+        "coverage":     "1914–2026 · CPI + Permits · 31 Countries",
         "source":       "BLS / US Census / Eurostat / NSOs",
         "archive_usd":  82_000,
         "live_usd":     None,
