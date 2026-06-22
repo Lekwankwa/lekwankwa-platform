@@ -924,6 +924,15 @@ def page_showroom() -> None:
         )
     tier_html += "</div>"
     st.markdown(tier_html, unsafe_allow_html=True)
+    st.markdown(
+        "<div style='font-size:0.75rem; color:#666666; margin-top:0.75rem; "
+        "border-left:2px solid #2a2a2a; padding-left:0.75rem; line-height:1.6;'>"
+        "Use of any live data feed to inform, generate signals for, or execute trading activity "
+        "requires Algorithm Training tier or above; Research and Backtesting tiers are licensed "
+        "for non-trading use only."
+        "</div>",
+        unsafe_allow_html=True,
+    )
 
     # ── Complete Archive Vault ──
     st.markdown(
