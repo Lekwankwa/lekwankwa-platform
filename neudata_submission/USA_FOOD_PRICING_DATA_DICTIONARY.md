@@ -183,6 +183,14 @@ data_quality_certified: True
 
 ---
 
+## Known Data Gaps
+
+| Gap ID | Affected Series | Period | Reason | Client Action |
+|--------|----------------|--------|--------|---------------|
+| `BLS_2025_APPROPRIATIONS_LAPSE` | All 11 BLS food price series (`APU0000701111`, `APU0000702111`, `APU0000702421`, `APU0000703112`, `APU0000706111`, `APU0000708111`, `APU0000709112`, `APU0000711412`, `APU0000717311`, `APU0000720111`, `APU0000720311`) | October 2025 only | US government appropriations lapse prevented BLS from collecting or publishing data. BLS does not retroactively backfill lapse-period data. November 2025 confirmed normal resumption. | Treat as `NaN` for October 2025. Do not flag as scraper error. Forward-fill from September 2025 for that single month if your model requires gap-free series. |
+
+---
+
 ## Quality Metrics
 
 | Metric | Value |

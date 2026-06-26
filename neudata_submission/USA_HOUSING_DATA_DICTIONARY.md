@@ -13,7 +13,7 @@
 **Update Frequency**: Monthly
 **Last Updated**: June 2026
 **Vault Filenames**: `housing_hicp_rent_data.parquet` (shelter) · `permits_eu27_data.parquet` (permits)
-**Vault Coverage (Global)**: USA + 27 EU Member States + GBR, CAN, AUS = 32 countries (NOR Housing PENDING)
+**Vault Coverage (Global)**: USA + 27 EU Member States + GBR, CAN = 30 countries active (AUS DISCONTINUED — ABS RPPI ceased 2021-Q4; NOR DISCONTINUED — no SSB source identified)
 
 ---
 
@@ -109,24 +109,24 @@ The housing product ships as two separate parquet files (shelter and permits) wi
 |--------|------|-------------|
 | `is_revised_figure` | bool | True if this is a revised release |
 | `seasonal_adjustment` | str | `SA` (seasonally adjusted) or `NSA` |
-| `source` | str | `bls_cpi` |
+| `source` | str | `bls_cpi_shelter` |
 | `extraction_method` | str | `api_pull` |
 | `data_quality_certified` | bool | True if record passed all 9 validation stages |
-| `revision_number` | int | 1 for initial release; increments on revision |
+| `revision_number` | int | 0 (fixed; RELEASE_DATE_ONLY — BLS/Census do not publish vintage dates) |
 | `superseded_by` | str | Record ID of superseding revision, or null |
 | `bls_footnotes` | str | BLS footnote codes (e.g., preliminary, revised) |
 
 ### BLS Shelter Series (7 series)
 
-| Sovereign Series ID | Description | BLS Series |
-|--------------------|-------------|-----------|
-| `SHELTER_CPI_USA_BLS_CUSR0000SAH` | Shelter — All Urban Consumers (NSA) | `CUSR0000SAH` |
-| `SHELTER_CPI_USA_BLS_CUUR0000SAH` | Shelter — US City Average (NSA) | `CUUR0000SAH` |
-| `SHELTER_CPI_USA_BLS_CUSR0000SEHA` | Rent of Primary Residence (SA) | `CUSR0000SEHA` |
-| `SHELTER_CPI_USA_BLS_CUSR0000SEHB` | Owners' Equivalent Rent (SA) | `CUSR0000SEHB` |
-| `SHELTER_CPI_USA_BLS_CUSR0000SEHC` | Rent of Shelter (SA) | `CUSR0000SEHC` |
-| `SHELTER_CPI_USA_BLS_CUSR0000SEHD` | Lodging Away from Home (SA) | `CUSR0000SEHD` |
-| `SHELTER_CPI_USA_BLS_CUSR0000SEHE` | Water, Sewer, Trash Collection (SA) | `CUSR0000SEHE` |
+| `sovereign_series_id` (vault) | Description | Adjustment |
+|-------------------------------|-------------|-----------|
+| `CUSR0000SAH1` | Shelter — All Urban Consumers | SA |
+| `CUSR0000SEHA` | Rent of Primary Residence | SA |
+| `CUSR0000SEHB` | Owners' Equivalent Rent of Residences | SA |
+| `CUUR0000SAH1` | Shelter — All Urban Consumers | NSA |
+| `CUUR0000SEHA` | Rent of Primary Residence | NSA |
+| `CUUR0000SEHB` | Owners' Equivalent Rent of Residences | NSA |
+| `CUUR0000SEHC` | Rent of Shelter | NSA |
 
 ---
 
@@ -216,14 +216,14 @@ ROU, SVN, SWE), which publish at monthly frequency and require no fill.
 | `official_release_date` | BLS/Census official publication date | Primary PIT gate |
 | `published_date` | Same as official_release_date for housing data | Secondary reference |
 | `as_of_date` | Snapshot date | Revision context |
-| `revision_number` | 1 = initial; >1 = revised | Preliminary vs final filter |
+| `revision_number` | 0 (fixed; RELEASE_DATE_ONLY — no vintage tracking) | Not a meaningful filter for housing |
 | `reporting_date` | Observation period (first day of month) | Time-series index |
 
 **Important note on Housing PIT model:**
-Housing data uses `RELEASE_DATE_ONLY` — there is no multi-vintage ALFRED depth for these series.
-Average revisions per (series, obs_date) ≈ 1.00 (single snapshot). The Building Permits series
-(Census BPS) carries preliminary → revised → final transitions which are captured as
-`revision_number` increments, but only when the FRED series itself reflects revisions.
+Housing data uses `RELEASE_DATE_ONLY` — neither BLS nor Census publishes vintage date histories for
+these series. `revision_number = 0` for all records (both sources); it is a fixed placeholder, not
+a meaningful revision counter. Use `official_release_date <= simulation_date` as the sole PIT gate.
+Do not filter on `revision_number` for housing data.
 
 ---
 
@@ -232,7 +232,7 @@ Average revisions per (series, obs_date) ≈ 1.00 (single snapshot). The Buildin
 | Column | Expected Range / Domain |
 |--------|------------------------|
 | `observed_value` | > 0 (CPI index or permit count) |
-| `revision_number` | ≥ 1 integer |
+| `revision_number` | 0 (fixed; no revision depth for RELEASE_DATE_ONLY sources) |
 | `official_release_date` | Must be ≥ `reporting_date` (PIT constraint) |
 | `data_quality_certified` | boolean; True for all validated records |
 | `seasonal_adjustment` | `SA`, `NSA`, or `SAAR` |
@@ -244,17 +244,17 @@ Average revisions per (series, obs_date) ≈ 1.00 (single snapshot). The Buildin
 
 ### Shelter CPI (252-row sample, 29 columns)
 ```
-record_id              : lkw-shelter-USA-CUSR0000SAH-2015-01
+record_id              : lkw-shelter-USA-CUUR0000SAH1-2015-01
 iso_alpha3             : USA
-sovereign_series_id    : SHELTER_CPI_USA_BLS_CUSR0000SAH
+sovereign_series_id    : CUUR0000SAH1
 macro_metric_name      : Shelter CPI — All Urban Consumers
 reporting_date         : 2015-01-01
 official_release_date  : 2015-02-26
 observed_value         : 271.4
 unit_of_measure        : Index (1982-84=100)
 seasonal_adjustment    : NSA
-source                 : bls_cpi
-revision_number        : 1
+source                 : bls_cpi_shelter
+revision_number        : 0
 data_quality_certified : True
 ```
 
@@ -272,7 +272,7 @@ geo_level              : national
 geo_id                 : US
 bps_variable           : permit
 source                 : census_bps
-revision_number        : 1
+revision_number        : 0
 data_quality_certified : True
 ```
 
@@ -304,11 +304,21 @@ data_quality_certified : True
 | Frequency | Monthly | Monthly | Monthly/Quarterly |
 | Series count | 7 | 3 | ~15 per country |
 | PIT type | RELEASE_DATE_ONLY | RELEASE_DATE_ONLY | RELEASE_DATE_ONLY |
-| Countries | 1 (USA) | 1 (USA) | 31 (NOR PENDING) |
+| Countries | 1 (USA) | 1 (USA) | 30 active (AUS + NOR DISCONTINUED) |
 | Availability | Archive only | Archive only | Archive only |
 
 **Live feed note**: Housing data is archive-only (no live feed product) due to mixed quarterly
 frequency in EU27 HICP shelter components. This applies across all 32 countries.
+
+---
+
+## Known Data Gaps
+
+| Gap ID | Affected Series | Period | Reason | Client Action |
+|--------|----------------|--------|--------|---------------|
+| `BLS_2025_APPROPRIATIONS_LAPSE` | `CUUR0000SAH1`, `CUUR0000SEHA`, `CUUR0000SEHB`, `CUUR0000SEHC`, `CUSR0000SEHA`, `CUSR0000SEHB`, `CUSR0000SAH1` (all 7 BLS shelter series) | October 2025 only | US government appropriations lapse; BLS CPI not published (footnote code X). BLS does not retroactively backfill. November 2025 confirmed normal resumption. | Treat all 7 shelter series as `NaN` for October 2025. Do not flag as scraper error. Forward-fill from September 2025 for that single month if gap-free series is required. |
+| `AUS_RPPI_DISCONTINUED` | `RPPI_HOUSES` (AUS only) | All periods after 2021-Q4 | ABS SDMX RPPI dataflow ceased. No `includeHistory` support; no mechanism to extend. | 74 vault rows available for 2003-Q3 to 2021-Q4 historical backtests only. Do not use for post-2021 strategies. |
+| `NOR_HOUSING_NO_SOURCE` | All NOR housing series | All periods | No SSB Statbank table for residential property price index identified. No vault data exists. | Exclude NOR from all housing strategies. |
 
 ---
 

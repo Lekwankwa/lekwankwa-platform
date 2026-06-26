@@ -7,7 +7,7 @@
 **Sources**: Bureau of Labor Statistics (BLS) Current Population Survey (CPS) · Current Employment Statistics (CES)
 **Vault Records (CPS)**: 8,802 confirmed records (unemployment series, confirmed in vault)
 **Vault Records (CES)**: Vault structure present; data parquets under review — schema documented via sample
-**PIT Type**: RELEASE_DATE_ONLY (single official release date per observation; no ALFRED multi-vintage for wages)
+**PIT Type**: FULL VINTAGE (ALFRED component, avg 8.80 revisions/series — 83,036 vault rows) · RELEASE_DATE_ONLY (CPS and CES direct BLS components)
 **Sample**: 2015–2017 · 3-Year Sample
 **Sample Files**:
   - `sample_parquet_wages_and_employment/wages_and_employment_cps_v1.0_sample.parquet` — 396 rows, 31 columns
@@ -58,6 +58,7 @@ the full CPS microdata (household-level survey records). This is a macro-level t
 |------|--------|-----------|-------------|---------------|------|-----------|
 | CPS Unemployment | Current Population Survey | `unemployment_u3_data.parquet` | `wages_and_employment_cps_v1.0_sample.parquet` | 8,802 | 31 | 1948–2026 |
 | CES Payroll | Current Employment Statistics | *(under review)* | `wages_and_employment_ces_v1.0_sample.parquet` | TBD | 31 | 1939–2026 |
+| ALFRED Vintage | ALFRED (St. Louis Fed) | `alfred_vintage` partition | *(same schema)* | 83,036 | 31 | 1948–2026 |
 
 ---
 
@@ -265,6 +266,15 @@ data_quality_certified : True
 - **PIT type**: RELEASE_DATE_ONLY
 - **Vault rows**: Under review (CES parquet completeness audit in progress)
 
+### ALFRED Vintage Feed (St. Louis Fed)
+- **Provider**: Federal Reserve Bank of St. Louis (FRED/ALFRED API)
+- **Coverage**: Key labor market aggregates including `CES0500000003` (Average Hourly Earnings, Production/Nonsupervisory, Total Private) and major CPS/CES headline series with full revision history
+- **Date range**: 1948–2026 (series-dependent)
+- **Frequency**: Monthly
+- **PIT type**: FULL VINTAGE — each revision is a separate vault record; avg 8.80 revisions per series across all ALFRED products
+- **Vault rows**: 83,036 (confirmed)
+- **Note**: `CES0500000003` is NOT affected by the BLS 2025 appropriations lapse — confirmed real value published for October 2025 via ALFRED
+
 ---
 
 ## Coverage and Granularity
@@ -275,9 +285,17 @@ data_quality_certified : True
 | Frequency | Monthly | Monthly | Monthly/Quarterly |
 | Series count | 11 | 850+ NAICS | ~5–15 per country |
 | Industry depth | Household (aggregate) | 850+ NAICS codes | Varies by country |
-| PIT type | RELEASE_DATE_ONLY | RELEASE_DATE_ONLY | RELEASE_DATE_ONLY |
+| PIT type | RELEASE_DATE_ONLY | RELEASE_DATE_ONLY | RELEASE_DATE_ONLY · FULL VINTAGE (ALFRED) |
 | Countries | 1 (USA) | 1 (USA) | 32 total |
 | Live feed | Yes (monthly) | Yes (monthly) | Yes (monthly) |
+
+---
+
+## Known Data Gaps
+
+| Gap ID | Affected Series | Period | Reason | Client Action |
+|--------|----------------|--------|--------|---------------|
+| `BLS_2025_APPROPRIATIONS_LAPSE` | `LNS14000000` (CPS unemployment rate) | October 2025 only | US government appropriations lapse; BLS Employment Situation not published (footnote code 9). BLS does not retroactively backfill. November 2025 confirmed normal resumption. | Treat as `NaN` for October 2025 CPS. Do not flag as scraper error. ALFRED vintage series (`CES0500000003` and other CES series) are **not affected** — confirmed real value published for October 2025. |
 
 ---
 

@@ -89,7 +89,7 @@ DATASETS: dict[str, dict] = {
         "filename": "global_macro_imf_weo_v1.0_sample.parquet",
         "product":  "Global Macro Baseline",
         "schema_version": "v5.0",
-        "records":  "81,735 records (ALFRED + IMF WEO) | 1913–2031 · 2015–2017 · 3-Year Sample",
+        "records":  "78,743 records (ALFRED + IMF WEO) | 1913–2031 · 2015–2017 · 3-Year Sample",
         "sources":  "ALFRED (St. Louis Fed) / IMF WEO",
     },
 }
@@ -116,7 +116,7 @@ PRICING = [
     },
     {
         "product":      "Housing Supply & Shelter",
-        "coverage":     "1914–2026 · CPI + Permits · 31 Countries",
+        "coverage":     "1914–2026 · CPI + Permits · 30 Countries",
         "source":       "BLS / US Census / Eurostat / NSOs",
         "archive_usd":  82_000,
         "live_usd":     None,
@@ -155,7 +155,7 @@ COVERAGE_TABLE = [
         "region":    "United States",
         "countries": "1",
         "products":  "5 / 5",
-        "pit_model": "FULL VINTAGE (ALFRED avg 8.80 revisions) + RELEASE_DATE_ONLY",
+        "pit_model": "FULL VINTAGE (ALFRED avg 8.80 revisions) for Wages / Trade / Macro · RELEASE DATE ONLY for Housing",
         "live_feed": "Food · Wages · Trade",
         "status":    "READY",
     },
@@ -168,12 +168,20 @@ COVERAGE_TABLE = [
         "status":    "READY",
     },
     {
-        "region":    "GBR · CAN · AUS",
-        "countries": "3",
+        "region":    "GBR · CAN",
+        "countries": "2",
         "products":  "5 / 5 each",
-        "pit_model": "RELEASE_DATE_ONLY (accumulating; ONS / StatCan / ABS)",
+        "pit_model": "RELEASE_DATE_ONLY (accumulating; ONS / StatCan)",
         "live_feed": "Food · Wages · Trade",
         "status":    "READY",
+    },
+    {
+        "region":    "Australia (AUS)",
+        "countries": "1",
+        "products":  "4 / 5",
+        "pit_model": "RELEASE_DATE_ONLY (accumulating; ABS)",
+        "live_feed": "Food · Wages · Trade",
+        "status":    "4 READY · Housing DISCONTINUED (ABS RPPI ceased 2021-Q4)",
     },
     {
         "region":    "Norway (NOR)",
@@ -181,7 +189,7 @@ COVERAGE_TABLE = [
         "products":  "4 / 5",
         "pit_model": "RELEASE_DATE_ONLY (SSB Statbank)",
         "live_feed": "Food · Wages · Trade",
-        "status":    "4 READY · Housing unavailable",
+        "status":    "4 READY · Housing DISCONTINUED (no SSB source identified)",
     },
 ]
 
@@ -189,15 +197,15 @@ COVERAGE_TABLE = [
 #  VALIDATION MANIFEST (9-Stage Engine · 32-Country Scope)
 # ──────────────────────────────────────────────────────────────
 VALIDATION_MANIFEST = {
-    "manifest_id":             "LKW-VAULT-MANIFEST-2026-06-20",
-    "generated_at":            "2026-06-20T00:00:00Z",
+    "manifest_id":             "LKW-VAULT-MANIFEST-2026-06-26",
+    "generated_at":            "2026-06-26T00:00:00Z",
     "vault_version":           "5.0",
     "schema_standard":         "SDMX 2.1 + ISO 8601 + ISO 3166-1",
     "overall_status":          "PASS",
     "products_certified":      5,
-    "countries_certified":     31,
-    "country_dataset_ready":   "159 / 165",
-    "total_records_certified": 336_004,
+    "countries_certified":     30,
+    "country_dataset_ready":   "158 / 165",
+    "total_records_certified": 333_011,
     "validation_engine":       "Lekwankwa 9-Stage Automated Engine v2.0 + Live Feed Post-Delta Audit v1.0",
     "live_feed_audit": {
         "status":        "ACTIVE",
@@ -273,6 +281,22 @@ VALIDATION_MANIFEST = {
         "Sourcing strictly restricted to open-government APIs and bulk downloads. "
         "Zero web-scraping dependencies. 100% Flat Parquet schemas."
     ),
+}
+
+# ──────────────────────────────────────────────────────────────
+#  PIT COVERAGE REGISTRY
+# ──────────────────────────────────────────────────────────────
+PIT_COVERAGE = {
+    "food_micropricing":                    {"USA": "FULL_VINTAGE_ALFRED"},
+    "wages_and_employment":                 {"USA": "FULL_VINTAGE_ALFRED"},
+    "trade_flows":                          {"USA": "FULL_VINTAGE_ALFRED"},
+    "global_macro":                         {"USA": "FULL_VINTAGE_ALFRED"},
+    "Housing_Supply_and_Shelter_Inflation": {"USA": "RELEASE_DATE_ONLY"},
+}
+
+PIT_LABEL = {
+    "FULL_VINTAGE_ALFRED": "FULL VINTAGE (ALFRED avg 8.80 revisions)",
+    "RELEASE_DATE_ONLY":   "RELEASE DATE ONLY (official_release_date gated)",
 }
 
 # ──────────────────────────────────────────────────────────────
@@ -803,7 +827,7 @@ def page_showroom() -> None:
     # ── Key metrics ──
     col1, col2, col3, col4 = st.columns(4)
     col1.metric("Products", "5")
-    col2.metric("Countries", "31 Active")
+    col2.metric("Countries", "30 Active")
     col3.metric("Records Certified", "336K+")
     col4.metric("Validation", "9 / 9 PASS")
 
@@ -1014,8 +1038,9 @@ def page_showroom() -> None:
         "    <div class='pillar-eyebrow'>PIT Guarantee</div>"
         "    <div class='pillar-title'>Zero Look-Ahead Bias</div>"
         "    <div class='pillar-body'>Every record carries actual publication timestamps "
-        "    and full revision history. FULL VINTAGE bitemporal model for USA (ALFRED avg "
-        "    8.80 revisions); RELEASE_DATE_ONLY for EU27 and Non-EU jurisdictions. "
+        "    and full revision history. FULL VINTAGE (ALFRED avg 8.80 revisions) for "
+        "    USA Food, Wages, Trade, and Global Macro; RELEASE DATE ONLY for USA Housing "
+        "    (BLS/Census), EU27, and all Non-EU jurisdictions. "
         "    Backtesting simulations are provably clean.</div>"
         "  </div>"
         "  <div class='pillar-card'>"
@@ -1327,7 +1352,7 @@ def page_quality_hub() -> None:
         {
             "Product": "Global Macro Baseline",
             "Schema": "v2.0",
-            "USA Records": "81,735",
+            "USA Records": "78,743",
             "Sources": "ALFRED / IMF WEO",
             "PIT": "PASS", "Sanity": "PASS", "Schema": "PASS",
             "Temporal": "PASS", "RI": "PASS", "Lineage": "PASS",
@@ -1365,10 +1390,10 @@ def page_quality_hub() -> None:
         "official government API endpoints. No web-scraped content is present in any product."
         "</div>"
         "<div style='font-size:0.75rem; color:#333; margin-top:1rem;'>"
-        "Certification Date: 2026-06-20 &nbsp;·&nbsp; "
-        "Manifest ID: LKW-VAULT-MANIFEST-2026-06-20 &nbsp;·&nbsp; "
+        "Certification Date: 2026-06-26 &nbsp;·&nbsp; "
+        "Manifest ID: LKW-VAULT-MANIFEST-2026-06-26 &nbsp;·&nbsp; "
         "Engine Version: 2.0 + Audit v1.0 &nbsp;·&nbsp; "
-        "Country-Dataset READY: 159 / 165"
+        "Country-Dataset READY: 158 / 165 (2 Housing DISCONTINUED: AUS · NOR)"
         "</div>"
         "</div>",
         unsafe_allow_html=True,
