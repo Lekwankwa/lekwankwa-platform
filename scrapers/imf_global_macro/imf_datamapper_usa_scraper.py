@@ -139,21 +139,45 @@ def _now_utc() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
 
 
-def fetch_indicator(indicator: str, retries: int = 3) -> dict | None:
-    """Fetch all years for one IMF WEO indicator for USA."""
     url = f"{IMF_BASE}/{indicator}/{COUNTRY}"
     for attempt in range(1, retries + 1):
         try:
             r = requests.get(url, timeout=60, verify=False)
             r.raise_for_status()
+            payload = r.json()
+
+            # ----------------------------------------------------------------
+            # Defensive dual-key extraction.
+            # IMF DataMapper renamed the top-level envelope key from 'value'
+            # to 'values' (observed 2026-06).  We try the current canonical
+            # key first, then fall back to the legacy key so the scraper
+            # survives either form without a KeyError.
+            # ----------------------------------------------------------------
+            if "values" in payload:
+                envelope = payload["values"]
+            elif "value" in payload:
+                logger.warning(
+                    "  IMF API returned legacy key 'value' (expected 'values') "
+                    "for indicator %s — using fallback. Verify API contract.",
+                    indicator,
+                )
+                envelope = payload["value"]
+            else:
+                available_keys = list(payload.keys())
+                raise RuntimeError(
+                    f"IMF DataMapper response for {indicator} contains neither "
+                    f"'values' nor 'value' key. Available keys: {available_keys}. "
+                    "The API envelope may have changed again — inspect raw response."
+                )
+
             values = (
-                r.json()
-                .get("values", {})
+                envelope
                 .get(indicator, {})
                 .get(COUNTRY, {})
             )
             if not values:
                 logger.warning("  No data returned for %s", indicator)
+                return None                logger.warning("  No data returned for %s", indicator)
                 return None
             return values
         except requests.exceptions.RequestException as exc:
