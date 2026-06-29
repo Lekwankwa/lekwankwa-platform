@@ -1,13 +1,13 @@
 {
   "product_name": "Lekwankwa IMF World Economic Outlook — USA Macro Baseline",
   "version": "2026.1.0",
-  "system_last_updated": "2026-06-14T00:00:00Z",
+  "system_last_updated": "2026-06-26T00:00:00Z",
   "provenance_fields": {
     "_description": "Pipeline and quality bookkeeping fields present on every vault record across all 5 products and all 32 countries.",
     "data_quality_certified": {
       "type": "boolean",
       "nullable": false,
-      "coverage": "All 5 products · All 32 countries",
+      "coverage": "All 5 products · All 32 countries. Field is present in 100% of vault data partitions (160/160). Value = True for all countries across all 5 products. food_micropricing/USA records corrected to True June 2026 (same scraper-placeholder issue as wages). Filter on data_quality_certified == True to get validated records in all cross-country strategies.",
       "definition": "True = record passed all 9 automated validation stages (PIT integrity, sanity checks, schema compliance, temporal consistency, referential integrity, lineage audit, Great Expectations universal validation, outlier extraction, changelog generation). False = record carries one or more known quality flags and should be used with caution. All flagged records are retained in delivery (none suppressed) and are fully documented in the accompanying validation reports shipped with each archive.",
       "notes": "Wages (CES/CPS) and Housing sample parquets delivered here may show False for some records due to a pending schema v2.0 recertification sweep on those two products. Full production vault records reflect the final certified state. Food, Trade, and Global Macro sample records all show True.",
       "backtesting_guidance": "For backtesting, it is safe to include False records if the accompanying outlier and sanity reports confirm the flag is a boundary-condition annotation rather than a data error. Never drop False records without reviewing the reports."
@@ -15,7 +15,7 @@
     "conversion_timestamp": {
       "type": "datetime (ISO 8601, UTC)",
       "nullable": true,
-      "coverage": "Food, Wages, Housing, Trade · All 32 countries. ABSENT in Global Macro sample (IMF WEO ingestion pipeline does not populate this field).",
+      "coverage": "Food micropricing (USA partition only) · Wages and employment (USA partition only). Present in 2 of 160 vault partitions. Absent from all EU27 and non-EU country partitions, and absent from USA housing, USA trade flows, and all global_macro partitions. This is a USA-origin BLS/USDA ingestion pipeline artifact and must not be assumed present when reading non-USA vault partitions.",
       "definition": "The UTC datetime when the Lekwankwa ingestion pipeline last wrote or updated this record in the vault partition. This is a pipeline batch bookkeeping field only. It records when the ETL process materialized the record to disk — NOT the original data publication date, NOT a PIT event, and NOT a data quality timestamp.",
       "distinction_from_as_of_date": "as_of_date = the knowledge cutoff for this revision snapshot — the date up to which this version of the record was considered current, typically equal to published_date or official_release_date. conversion_timestamp = when the Lekwankwa pipeline ran and wrote the record. In some products (Wages, Housing, Trade) as_of_date was set to the pipeline run date rather than the original publication date; this is a known inconsistency documented in the per-product changelogs. For PIT-correct backtesting, always use published_date or official_release_date as the gate — never conversion_timestamp or as_of_date.",
       "client_guidance": "Do not interpret conversion_timestamp as a publication date, release date, or any event relevant to the underlying economic data. It exists solely to support pipeline debugging and vault lineage audits."
@@ -25,7 +25,8 @@
     "standard": "SDMX 2.1",
     "codelist_version": "IMF DataMapper API v1",
     "time_period_format": "YYYY",
-    "frequency_code": "A"
+    "frequency_code": "A",
+    "_note_frequency_code": "A = Annual observation period. Publication frequency is quarterly (see source_metadata.release_frequency)."
   },
   "market_records": [
     {
@@ -36,7 +37,15 @@
         "source_agency": "IMF",
         "source_sub_category": "WEO",
         "portal_url": "https://www.imf.org/external/datamapper/",
-        "release_frequency": "Annual"
+        "release_frequency": "Quarterly (January Update, April Final, July Update, October Preliminary)",
+        "vintage_months": [1, 4, 7, 10],
+        "official_release_months": {
+          "january": "YYYY+1-01-01",
+          "april": "YYYY+1-04-01",
+          "july": "YYYY-07-01",
+          "october": "YYYY-10-01"
+        },
+        "note": "Each publication represents a full update to all GDP estimates. Months between publications use the most recently available vintage via forward-fill. PIT signal order per observation year: July (YYYY-07-01) → October (YYYY-10-01) → January (YYYY+1-01-01) → April (YYYY+1-04-01)."
       },
       "items": [
         {
@@ -45,8 +54,8 @@
           "sovereign_series_id": "PCPIPCH",
           "macro_metric_name": "CPI_INFLATION_ANNUAL_PCT_CHANGE",
           "reporting_date": "2024-01-01",
-          "official_release_date": "2024-04-01",
-          "as_of_date": "2024-04-01T00:00:00Z",
+          "official_release_date": "2025-04-01",
+          "as_of_date": "2025-04-01T00:00:00Z",
           "observed_value": 2.9,
           "unit_of_measure": "PERCENT",
           "is_revised_figure": false,

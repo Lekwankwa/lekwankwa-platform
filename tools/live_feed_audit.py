@@ -46,7 +46,7 @@ import yaml
 
 # ── Paths ──────────────────────────────────────────────────────────────────────
 
-_ROOT = Path(__file__).resolve().parent
+_ROOT = Path(__file__).resolve().parent.parent   # tools/ -> repo root
 _SCHEMA_PATH = _ROOT / "backtesting" / "backtest_engine" / "config" / "SCHEMA_STANDARD.yaml"
 _VAULT_DEFAULT = _ROOT / "lekwankwa-historical-vault"
 
@@ -87,7 +87,9 @@ _WRONG_METRICS_FOR_PRODUCT: dict[str, list[str]] = {
     "global_macro": [
         "FOOD_PRICE", "FOOD_INDEX",
         "PERMIT", "HOUSING_STARTS", "HPI", "HOUSE_PRICE_INDEX", "SHELTER_INFLATION",
-        "TOTAL_NONFARM", "NONFARM_PAYROLL",
+        # TOTAL_NONFARM / NONFARM_PAYROLL intentionally omitted: BLS PAYEMS (Total Nonfarm
+        # Payrolls) is a legitimate global_macro series for the USA baseline. Excluding it
+        # here would produce false positives on every USA macro delta.
         "EXPORT_VALUE", "IMPORT_VALUE", "TRADE_BALANCE",
     ],
 }
@@ -133,9 +135,12 @@ def check_non_null(
     violations: list[dict[str, Any]] = []
 
     for field in sorted(non_nullable):
-        # is_interpolated: field-presence rule — only check when column exists
+        # is_interpolated: only flag when column is present AND has at least one
+        # non-null value. vault_extractor materialises all canonical columns as
+        # None for products/countries that don't use interpolation — an all-null
+        # column means "not applicable here", which is not a violation.
         if field == "is_interpolated":
-            if field in df.columns:
+            if field in df.columns and df[field].notna().any():
                 n = int(df[field].isna().sum())
                 if n:
                     violations.append(_v("C1_NON_NULL", "ERROR", field, filename,
@@ -314,6 +319,9 @@ def check_cross_pipeline_duplicates(
         if "confidence_tier" in vault_iso.columns:
             vault_iso = vault_iso[vault_iso["confidence_tier"].isin(["PRIMARY", "SECONDARY"])].copy()
         if vault_iso.empty:
+            continue
+
+        if "reporting_date" not in vault_iso.columns:
             continue
 
         # Filter to rows matching (iso, sid, rdate) in the delta
@@ -717,6 +725,66 @@ def main(argv: list | None = None) -> None:
         log_dir=Path(args.log_dir),
         skip_vault_check=args.skip_vault_check,
     ))
+
+
+# ── Programmatic wrapper for scraper run.py entry points ─────────────────────
+
+def run_post_delta_audit(
+    product: str,
+    country: str,
+    delta_path: "Path | None" = None,
+    vault_root: "Path | None" = None,
+    run_date: str | None = None,
+) -> "AuditResult":
+    """
+    Programmatic entry point called from scraper run.py after every vault write.
+    Wraps run_audit() and returns an AuditResult-like object compatible with
+    the self-healing handler's severity check.
+
+    Returns object with .severity ("NONE" | "HIGH" | "CRITICAL") and .code str.
+    """
+    from dataclasses import dataclass
+    from datetime import date as _date
+    from pathlib import Path as _Path
+
+    @dataclass
+    class AuditResult:
+        severity: str
+        code: str
+        returncode: int
+
+        def to_dict(self):
+            return {"severity": self.severity, "code": self.code,
+                    "returncode": self.returncode}
+
+    if delta_path is None:
+        # Auto-discover most recent delta file for this product
+        candidate = _Path("audit_logs")
+        import glob as _glob
+        pattern = str(candidate / f"live_feed_audit_log_{product}_*.json")
+        files   = sorted(_glob.glob(pattern))
+        if not files:
+            log.debug("run_post_delta_audit: no delta files found for %s — skipping", product)
+            return AuditResult(severity="NONE", code="NO_DELTA_FILE", returncode=0)
+        delta_path = _Path(files[-1])
+
+    _vault = vault_root or _VAULT_DEFAULT
+    _date  = run_date or _date.today().isoformat()
+    _logs  = _Path("logs/live_feed_audit")
+
+    rc = run_audit(
+        delta_path=_Path(delta_path),
+        product=product,
+        validation_summary=None,
+        vault_root=_Path(_vault),
+        run_date=_date,
+        log_dir=_logs,
+    )
+
+    if rc == 0:
+        return AuditResult(severity="NONE", code="AUDIT_PASS", returncode=0)
+    else:
+        return AuditResult(severity="HIGH", code=f"AUDIT_FLAG_RC{rc}", returncode=rc)
 
 
 if __name__ == "__main__":
