@@ -127,18 +127,6 @@ VINTAGES = [
     {
         "label":     "April WEO (final)",
         "suffix":    None,
-        "pub_month": 4,
-        "release_date":    lambda year: f"{year + 1}-04-01",
-        "published_date":  lambda year: f"{year + 1}-04-01T00:00:00Z",
-    },
-]
-
-# ── Helpers ────────────────────────────────────────────────────────────────────
-
-def _now_utc() -> str:
-    return datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
-
-
     url = f"{IMF_BASE}/{indicator}/{COUNTRY}"
     for attempt in range(1, retries + 1):
         try:
@@ -146,8 +134,37 @@ def _now_utc() -> str:
             r.raise_for_status()
             payload = r.json()
 
-            # ----------------------------------------------------------------
-            # Defensive dual-key extraction.
+            # IMF DataMapper API changed field name from 'value' → 'values'.
+            # Support both to stay robust against future renames.
+            if "values" in payload:
+                top_level = payload["values"]
+            elif "value" in payload:
+                logger.warning(
+                    "  IMF API returned legacy field 'value' (expected 'values') "
+                    "for %s — adapting automatically. Notify data-eng to confirm "
+                    "whether the API contract has reverted.",
+                    indicator,
+                )
+                top_level = payload["value"]
+            else:
+                available = list(payload.keys())
+                raise KeyError(
+                    f"IMF DataMapper response for {indicator} contains neither "
+                    f"'values' nor 'value'. Available top-level keys: {available}. "
+                    "The API contract may have changed — manual inspection required."
+                )
+
+            values = top_level.get(indicator, {}).get(COUNTRY, {})
+
+            if not values:
+                logger.warning("  No data returned for %s", indicator)
+                return None
+            return values
+        except requests.exceptions.RequestException as exc:
+            logger.warning("  Attempt %d/%d failed for %s: %s", attempt, retries, indicator, exc)
+            if attempt < retries:
+                time.sleep(2 ** attempt)
+    return None            # Defensive dual-key extraction.
             # IMF DataMapper renamed the top-level envelope key from 'value'
             # to 'values' (observed 2026-06).  We try the current canonical
             # key first, then fall back to the legacy key so the scraper
