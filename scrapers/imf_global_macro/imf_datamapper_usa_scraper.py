@@ -140,19 +140,38 @@ VINTAGES = [
                 top_level = payload["values"]
             elif "value" in payload:
                 logger.warning(
-                    "  IMF API returned legacy field 'value' (expected 'values') "
-                    "for %s — adapting automatically. Notify data-eng to confirm "
-                    "whether the API contract has reverted.",
+        try:
+            r = requests.get(url, timeout=60, verify=False)
+            r.raise_for_status()
+            payload = r.json()
+
+            # IMF DataMapper API changed the top-level envelope key from
+            # "value" (legacy) to "values" (current) in the /latest endpoint.
+            # Support both shapes during any transition period; prefer "values".
+            if "values" in payload:
+                top_level = payload["values"]
+            elif "value" in payload:
+                logger.warning(
+                    "  fetch_indicator(%s): API returned legacy key 'value' "
+                    "instead of 'values' — using fallback. "
+                    "Update this scraper once the old key is fully retired.",
                     indicator,
                 )
                 top_level = payload["value"]
             else:
-                available = list(payload.keys())
-                raise KeyError(
-                    f"IMF DataMapper response for {indicator} contains neither "
-                    f"'values' nor 'value'. Available top-level keys: {available}. "
-                    "The API contract may have changed — manual inspection required."
+                logger.warning(
+                    "  fetch_indicator(%s): API response contains neither "
+                    "'values' nor 'value' key. Keys present: %s",
+                    indicator,
+                    list(payload.keys()),
                 )
+                top_level = {}
+
+            values = top_level.get(indicator, {}).get(COUNTRY, {})
+
+            if not values:
+                logger.warning("  No data returned for %s", indicator)
+                return None                )
 
             values = top_level.get(indicator, {}).get(COUNTRY, {})
 
