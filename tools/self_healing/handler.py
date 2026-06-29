@@ -200,8 +200,8 @@ def handle_exception(
               type(exception).__name__, str(exception))
     log.debug("[SELF-HEAL] Traceback:\n%s", tb_str)
 
-    # Layer 2: Scrape4AI retry
-    log.info("[SELF-HEAL] Layer 2 — Scrape4AI retry starting...")
+    # Layer 1: Crawl4AI retry
+    log.info("[SELF-HEAL] Layer 1 — Crawl4AI retry starting...")
     try:
         from tools.self_healing.scrape4ai_retry import attempt_scrape4ai_retry
         layer2_ok = attempt_scrape4ai_retry(program, context, exception)
@@ -210,11 +210,11 @@ def handle_exception(
         layer2_ok = False
 
     if layer2_ok:
-        log.info("[SELF-HEAL] Layer 2 resolved. No escalation needed.")
-        log_event(program, context, "RESOLVED_LAYER2")
+        log.info("[SELF-HEAL] Layer 1 resolved. No escalation needed.")
+        log_event(program, context, "RESOLVED_LAYER1")
         return
 
-    log.info("[SELF-HEAL] Layer 2 exhausted — MAJOR_EXCEPTION. Escalating to Layer 3.")
+    log.info("[SELF-HEAL] Layer 1 exhausted — escalating to Layer 2 (Claude diagnosis).")
     _escalate_to_layer3(program, exception, context, tb_str)
 
 

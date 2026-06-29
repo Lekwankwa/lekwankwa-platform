@@ -67,7 +67,7 @@ def send_approval_email(
     }
     layer_label  = _layer_labels.get(layer, layer)
     # Layer 2 only runs for scraper exceptions; audit/quality go straight to Layer 3
-    layer2_text  = (
+    layer1_text  = (
         "FAILED — 3 retries exhausted"
         if layer == "SCRAPER"
         else "SKIPPED — not applicable for this trigger source"
@@ -89,11 +89,10 @@ Country:   {country}
 Source:    {source}
 Date:      {run_date}
 Severity:  {severity}
-Layer:     {layer_label}
+Trigger:   {layer_label}
 
-Layer 1 ({layer_label}):  FAILED — error detected
-Layer 2 (Scrape4AI retry):           {layer2_text}
-Layer 3 (Claude Sonnet 4.6 diagnosis): COMPLETE — see below
+Layer 1 (Crawl4AI retry):             {layer1_text}
+Layer 2 (Claude Sonnet 4.6 diagnosis): COMPLETE — see below
 
 CLAUDE SONNET 4.6 DIAGNOSIS
 ----------------------------
@@ -129,9 +128,9 @@ the fix is rejected and logged for manual review.
 
 <h3>Layer Status</h3>
 <ul>
-  <li>Layer 1 ({layer_label}): <b style="color:#c0392b">FAILED</b> — error detected</li>
-  <li>Layer 2 (Scrape4AI retry): <b>{layer2_text}</b></li>
-  <li>Layer 3 (Claude Sonnet 4.6 diagnosis): <b style="color:#27ae60">COMPLETE</b></li>
+  <li>Layer 1 (Crawl4AI retry): <b>{layer1_text}</b></li>
+  <li>Layer 2 (Claude Sonnet 4.6 diagnosis): <b style="color:#27ae60">COMPLETE</b></li>
+  <li>Trigger: <b>{layer_label}</b> — error detected</li>
 </ul>
 
 <h3>Claude Sonnet 4.6 Diagnosis</h3>
