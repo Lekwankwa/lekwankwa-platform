@@ -30,33 +30,32 @@ from flask import Flask, request, Response
 
 app = Flask(__name__)
 
-GCS_BUCKET        = os.environ.get("GCS_BUCKET", "lekwankwa-historical-vault")
-FIRESTORE_PROJECT = os.environ.get("FIRESTORE_PROJECT", "fluted-alloy-498317-u0")
-COLLECTION        = "lekwankwa_self_healing_tokens"
+GCS_BUCKET   = os.environ.get("GCS_BUCKET", "lekwankwa-historical-vault")
+TOKEN_PREFIX = "self_healing_tokens"
 
 
 # ---------------------------------------------------------------------------
-# Firestore token verification
+# GCS token verification (replaces Firestore)
 # ---------------------------------------------------------------------------
 
-def _get_firestore_client():
-    from google.cloud import firestore
-    return firestore.Client(project=FIRESTORE_PROJECT)
+def _get_storage_client():
+    from google.cloud import storage
+    return storage.Client()
 
 
 def _verify_token(token: str) -> dict | None:
     """
-    Look up token in Firestore. Returns the token document dict if the token
-    exists, is PENDING, and has not expired. Returns None otherwise.
+    Look up token JSON in GCS. Returns the token dict if it exists,
+    is PENDING, and has not expired. Returns None otherwise.
     """
     if not token or len(token) < 8:
         return None
     try:
-        db  = _get_firestore_client()
-        doc = db.collection(COLLECTION).document(token).get()
-        if not doc.exists:
+        client = _get_storage_client()
+        blob   = client.bucket(GCS_BUCKET).blob(f"{TOKEN_PREFIX}/{token}.json")
+        if not blob.exists():
             return None
-        data = doc.to_dict()
+        data   = json.loads(blob.download_as_text())
         if data.get("status") != "PENDING":
             return None
         expiry = datetime.datetime.fromisoformat(data["expires_at"])
@@ -64,19 +63,25 @@ def _verify_token(token: str) -> dict | None:
             return None
         return data
     except Exception as exc:
-        app.logger.error("Firestore token lookup failed: %s", exc)
+        app.logger.error("GCS token lookup failed: %s", exc)
         return None
 
 
 def _update_token_status(token: str, status: str) -> None:
     try:
-        db = _get_firestore_client()
-        db.collection(COLLECTION).document(token).update({
-            "status":      status,
-            "resolved_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
-        })
+        client = _get_storage_client()
+        blob   = client.bucket(GCS_BUCKET).blob(f"{TOKEN_PREFIX}/{token}.json")
+        if not blob.exists():
+            return
+        data = json.loads(blob.download_as_text())
+        data["status"]      = status
+        data["resolved_at"] = datetime.datetime.now(datetime.timezone.utc).isoformat()
+        blob.upload_from_string(
+            json.dumps(data, indent=2, default=str),
+            content_type="application/json",
+        )
     except Exception as exc:
-        app.logger.warning("Failed to update token status in Firestore: %s", exc)
+        app.logger.warning("Failed to update token status in GCS: %s", exc)
 
 
 # ---------------------------------------------------------------------------

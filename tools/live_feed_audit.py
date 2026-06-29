@@ -637,6 +637,20 @@ def run_audit(
         log.error("GCS WRITE HALTED — resolve the following before delivery:")
         for v in errors:
             log.error("  [%s] %s", v["check"], v["detail"])
+
+        # Trigger self-healing for audit failures
+        try:
+            from tools.self_healing.handler import handle_audit_finding
+            heal_context = {
+                "product":  product,
+                "country":  "multi",
+                "source":   "live_feed_audit",
+                "run_date": run_date,
+                "layer":    "LIVE_FEED_AUDIT",
+            }
+            handle_audit_finding(__file__, heal_context, errors)
+        except Exception as _sh_exc:
+            log.error("[SELF-HEAL] Failed to trigger self-healing: %s", _sh_exc)
     else:
         log.info("All checks PASS -- delta file cleared for GCS write.")
 
