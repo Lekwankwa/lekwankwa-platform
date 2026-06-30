@@ -138,8 +138,8 @@ def run() -> int:
 
     log.info("\nSSB NOR ingestion complete: %d rows written", total)
     if total > 0:
-        from tools.trigger_downstream import trigger_quality_live
-        trigger_quality_live()
+        from tools.trigger_downstream import trigger_all_metadata
+        trigger_all_metadata()
     return total
 
 

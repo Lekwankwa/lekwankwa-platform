@@ -73,12 +73,12 @@ def main():
         log.info("Completed %s/%s", PRODUCT, args.country)
         from tools.vault_audit import run_9_stage_validation
         from tools.live_feed_audit import run_post_delta_audit
-        from tools.trigger_downstream import trigger_quality_live
+        from tools.trigger_downstream import trigger_all_metadata
         val = run_9_stage_validation(product=PRODUCT, country=args.country)
         if val.severity not in ("CRITICAL", "HIGH"):
             audit = run_post_delta_audit(product=PRODUCT, country=args.country)
             if audit.severity not in ("CRITICAL", "HIGH"):
-                trigger_quality_live()
+                trigger_all_metadata()
         sys.exit(0)
     except Exception as exc:
         log.error("Failed %s/%s: %s", PRODUCT, args.country, exc, exc_info=True)

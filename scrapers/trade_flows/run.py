@@ -116,8 +116,8 @@ def main():
         )
         sys.exit(1)
 
-    from tools.trigger_downstream import trigger_quality_live
-    trigger_quality_live()
+    from tools.trigger_downstream import trigger_all_metadata
+    trigger_all_metadata()
     sys.exit(0)
 
 

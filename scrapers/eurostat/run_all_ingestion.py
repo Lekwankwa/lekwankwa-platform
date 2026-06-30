@@ -111,8 +111,8 @@ def run(datasets: list[str] | None = None) -> dict[str, int]:
     log.info("=" * 72)
 
     if total_rows > 0:
-        from tools.trigger_downstream import trigger_quality_live
-        trigger_quality_live()
+        from tools.trigger_downstream import trigger_all_metadata
+        trigger_all_metadata()
 
     return results
 
