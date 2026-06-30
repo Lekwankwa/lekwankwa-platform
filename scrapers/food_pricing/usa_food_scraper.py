@@ -42,6 +42,7 @@ import time
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
+from scrapers.utilities.vault_io import get_vault_root
 
 import urllib3
 import pandas as pd
@@ -85,7 +86,7 @@ BLS_API_KEY = os.environ.get("BLS_API_KEY", "")
 BLS_API_URL = "https://api.bls.gov/publicAPI/v2/timeseries/data/"
 BLS_PORTAL  = "https://www.bls.gov/cpi/data.htm"
 
-VAULT_ROOT  = Path("lekwankwa-historical-vault/product=food_micropricing/country=USA/source=bls")
+VAULT_ROOT  = get_vault_root("lekwankwa-historical-vault/product=food_micropricing/country=USA/source=bls")
 FILE_NAME   = "food_pricing_data.parquet"
 SOURCE      = "bls"
 VERSION     = "3.0-GOLD"

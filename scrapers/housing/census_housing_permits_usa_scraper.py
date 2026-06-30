@@ -43,6 +43,7 @@ import time
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
+from scrapers.utilities.vault_io import get_vault_root
 
 import urllib3
 import pandas as pd
@@ -78,7 +79,7 @@ logger = logging.getLogger(__name__)
 
 FRED_BASE_URL  = "https://api.stlouisfed.org/fred/series/observations"
 CENSUS_PORTAL  = "https://www.census.gov/construction/bps/"
-VAULT_ROOT     = Path("lekwankwa-historical-vault/product=Housing_Supply_and_Shelter_Inflation/country=USA")
+VAULT_ROOT     = get_vault_root("lekwankwa-historical-vault/product=Housing_Supply_and_Shelter_Inflation/country=USA")
 SOURCE         = "census_bps"
 FILE_NAME      = "building_permits_data.parquet"
 

@@ -38,8 +38,7 @@ from pathlib import Path
 
 import pandas as pd
 
-VAULT = Path(__file__).resolve().parents[2] / "lekwankwa-historical-vault"
-
+VAULT = get_vault_root(str(Path(__file__).resolve().parents[2] / "lekwankwa-historical-vault"))
 EU27 = [
     "AUT","BEL","BGR","HRV","CYP","CZE","DNK","EST","FIN","FRA","DEU","GRC",
     "HUN","IRL","ITA","LVA","LTU","LUX","MLT","NLD","POL","PRT","ROU","SVK","SVN","ESP","SWE",

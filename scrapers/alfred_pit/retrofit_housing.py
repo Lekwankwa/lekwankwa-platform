@@ -23,6 +23,7 @@ from pathlib import Path
 import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+from scrapers.utilities.vault_io import get_vault_root
 from scrapers.alfred_pit.alfred_client import fetch_all_vintages, build_vintage_rows
 from scrapers.alfred_pit.series_map import HOUSING_SERIES
 
@@ -34,8 +35,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-VAULT_ROOT = Path(__file__).resolve().parents[2] / "lekwankwa-historical-vault/product=Housing_Supply_and_Shelter_Inflation/country=USA/source=alfred_vintage"
-
+VAULT_ROOT = get_vault_root(str(Path(__file__).resolve().parents[2] / "lekwankwa-historical-vault/product=Housing_Supply_and_Shelter_Inflation/country=USA/source=alfred_vintage"))
 PERMIT_SERIES  = {"PERMIT", "PERMIT1", "PERMIT5"}
 SHELTER_SERIES = {"CUUR0000SEHA", "CUUR0000SEHB", "CUUR0000SAH1",
                    "CUSR0000SEHA", "CUSR0000SEHB", "CUSR0000SAH1"}

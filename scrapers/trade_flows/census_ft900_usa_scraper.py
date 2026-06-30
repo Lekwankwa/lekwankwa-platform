@@ -39,6 +39,7 @@ import time
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
+from scrapers.utilities.vault_io import get_vault_root
 
 import pandas as pd
 import requests
@@ -77,7 +78,7 @@ EXPORTS_URL      = f"{CENSUS_BASE}/exports/hs"
 IMPORTS_URL      = f"{CENSUS_BASE}/imports/hs"
 CENSUS_PORTAL    = "https://www.census.gov/foreign-trade/"
 
-VAULT_ROOT       = Path("lekwankwa-historical-vault/product=trade_flows/country=USA/source=census_ft900")
+VAULT_ROOT       = get_vault_root("lekwankwa-historical-vault/product=trade_flows/country=USA/source=census_ft900")
 DATA_FILE_NAME   = "trade_flows_data.parquet"
 
 TRADE_START_YEAR = 2010   # Census timeseries/intltrade API earliest available month

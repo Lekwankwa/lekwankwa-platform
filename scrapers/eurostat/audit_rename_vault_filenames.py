@@ -32,8 +32,7 @@ import pandas as pd
 
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8")
 
-VAULT = Path(__file__).resolve().parents[2] / "lekwankwa-historical-vault"
-
+VAULT = get_vault_root(str(Path(__file__).resolve().parents[2] / "lekwankwa-historical-vault"))
 PRODUCTS = [
     "Housing_Supply_and_Shelter_Inflation",
     "wages_and_employment",

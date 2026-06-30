@@ -52,6 +52,7 @@ import uuid
 import warnings as _warnings
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from scrapers.utilities.vault_io import get_vault_root
 
 import pandas as pd
 import requests

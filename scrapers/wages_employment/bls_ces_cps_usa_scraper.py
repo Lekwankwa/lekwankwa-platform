@@ -48,6 +48,7 @@ import time
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
+from scrapers.utilities.vault_io import get_vault_root
 
 import pandas as pd
 import requests
@@ -83,7 +84,7 @@ logger = logging.getLogger(__name__)
 
 BLS_API_URL  = "https://api.bls.gov/publicAPI/v2/timeseries/data/"
 BLS_PORTAL   = "https://www.bls.gov"
-VAULT_ROOT   = Path("lekwankwa-historical-vault/product=wages_and_employment/country=USA")
+VAULT_ROOT   = get_vault_root("lekwankwa-historical-vault/product=wages_and_employment/country=USA")
 
 # BLS API limits
 MAX_YEARS_PER_CALL = 20   # BLS API ceiling

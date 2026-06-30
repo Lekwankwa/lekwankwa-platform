@@ -34,8 +34,9 @@ from pathlib import Path
 
 import pandas as pd
 
-_SCRAPER_ROOT = Path(__file__).resolve().parents[2]
+_SCRAPER_ROOT = get_vault_root(str(Path(__file__).resolve().parents[2] / "lekwankwa-historical-vault"))
 sys.path.insert(0, str(_SCRAPER_ROOT))
+from scrapers.utilities.vault_io import get_vault_root
 
 from scrapers.eurostat.country_map import ALL_ISO3
 from scrapers.eurostat.revision_tracker import write_partition
@@ -47,7 +48,7 @@ logging.basicConfig(
 )
 log = logging.getLogger(__name__)
 
-_VAULT_BASE = Path(__file__).resolve().parents[2] / "lekwankwa-historical-vault"
+_VAULT_BASE = get_vault_root(str(Path(__file__).resolve().parents[2] / "lekwankwa-historical-vault"))
 SOURCE      = "eurostat_sdmx"
 QUARTER_MONTHS = {1, 4, 7, 10}
 

@@ -27,6 +27,7 @@ from pathlib import Path
 import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+from scrapers.utilities.vault_io import get_vault_root
 from scrapers.alfred_pit.alfred_client import fetch_all_vintages, build_vintage_rows
 from scrapers.alfred_pit.series_map import FOOD_SERIES, FOOD_ALFRED_START
 
@@ -38,7 +39,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-VAULT_ROOT = Path(__file__).resolve().parents[2] / "lekwankwa-historical-vault/product=food_micropricing/country=USA/source=alfred_vintage"
+VAULT_ROOT = get_vault_root(str(Path(__file__).resolve().parents[2] / "lekwankwa-historical-vault/product=food_micropricing/country=USA/source=alfred_vintage"))
 FILE_NAME  = "food_pricing_data.parquet"
 
 SCHEMA_CONSTANTS = {

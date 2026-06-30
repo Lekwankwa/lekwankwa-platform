@@ -44,7 +44,7 @@ import pandas as pd
 
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8")
 
-VAULT   = Path(__file__).resolve().parents[2] / "lekwankwa-historical-vault"
+VAULT = get_vault_root(str(Path(__file__).resolve().parents[2] / "lekwankwa-historical-vault"))
 PRODUCT = "wages_and_employment"
 
 _EMPL_Q_MARKERS = {"EMPL_Q", "LFSI_EMP", "QUARTERLY EMPLOYMENT"}

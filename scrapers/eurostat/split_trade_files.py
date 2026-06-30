@@ -23,7 +23,7 @@ import pandas as pd
 
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8")
 
-VAULT   = Path(__file__).resolve().parents[2] / "lekwankwa-historical-vault"
+VAULT = get_vault_root(str(Path(__file__).resolve().parents[2] / "lekwankwa-historical-vault"))
 PRODUCT = "trade_flows"
 SOURCE  = "eurostat_sdmx"
 

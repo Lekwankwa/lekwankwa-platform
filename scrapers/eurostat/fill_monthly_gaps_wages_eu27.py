@@ -23,8 +23,9 @@ from pathlib import Path
 
 import pandas as pd
 
-_ROOT = Path(__file__).resolve().parents[2]
+_ROOT = get_vault_root(str(Path(__file__).resolve().parents[2] / "lekwankwa-historical-vault"))
 sys.path.insert(0, str(_ROOT / "backtesting"))
+from scrapers.utilities.vault_io import get_vault_root
 
 from scrapers.eurostat.revision_tracker import write_partition
 

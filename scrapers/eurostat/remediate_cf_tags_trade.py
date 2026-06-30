@@ -12,7 +12,7 @@ from pathlib import Path
 
 import pandas as pd
 
-VAULT = Path(__file__).resolve().parents[2] / "lekwankwa-historical-vault"
+VAULT = get_vault_root(str(Path(__file__).resolve().parents[2] / "lekwankwa-historical-vault"))
 PRODUCT = "trade_flows"
 
 _CF_RE = re.compile(r"^(.*?-\d{4}-\d{2})-CF(-v\d+)$")

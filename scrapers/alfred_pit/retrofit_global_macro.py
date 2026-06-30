@@ -34,6 +34,7 @@ from pathlib import Path
 import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+from scrapers.utilities.vault_io import get_vault_root
 from scrapers.alfred_pit.alfred_client import fetch_all_vintages, build_vintage_rows
 from scrapers.alfred_pit.series_map import GLOBAL_MACRO_SERIES
 
@@ -120,7 +121,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-_VAULT_BASE       = Path(__file__).resolve().parents[2] / "lekwankwa-historical-vault"
+_VAULT_BASE = get_vault_root(str(Path(__file__).resolve().parents[2] / "lekwankwa-historical-vault"))
 VAULT_ROOT_ALFRED = _VAULT_BASE / "product=global_macro/country=USA/source=alfred_vintage"
 VAULT_ROOT_IMF    = _VAULT_BASE / "product=global_macro/country=USA/source=imf_weo"
 FILE_NAME = "global_macro_data.parquet"

@@ -46,8 +46,7 @@ logger = logging.getLogger(__name__)
 FRED_KEY    = os.getenv("FRED_API_KEY", "136178f657b4aba7ad9e55938a1473bd")
 FRED_BASE   = "https://api.stlouisfed.org/fred"
 NOW_UTC     = datetime.now(timezone.utc)
-_VAULT_BASE = Path(__file__).resolve().parents[2] / "lekwankwa-historical-vault"
-
+_VAULT_BASE = get_vault_root(str(Path(__file__).resolve().parents[2] / "lekwankwa-historical-vault"))
 # ── Dataset configurations ────────────────────────────────────────────────────
 
 DATASET_CONFIGS = {

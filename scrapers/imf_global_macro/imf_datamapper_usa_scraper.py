@@ -46,6 +46,7 @@ import uuid
 import warnings
 from datetime import datetime, timezone
 from pathlib import Path
+from scrapers.utilities.vault_io import get_vault_root
 
 import pandas as pd
 import requests
@@ -86,7 +87,7 @@ SOURCE_AGENCY = "IMF"
 SOURCE_SUB    = "WEO"
 PORTAL_URL    = "https://www.imf.org/external/datamapper/"
 MARKET_TIER   = "Developed"
-VAULT_ROOT    = Path("lekwankwa-historical-vault")
+VAULT_ROOT    = get_vault_root("lekwankwa-historical-vault")
 FORECAST_FROM = 2025   # years >= this are IMF forecasts (is_forecast=True)
 
 INDICATORS: dict[str, dict] = {
