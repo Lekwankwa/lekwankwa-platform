@@ -4,7 +4,7 @@ tools/pit_disclosure_generator.py — Lekwankwa Corporation
 Point-in-Time (PIT) Coverage Disclosure Generator.
 
 Produces a master disclosure file plus per-product geo-split slices:
-  metadata/pit_disclosure/
+  quality_reports/pit_disclosure/
     pit_disclosure_master.json                          -- all 32 countries × 5 products
     Dataset 1 - Food Micropricing/
       pit_disclosure_dataset_1_food_micropricing_usa_only.json
@@ -587,7 +587,7 @@ def write_outputs(
     out_dir: Path,
     master: dict,
     gcs_bucket: str | None = None,
-    gcs_prefix: str = "metadata/pit_disclosure",
+    gcs_prefix: str = "quality_reports/pit_disclosure",
 ) -> None:
     pit_root = out_dir / "pit_disclosure"
     pit_root.mkdir(parents=True, exist_ok=True)
@@ -683,8 +683,8 @@ def cloud_function_handler(event: dict, context: Any) -> None:  # type: ignore
     tmp_dir.mkdir(parents=True, exist_ok=True)
 
     master = build_master()
-    write_outputs(tmp_dir, master, gcs_bucket=metadata_bucket, gcs_prefix="metadata/pit_disclosure")
-    logger.info("PIT disclosure updated in GCS: %s/metadata/pit_disclosure/", metadata_bucket)
+    write_outputs(tmp_dir, master, gcs_bucket=metadata_bucket, gcs_prefix="quality_reports/pit_disclosure")
+    logger.info("PIT disclosure updated in GCS: %s/quality_reports/pit_disclosure/", metadata_bucket)
 
 
 # ---------------------------------------------------------------------------
@@ -703,8 +703,8 @@ def _parse_args() -> argparse.Namespace:
         help="GCS bucket for upload, e.g. gs://lekwankwa-metadata (omit to skip upload)",
     )
     p.add_argument(
-        "--gcs-prefix", default="metadata/pit_disclosure", metavar="PREFIX",
-        help="GCS object prefix (default: metadata/pit_disclosure)",
+        "--gcs-prefix", default="quality_reports/pit_disclosure", metavar="PREFIX",
+        help="GCS object prefix (default: quality_reports/pit_disclosure)",
     )
     p.add_argument(
         "--run-date", default=None,
