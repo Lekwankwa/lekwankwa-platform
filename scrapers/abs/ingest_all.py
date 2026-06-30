@@ -125,6 +125,9 @@ def run() -> int:
         total += _ingest_series(*entry)
 
     log.info("\nABS AUS ingestion complete: %d rows written", total)
+    if total > 0:
+        from tools.trigger_downstream import trigger_quality_live
+        trigger_quality_live()
     return total
 
 

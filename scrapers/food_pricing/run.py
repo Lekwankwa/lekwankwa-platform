@@ -151,6 +151,8 @@ def run_country(country: str, mode: str, since: str | None, dry_run: bool) -> bo
                     },
                 )
                 return False
+    from tools.trigger_downstream import trigger_quality_live
+    trigger_quality_live()
     return True
 
 

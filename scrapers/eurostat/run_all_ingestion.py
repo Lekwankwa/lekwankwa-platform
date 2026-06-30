@@ -110,6 +110,10 @@ def run(datasets: list[str] | None = None) -> dict[str, int]:
     log.info(f"Wall clock: {total_elapsed:.0f}s")
     log.info("=" * 72)
 
+    if total_rows > 0:
+        from tools.trigger_downstream import trigger_quality_live
+        trigger_quality_live()
+
     return results
 
 

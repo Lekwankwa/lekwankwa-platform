@@ -116,6 +116,8 @@ def run_source(country: str, cfg: dict, source_filter: str | None,
                      "run_date": TODAY, "layer": "LIVE_FEED_AUDIT", "finding": audit.to_dict()},
         )
         return False
+    from tools.trigger_downstream import trigger_quality_live
+    trigger_quality_live()
     return True
 
 

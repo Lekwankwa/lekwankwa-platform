@@ -118,6 +118,9 @@ def run() -> int:
         total += _ingest_cdid(*entry)
 
     log.info("\nONS GBR ingestion complete: %d rows written", total)
+    if total > 0:
+        from tools.trigger_downstream import trigger_quality_live
+        trigger_quality_live()
     return total
 
 

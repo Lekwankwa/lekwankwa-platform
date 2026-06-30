@@ -104,6 +104,18 @@ def run_source(country: str, cfg: dict, source_filter: str | None,
                      "run_date": TODAY, "layer": "VALIDATION", "finding": val.to_dict()},
         )
         return False
+    audit = run_post_delta_audit(product=PRODUCT, country=country)
+    if audit.severity in ("CRITICAL", "HIGH"):
+        from tools.self_healing.handler import handle_exception
+        handle_exception(
+            program=__file__,
+            exception=Exception(f"Live feed audit failed: {audit.code}"),
+            context={"product": PRODUCT, "country": country, "source": source,
+                     "run_date": TODAY, "layer": "LIVE_FEED_AUDIT", "finding": audit.to_dict()},
+        )
+        return False
+    from tools.trigger_downstream import trigger_quality_live
+    trigger_quality_live()
     return True
 
 

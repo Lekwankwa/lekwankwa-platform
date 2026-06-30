@@ -71,6 +71,14 @@ def main():
         from scrapers.imf_global_macro.imf_datamapper_usa_scraper import main as imf_main
         imf_main(mode=args.mode, since=args.since)
         log.info("Completed %s/%s", PRODUCT, args.country)
+        from tools.vault_audit import run_9_stage_validation
+        from tools.live_feed_audit import run_post_delta_audit
+        from tools.trigger_downstream import trigger_quality_live
+        val = run_9_stage_validation(product=PRODUCT, country=args.country)
+        if val.severity not in ("CRITICAL", "HIGH"):
+            audit = run_post_delta_audit(product=PRODUCT, country=args.country)
+            if audit.severity not in ("CRITICAL", "HIGH"):
+                trigger_quality_live()
         sys.exit(0)
     except Exception as exc:
         log.error("Failed %s/%s: %s", PRODUCT, args.country, exc, exc_info=True)
