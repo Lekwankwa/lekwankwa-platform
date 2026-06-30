@@ -15,13 +15,12 @@ from __future__ import annotations
 
 import logging
 import sys
-from pathlib import Path
 
 import pandas as pd
 
-_SCRAPER_ROOT = get_vault_root(str(Path(__file__).resolve().parents[2] / "lekwankwa-historical-vault"))
-sys.path.insert(0, str(_SCRAPER_ROOT))
 from scrapers.utilities.vault_io import get_vault_root
+from tools.secrets import load_all_secrets_to_env
+load_all_secrets_to_env()
 
 from scrapers.ons.ons_client import fetch_timeseries
 from scrapers.ons.series_map import (
@@ -36,7 +35,7 @@ logging.basicConfig(
 )
 log = logging.getLogger(__name__)
 
-_VAULT_BASE = get_vault_root(str(Path(__file__).resolve().parents[2] / "lekwankwa-historical-vault"))
+_VAULT_BASE = get_vault_root("lekwankwa-historical-vault")
 def _ingest_cdid(
     cdid: str,
     uri: str,

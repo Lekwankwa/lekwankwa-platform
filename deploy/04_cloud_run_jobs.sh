@@ -49,21 +49,37 @@ else
     echo "    gcloud cloud-shell scp LOCAL:.env cloudshell:~/lekwankwa-platform/.env"
 fi
 
-# All env vars passed to every job
+# Non-secret env vars only — API keys are loaded from Secret Manager at runtime
+# (tools/secrets.py calls Secret Manager on startup; no raw keys in container env)
 ENV_VARS="VAULT_ROOT=${VAULT}"
 ENV_VARS="${ENV_VARS},METADATA_BUCKET=${METADATA}"
 ENV_VARS="${ENV_VARS},GOOGLE_CLOUD_PROJECT=${PROJECT}"
-ENV_VARS="${ENV_VARS},FRED_API_KEY=${FRED_API_KEY:-}"
-ENV_VARS="${ENV_VARS},ALFRED_API_KEY=${ALFRED_API_KEY:-}"
-ENV_VARS="${ENV_VARS},BLS_API_KEY=${BLS_API_KEY:-}"
-ENV_VARS="${ENV_VARS},USDA_API_KEY=${USDA_API_KEY:-}"
-ENV_VARS="${ENV_VARS},USDA_ERS_API_KEY=${USDA_ERS_API_KEY:-}"
-ENV_VARS="${ENV_VARS},CENSUS_API_KEY=${CENSUS_API_KEY:-}"
-ENV_VARS="${ENV_VARS},EIA_API_KEY=${EIA_API_KEY:-}"
-ENV_VARS="${ENV_VARS},BEA_API_KEY=${BEA_API_KEY:-}"
-ENV_VARS="${ENV_VARS},PIPELINE_ENV=${PIPELINE_ENV:-production}"
+ENV_VARS="${ENV_VARS},PIPELINE_ENV=production"
 
-echo "  ✓ Env vars built"
+echo "  ✓ Env vars built (API keys loaded from Secret Manager at runtime)"
+
+echo ""
+echo "========================================================"
+echo " STEP 0b — Grant SA access to Secret Manager"
+echo "========================================================"
+gcloud services enable secretmanager.googleapis.com --project="${PROJECT}"
+gcloud projects add-iam-policy-binding "${PROJECT}" \
+    --member="serviceAccount:${SA}" \
+    --role="roles/secretmanager.secretAccessor" \
+    --condition=None \
+    --quiet
+echo "  ✓ roles/secretmanager.secretAccessor granted to ${SA}"
+echo ""
+echo "  IMPORTANT: API keys must be stored as Secret Manager secrets."
+echo "  Run once (substitute real values) if not already done:"
+echo "    echo -n '<value>' | gcloud secrets create fred-api-key    --data-file=- --project=${PROJECT}"
+echo "    echo -n '<value>' | gcloud secrets create alfred-api-key  --data-file=- --project=${PROJECT}"
+echo "    echo -n '<value>' | gcloud secrets create bls-api-key     --data-file=- --project=${PROJECT}"
+echo "    echo -n '<value>' | gcloud secrets create usda-api-key    --data-file=- --project=${PROJECT}"
+echo "    echo -n '<value>' | gcloud secrets create usda-ers-api-key --data-file=- --project=${PROJECT}"
+echo "    echo -n '<value>' | gcloud secrets create census-api-key  --data-file=- --project=${PROJECT}"
+echo "    echo -n '<value>' | gcloud secrets create eia-api-key     --data-file=- --project=${PROJECT}"
+echo "    echo -n '<value>' | gcloud secrets create bea-api-key     --data-file=- --project=${PROJECT}"
 
 echo ""
 echo "========================================================"
@@ -214,6 +230,10 @@ create_quality_job "job-quality-archive" \
 --series-manifest,backtesting/backtest_engine/config/catalog_expected_series.yaml,\
 --mode,archive"
 
+# Health check — polls Cloud Run + Scheduler + GCS; writes health/health_status.json
+create_job "job-health-check" \
+    "python,tools/health_check.py"
+
 echo ""
 echo "========================================================"
 echo " STEP 4 — Grant Cloud Scheduler permission to invoke jobs"
@@ -292,6 +312,7 @@ schedule_job "sched-release-calendar"   "0 4 * * *"   "job-release-calendar"
 schedule_job "sched-quality-archive"    "0 12 * * *"  "job-quality-archive"
 schedule_job "sched-quality-live"       "30 21 * * *" "job-quality-live"
 schedule_job "sched-pit-disclosure"     "0 22 * * *"  "job-pit-disclosure"
+schedule_job "sched-health-check"       "0 * * * *"   "job-health-check"
 
 echo ""
 echo "========================================================"
@@ -358,12 +379,17 @@ echo "    job-quality-archive   → daily 12:00 UTC  [vault+metadata gcsfuse]"
 echo "    job-quality-live      → daily 21:30 UTC  [vault+metadata gcsfuse]"
 echo "    job-pit-disclosure    → daily 22:00 UTC"
 echo ""
+echo "  Health monitoring job (1) — writes gs://lekwankwa-metadata/health/:"
+echo "    job-health-check      → every hour :00 UTC"
+echo "    Covers: Cloud Run job crashes / stale schedulers / stale vault data"
+echo "    Dashboard: streamlit run tools/health_dashboard.py"
+echo ""
 echo "  Daily schedule (every day, UTC):"
 echo "    02:00 coverage-manifest    04:00 release-calendar"
 echo "    09:00 USA scrapers (1/3)   10:00 international scrapers"
 echo "    12:00 quality-archive      16:00 USA scrapers (2/3)"
 echo "    21:00 USA scrapers (3/3)   21:30 quality-live"
-echo "    22:00 pit-disclosure"
+echo "    22:00 pit-disclosure       :00   health-check (every hour)"
 echo ""
 echo "  IMF exception: quarterly only (1 Jan/Apr/Jul/Oct at 08:00 UTC)"
 echo ""
