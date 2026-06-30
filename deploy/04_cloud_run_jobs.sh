@@ -12,15 +12,17 @@
 #   - .env file present in repo root (contains all API keys)
 #   - lekwankwa-vault and lekwankwa-metadata GCS buckets exist (run 01_gcs_setup.sh)
 #
-# Schedule summary:
-#   USA scrapers:         daily at 09:00, 16:00, 21:00 UTC  (3× daily)
-#   International:        1st of each month at 10:00 UTC
-#   IMF:                  quarterly, 1st of Jan/Apr/Jul/Oct at 08:00 UTC
-#   Coverage manifest:    1st of each month at 02:00 UTC
-#   Release calendar:     1st of each month at 04:00 UTC
-#   PIT disclosure:       daily at 22:00 UTC (after last 21:00 scraper batch)
-#   Quality live:         daily at 21:30 UTC (after last 21:00 scraper batch)
-#   Quality archive:      1st of each month at 12:00 UTC
+# Schedule summary (all times UTC, all jobs daily except IMF):
+#   02:00  Coverage manifest   (daily)
+#   04:00  Release calendar    (daily)
+#   08:00  IMF                 (quarterly: 1 Jan/Apr/Jul/Oct only)
+#   09:00  USA scrapers        (3× daily: 09:00, 16:00, 21:00)
+#   10:00  International       (daily: eurostat/ons/statcan/abs/ssb)
+#   12:00  Quality archive     (daily)
+#   16:00  USA scrapers        (2nd run)
+#   21:00  USA scrapers        (3rd run)
+#   21:30  Quality live        (daily, after last USA scraper batch)
+#   22:00  PIT disclosure      (daily)
 # =============================================================================
 
 set -euo pipefail
@@ -268,26 +270,27 @@ schedule_job "sched-wages-usa"   "0 9,16,21 * * *"  "job-wages-usa"
 schedule_job "sched-trade-usa"   "0 9,16,21 * * *"  "job-trade-usa"
 schedule_job "sched-housing-usa" "0 9,16,21 * * *"  "job-housing-usa"
 
-# IMF — quarterly, 1st of Jan/Apr/Jul/Oct at 08:00 UTC (before monthly runs)
+# IMF — quarterly only (API publishes 4 times/year; no new data between releases)
 schedule_job "sched-imf"         "0 8 1 1,4,7,10 *" "job-imf"
 
-# International — 1st of each month at 10:00 UTC (agencies publish monthly)
-schedule_job "sched-eurostat"    "0 10 1 * *"        "job-eurostat"
-schedule_job "sched-ons"         "0 10 1 * *"        "job-ons"
-schedule_job "sched-statcan"     "0 10 1 * *"        "job-statcan"
-schedule_job "sched-abs"         "0 10 1 * *"        "job-abs"
-schedule_job "sched-ssb"         "0 10 1 * *"        "job-ssb"
+# International — daily at 10:00 UTC (idempotent; skips write if no new data)
+schedule_job "sched-eurostat"    "0 10 * * *"        "job-eurostat"
+schedule_job "sched-ons"         "0 10 * * *"        "job-ons"
+schedule_job "sched-statcan"     "0 10 * * *"        "job-statcan"
+schedule_job "sched-abs"         "0 10 * * *"        "job-abs"
+schedule_job "sched-ssb"         "0 10 * * *"        "job-ssb"
 
 echo ""
 echo "  [Metadata tool schedules]"
 
-# Monthly 1st sequence: manifest (02:00) → release calendar (04:00)
-# → USA scrapers (09:00) + international (10:00)
-# → quality-archive (12:00)
-# Then daily: quality-live (21:30, after 21:00 scrapers) → pit-disclosure (22:00)
-schedule_job "sched-coverage-manifest"  "0 2 1 * *"   "job-coverage-manifest"
-schedule_job "sched-release-calendar"   "0 4 1 * *"   "job-release-calendar"
-schedule_job "sched-quality-archive"    "0 12 1 * *"  "job-quality-archive"
+# All metadata tools daily — sequenced around scraper windows:
+#   02:00 manifest  04:00 release-cal  (before scrapers start)
+#   12:00 quality-archive              (after 09:00 + 10:00 scraper batches)
+#   21:30 quality-live                 (after last 21:00 scraper batch)
+#   22:00 pit-disclosure               (after quality-live)
+schedule_job "sched-coverage-manifest"  "0 2 * * *"   "job-coverage-manifest"
+schedule_job "sched-release-calendar"   "0 4 * * *"   "job-release-calendar"
+schedule_job "sched-quality-archive"    "0 12 * * *"  "job-quality-archive"
 schedule_job "sched-quality-live"       "30 21 * * *" "job-quality-live"
 schedule_job "sched-pit-disclosure"     "0 22 * * *"  "job-pit-disclosure"
 
@@ -342,26 +345,28 @@ echo "    job-food-usa       → 3× daily  09:00 / 16:00 / 21:00 UTC"
 echo "    job-wages-usa      → 3× daily  09:00 / 16:00 / 21:00 UTC"
 echo "    job-trade-usa      → 3× daily  09:00 / 16:00 / 21:00 UTC"
 echo "    job-housing-usa    → 3× daily  09:00 / 16:00 / 21:00 UTC"
-echo "    job-imf            → quarterly 08:00 UTC (1 Jan/Apr/Jul/Oct)"
-echo "    job-eurostat       → monthly   10:00 UTC (1st)"
-echo "    job-ons            → monthly   10:00 UTC (1st)"
-echo "    job-statcan        → monthly   10:00 UTC (1st)"
-echo "    job-abs            → monthly   10:00 UTC (1st)"
-echo "    job-ssb            → monthly   10:00 UTC (1st)"
+echo "    job-imf            → quarterly 08:00 UTC (1 Jan/Apr/Jul/Oct only)"
+echo "    job-eurostat       → daily     10:00 UTC"
+echo "    job-ons            → daily     10:00 UTC"
+echo "    job-statcan        → daily     10:00 UTC"
+echo "    job-abs            → daily     10:00 UTC"
+echo "    job-ssb            → daily     10:00 UTC"
 echo ""
 echo "  Metadata tool jobs (5) — write to gs://lekwankwa-metadata:"
-echo "    job-coverage-manifest → monthly   02:00 UTC (1st)"
-echo "    job-release-calendar  → monthly   04:00 UTC (1st)"
-echo "    job-quality-archive   → monthly   12:00 UTC (1st)"
-echo "    job-quality-live      → daily     21:30 UTC  [vault+metadata gcsfuse]"
-echo "    job-pit-disclosure    → daily     22:00 UTC  (after 21:00 scrapers)"
+echo "    job-coverage-manifest → daily 02:00 UTC"
+echo "    job-release-calendar  → daily 04:00 UTC"
+echo "    job-quality-archive   → daily 12:00 UTC  [vault+metadata gcsfuse]"
+echo "    job-quality-live      → daily 21:30 UTC  [vault+metadata gcsfuse]"
+echo "    job-pit-disclosure    → daily 22:00 UTC"
 echo ""
-echo "  Monthly 1st sequence (UTC):"
-echo "    02:00 coverage-manifest  04:00 release-calendar"
-echo "    08:00 IMF (quarterly)    09:00 USA scrapers (1st of 3)"
-echo "    10:00 international      12:00 quality-archive"
-echo "    16:00 USA scrapers (2nd) 21:00 USA scrapers (3rd)"
-echo "    21:30 quality-live       22:00 pit-disclosure"
+echo "  Daily schedule (every day, UTC):"
+echo "    02:00 coverage-manifest    04:00 release-calendar"
+echo "    09:00 USA scrapers (1/3)   10:00 international scrapers"
+echo "    12:00 quality-archive      16:00 USA scrapers (2/3)"
+echo "    21:00 USA scrapers (3/3)   21:30 quality-live"
+echo "    22:00 pit-disclosure"
+echo ""
+echo "  IMF exception: quarterly only (1 Jan/Apr/Jul/Oct at 08:00 UTC)"
 echo ""
 echo "  PIT Disclosure also fires on every scraper completion marker"
 echo "  via Cloud Function: pit-disclosure-generator (GCS event trigger)"
