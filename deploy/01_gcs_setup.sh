@@ -75,10 +75,55 @@ echo "  ✓ Delivery bucket IAM set (signed URLs only for clients)"
 
 echo ""
 echo "========================================================"
+echo " SECTION 1C — lekwankwa-metadata (metadata tool outputs)"
+echo "========================================================"
+
+gsutil mb -l ${REGION} -p ${PROJECT} gs://lekwankwa-metadata 2>/dev/null \
+  && echo "  Created gs://lekwankwa-metadata" \
+  || echo "  gs://lekwankwa-metadata already exists"
+
+echo "  Setting IAM — lekwankwa-metadata (pipeline SA read/write)"
+gsutil iam ch serviceAccount:${PIPELINE_SA}:objectAdmin gs://lekwankwa-metadata
+gsutil iam ch serviceAccount:${DELIVERY_SA}:objectViewer gs://lekwankwa-metadata
+gsutil iam ch -d allUsers gs://lekwankwa-metadata 2>/dev/null || true
+gsutil iam ch -d allAuthenticatedUsers gs://lekwankwa-metadata 2>/dev/null || true
+echo "  ✓ lekwankwa-metadata IAM set"
+
+# Migrate existing metadata/ content from vault → dedicated metadata bucket
+VAULT_META_COUNT=$(gsutil ls -r gs://lekwankwa-vault/metadata/ 2>/dev/null | grep -v '/$' | wc -l)
+if [ "${VAULT_META_COUNT}" -gt 0 ]; then
+    echo ""
+    echo "  Migrating ${VAULT_META_COUNT} metadata files from vault → lekwankwa-metadata ..."
+    gsutil -m cp -r gs://lekwankwa-vault/metadata/* gs://lekwankwa-metadata/
+    echo "  Verifying migration..."
+    META_COUNT=$(gsutil ls -r gs://lekwankwa-metadata/ 2>/dev/null | grep -v '/$' | wc -l)
+    echo "  Source (vault/metadata/): ${VAULT_META_COUNT} files"
+    echo "  Dest (lekwankwa-metadata/): ${META_COUNT} files"
+    if [ "${META_COUNT}" -ge "${VAULT_META_COUNT}" ]; then
+        echo "  ✓ Migration complete"
+        echo "  NOTE: vault/metadata/ originals kept until you confirm and manually delete:"
+        echo "    gsutil -m rm -r gs://lekwankwa-vault/metadata/"
+    else
+        echo "  ✗ MISMATCH — verify before deleting vault/metadata/"
+    fi
+else
+    echo "  (No existing vault/metadata/ content to migrate)"
+fi
+
+echo ""
+echo "  Placeholder folder structure:"
+for PREFIX in coverage_manifest pit_disclosure quality_reports release_calendar; do
+    echo "" | gsutil cp - "gs://lekwankwa-metadata/${PREFIX}/.keep" 2>/dev/null || true
+done
+echo "  ✓ Placeholder prefixes created in lekwankwa-metadata"
+
+echo ""
+echo "========================================================"
 echo " VERIFICATION"
 echo "========================================================"
-gsutil ls gs://lekwankwa-vault          && echo "  ✓ lekwankwa-vault accessible"
+gsutil ls gs://lekwankwa-vault              && echo "  ✓ lekwankwa-vault accessible"
 gsutil ls gs://lekwankwa-institutional-data && echo "  ✓ lekwankwa-institutional-data accessible"
+gsutil ls gs://lekwankwa-metadata           && echo "  ✓ lekwankwa-metadata accessible"
 
 SRC_SIZE=$(gsutil du -s gs://lekwankwa-historical-vault | awk '{print $1}')
 DST_SIZE=$(gsutil du -s gs://lekwankwa-vault           | awk '{print $1}')
