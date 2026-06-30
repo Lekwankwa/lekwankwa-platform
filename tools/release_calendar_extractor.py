@@ -1844,7 +1844,7 @@ def cloud_function_handler(event: dict, context) -> None:
     Fires whenever any file lands in lekwankwa-historical-vault.
     Rebuilds the release calendar and uploads to GCS.
     """
-    bucket = event.get("bucket", "lekwankwa-historical-vault")
+    bucket = event.get("bucket", "lekwankwa-pipeline-ops")
     name   = event.get("name", "")
     logger.info("cloud_function_handler triggered by gs://%s/%s", bucket, name)
 

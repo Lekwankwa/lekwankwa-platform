@@ -2081,7 +2081,7 @@ def cloud_function_handler(event: dict, context: Any) -> None:  # type: ignore
     if not re.match(r"run_markers/extractor_.+\.complete$", name):
         return  # Not a marker file — ignore
 
-    vault_root_env = os.environ.get("VAULT_ROOT", "gs://lekwankwa-historical-vault")
+    vault_root_env = os.environ.get("VAULT_ROOT", "gs://lekwankwa-pipeline-ops")
     run_date = datetime.date.today().isoformat()
 
     # Determine out_dir (GCS path handled by mounting or gsutil within the function)

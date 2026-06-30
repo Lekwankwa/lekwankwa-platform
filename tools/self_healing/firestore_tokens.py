@@ -18,7 +18,7 @@ from typing import Any
 
 log = logging.getLogger(__name__)
 
-BUCKET          = "lekwankwa-historical-vault"
+BUCKET          = "lekwankwa-pipeline-ops"
 TOKEN_PREFIX    = "self_healing_tokens"
 TOKEN_TTL_HOURS = 24
 

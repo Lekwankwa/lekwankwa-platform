@@ -30,7 +30,7 @@ from flask import Flask, request, Response
 
 app = Flask(__name__)
 
-GCS_BUCKET   = os.environ.get("GCS_BUCKET", "lekwankwa-historical-vault")
+GCS_BUCKET   = os.environ.get("GCS_BUCKET", "lekwankwa-pipeline-ops")
 TOKEN_PREFIX = "self_healing_tokens"
 
 

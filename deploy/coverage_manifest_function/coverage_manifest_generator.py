@@ -456,7 +456,7 @@ def cloud_function_handler(event: dict, context: Any) -> None:  # type: ignore
     if not _re.match(r"run_markers/extractor_.+\.complete$", name):
         return
 
-    vault_root_env = __import__("os").environ.get("VAULT_ROOT", "gs://lekwankwa-historical-vault")
+    vault_root_env = __import__("os").environ.get("VAULT_ROOT", "gs://lekwankwa-pipeline-ops")
     catalog_path   = Path("/tmp/catalog_manifest.yaml")
 
     # Fetch catalog from GCS if not already present
