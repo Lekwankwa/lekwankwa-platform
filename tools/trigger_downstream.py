@@ -20,6 +20,7 @@ _REGION   = "africa-south1"
 
 _METADATA_JOBS = [
     "job-quality-live",
+    "job-quality-archive",
     "job-coverage-manifest",
     "job-release-calendar",
     "job-pit-disclosure",
