@@ -203,7 +203,6 @@ create_quality_job "job-quality-live" \
     "python,tools/quality_report_generator.py,\
 --vault-root,/vault,\
 --out-dir,/metadata/quality_reports,\
---search-root,/vault,\
 --series-manifest,backtesting/backtest_engine/config/catalog_expected_series.yaml,\
 --mode,live"
 
@@ -211,7 +210,6 @@ create_quality_job "job-quality-archive" \
     "python,tools/quality_report_generator.py,\
 --vault-root,/vault,\
 --out-dir,/metadata/quality_reports,\
---search-root,/vault,\
 --series-manifest,backtesting/backtest_engine/config/catalog_expected_series.yaml,\
 --mode,archive"
 
