@@ -29,6 +29,7 @@ set -euo pipefail
 
 PROJECT="fluted-alloy-498317-u0"
 REGION="africa-south1"
+SCHED_REGION="europe-west1"   # Cloud Scheduler does not support africa-south1
 SA="lekwankwa-pipeline@${PROJECT}.iam.gserviceaccount.com"
 IMAGE="gcr.io/${PROJECT}/lekwankwa-scrapers:latest"
 VAULT_BUCKET="lekwankwa-vault"
@@ -240,7 +241,7 @@ schedule_job() {
 
     echo "  ${SCHED_NAME} → ${JOB_NAME} (${SCHEDULE})"
     gcloud scheduler jobs create http "${SCHED_NAME}" \
-        --location="${REGION}" \
+        --location="${SCHED_REGION}" \
         --schedule="${SCHEDULE}" \
         --uri="${URI}" \
         --http-method=POST \
@@ -250,7 +251,7 @@ schedule_job() {
         --project="${PROJECT}" \
         2>/dev/null || \
     gcloud scheduler jobs update http "${SCHED_NAME}" \
-        --location="${REGION}" \
+        --location="${SCHED_REGION}" \
         --schedule="${SCHEDULE}" \
         --uri="${URI}" \
         --http-method=POST \
