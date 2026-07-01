@@ -19,16 +19,16 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from tools.secrets import load_all_secrets_to_env
-load_all_secrets_to_env()
-
-from tools.release_calendar_extractor import is_release_due
-
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s %(levelname)s %(message)s",
     handlers=[logging.StreamHandler(sys.stdout)],
 )
+
+from tools.secrets import load_all_secrets_to_env
+load_all_secrets_to_env()
+
+from tools.release_calendar_extractor import is_release_due
 log = logging.getLogger(__name__)
 
 PRODUCT = "global_macro"
