@@ -2,13 +2,12 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-# Licensed under the Lekwankwa Corporation Internal Use Licence.
-# ---------------------------------------------------------------------------
-"""
-Provides helpers for incremental ingestion across Lekwankwa sovereign data
-pipelines.  Import this module to access watermark management, delta-window
-calculation, and checkpoint persistence utilities.
-"""  - compute_scrape_range()         year-granular start/end for BLS-style scrapers
+#
+# scrapers/utilities/incremental.py — Lekwankwa Corporation
+#
+"""Provides:
+incremental-load helpers for all food_micropricing (and sibling-product)
+scrapers.""""""  - compute_scrape_range()         year-granular start/end for BLS-style scrapers
   - compute_scrape_range_monthly() month-granular start/end for month-loop scrapers
   - revision_upsert()              smart vault write: new rows added, revised rows versioned
   - BLS_KNOWN_GAPS                 months where BLS published no data (funding lapses etc.)
