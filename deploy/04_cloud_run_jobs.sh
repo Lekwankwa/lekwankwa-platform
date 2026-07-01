@@ -119,6 +119,8 @@ create_job() {
         --region="${REGION}" \
         --max-retries=1 \
         --task-timeout=3600 \
+        --memory=2Gi \
+        --cpu=2 \
         --execution-environment=gen2 \
         --project="${PROJECT}" \
         2>/dev/null || \
@@ -130,6 +132,8 @@ create_job() {
         --region="${REGION}" \
         --max-retries=1 \
         --task-timeout=3600 \
+        --memory=2Gi \
+        --cpu=2 \
         --execution-environment=gen2 \
         --project="${PROJECT}"
     echo "  ✓ ${NAME}"
