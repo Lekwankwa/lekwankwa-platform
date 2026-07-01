@@ -1,0 +1,8 @@
+{
+  "product_name": "Global Macro Baseline (IMF)",
+  "product": "global_macro",
+  "country": "USA",
+  "sources": [
+    { "source": "imf_weo", "year_start": 1980, "year_end": 2031 }
+  ]
+}

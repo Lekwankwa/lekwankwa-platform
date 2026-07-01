@@ -1,0 +1,9 @@
+{
+  "product_name": "US Housing Supply & Shelter",
+  "product": "Housing_Supply_and_Shelter_Inflation",
+  "country": "USA",
+  "sources": [
+    { "source": "bls_cpi_shelter", "year_start": 1959, "year_end": 2026 },
+    { "source": "census_bps",      "year_start": 1960, "year_end": 2026 }
+  ]
+}

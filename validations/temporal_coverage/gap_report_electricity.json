@@ -1,0 +1,17 @@
+{
+  "generated_at": "2026-06-14T20:02:43.852255Z",
+  "product": "electricity",
+  "product_name": "US Electricity Volume Tracker",
+  "overall_status": "PASS",
+  "sources": {
+    "eia": {
+      "expected_range": "2001\u20132026",
+      "n_expected": 26,
+      "n_present": 26,
+      "n_missing": 0,
+      "coverage_pct": 100.0,
+      "status": "PASS",
+      "missing_years": []
+    }
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "product_name": "US Trade Flows (HS-Code Level)",
+  "product": "trade_flows",
+  "country": "USA",
+  "sources": [
+    { "source": "census_ft900", "year_start": 2010, "year_end": 2026 }
+  ]
+}

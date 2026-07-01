@@ -1,0 +1,11 @@
+{
+  "product_name": "Non-EU Trade Flows (GBR/CAN/AUS/NOR)",
+  "product": "trade_flows",
+  "countries": ["GBR", "CAN", "AUS", "NOR"],
+  "sources": [
+    { "source": "ons_api",       "year_start": 1988, "year_end": 2025 },
+    { "source": "statcan_csv",   "year_start": 1992, "year_end": 2025 },
+    { "source": "abs_sdmx",      "year_start": 1998, "year_end": 2025 },
+    { "source": "ssb_statbank",  "year_start": 2016, "year_end": 2025 }
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "generated_at": "2026-06-23T12:50:10.028445Z",
+  "product": "Housing_Supply_and_Shelter_Inflation",
+  "product_name": "EU27 Housing Supply & Shelter Inflation (Eurostat)",
+  "overall_status": "PASS",
+  "sources": {
+    "eurostat_sdmx": {
+      "expected_range": "2000\u20132026",
+      "n_expected": 27,
+      "n_present": 27,
+      "n_missing": 0,
+      "coverage_pct": 100.0,
+      "status": "PASS",
+      "missing_years": []
+    }
+  }
+}

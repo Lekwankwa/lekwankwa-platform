@@ -1,0 +1,17 @@
+{
+  "generated_at": "2026-06-26T14:48:58.399138Z",
+  "product": "global_macro",
+  "product_name": "Global Macro Baseline (IMF)",
+  "overall_status": "PASS",
+  "sources": {
+    "imf_weo": {
+      "expected_range": "1980\u20132031",
+      "n_expected": 52,
+      "n_present": 52,
+      "n_missing": 0,
+      "coverage_pct": 100.0,
+      "status": "PASS",
+      "missing_years": []
+    }
+  }
+}

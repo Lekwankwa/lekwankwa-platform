@@ -1,0 +1,17 @@
+{
+  "generated_at": "2026-06-23T11:49:53.726946Z",
+  "product": "wages_and_employment",
+  "product_name": "EU27 Wages & Employment (Eurostat)",
+  "overall_status": "PASS",
+  "sources": {
+    "eurostat_sdmx": {
+      "expected_range": "1995\u20132026",
+      "n_expected": 32,
+      "n_present": 32,
+      "n_missing": 0,
+      "coverage_pct": 100.0,
+      "status": "PASS",
+      "missing_years": []
+    }
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "product_name": "US Wages & Labour",
+  "product": "wages_and_employment",
+  "country": "USA",
+  "sources": [
+    { "source": "bls_ces", "year_start": 1939, "year_end": 2026 },
+    { "source": "bls_cps", "year_start": 1948, "year_end": 2026 }
+  ]
+}

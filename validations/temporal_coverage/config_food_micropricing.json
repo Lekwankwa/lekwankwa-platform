@@ -1,0 +1,8 @@
+{
+  "product_name": "US Consumer Demand Core — Food Pricing",
+  "product": "food_micropricing",
+  "country": "USA",
+  "sources": [
+    { "source": "bls", "year_start": 1980, "year_end": 2026 }
+  ]
+}

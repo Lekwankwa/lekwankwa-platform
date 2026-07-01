@@ -1,0 +1,17 @@
+{
+  "generated_at": "2026-06-23T12:15:03.690172Z",
+  "product": "trade_flows",
+  "product_name": "EU27 Trade Flows (Eurostat)",
+  "overall_status": "PASS",
+  "sources": {
+    "eurostat_sdmx": {
+      "expected_range": "2000\u20132026",
+      "n_expected": 27,
+      "n_present": 27,
+      "n_missing": 0,
+      "coverage_pct": 100.0,
+      "status": "PASS",
+      "missing_years": []
+    }
+  }
+}

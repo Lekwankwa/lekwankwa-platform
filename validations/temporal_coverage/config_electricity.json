@@ -1,0 +1,8 @@
+{
+  "product_name": "US Electricity Volume Tracker",
+  "product": "electricity",
+  "country": "USA",
+  "sources": [
+    { "source": "eia", "year_start": 2001, "year_end": 2026 }
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "generated_at": "2026-06-23T16:18:17.474292Z",
+  "product": "food_micropricing",
+  "product_name": "EU27 Food Micropricing (Eurostat HICP)",
+  "overall_status": "WARN",
+  "sources": {
+    "eurostat_sdmx": {
+      "expected_range": "2000\u20132025",
+      "n_expected": 26,
+      "n_present": 27,
+      "n_missing": 0,
+      "coverage_pct": 103.85,
+      "status": "WARN",
+      "missing_years": []
+    }
+  }
+}
