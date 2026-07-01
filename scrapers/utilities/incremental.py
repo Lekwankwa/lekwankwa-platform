@@ -52,13 +52,20 @@ def get_vault_latest_month(scan_root: Path) -> tuple[int, int] | None:
     Returns (year, month) of the latest non-empty partition, or None if the
     vault dir doesn't exist or contains no year=/month= structure.
     """
+    Scans a vault partition tree rooted at *scan_root* for the most-recent
+    year=/month= directory pair and returns (year, month) as ints, or None
+    if the tree is empty / does not yet exist.
+
+    *scan_root* may be either a plain :class:`pathlib.Path` or a
+    ``VaultPath`` (the internal vault-abstraction type).  We normalise it to
+    a concrete ``pathlib.Path`` here so that standard :pymeth:`Path.rglob`
+    is always available, regardless of which type the caller passes in.
+    """
+    # Normalise: VaultPath (and any other path-like) → pathlib.Path
+    scan_root = Path(str(scan_root))
+
     if not scan_root.exists():
-        log.info("Vault root does not exist yet: %s", scan_root)
-        return None
-
-    latest: tuple[int, int] | None = None
-
-    for year_dir in scan_root.rglob("year=*"):
+        return None    for year_dir in scan_root.rglob("year=*"):
         if not year_dir.is_dir():
             continue
         try:
