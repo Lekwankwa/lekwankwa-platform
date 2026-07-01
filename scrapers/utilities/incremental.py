@@ -2,11 +2,13 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-#
 # scrapers/utilities/incremental.py — Lekwankwa Corporation
-#
-"""Provides:
-incremental-load helpers for all food_micropricing (and sibling-product)
+# Shared helpers for incremental-load bookkeeping across all scrapers.
+
+"""
+Provides:
+"""
+
 scrapers.""""""  - compute_scrape_range()         year-granular start/end for BLS-style scrapers
   - compute_scrape_range_monthly() month-granular start/end for month-loop scrapers
   - revision_upsert()              smart vault write: new rows added, revised rows versioned
@@ -71,14 +73,24 @@ def get_vault_latest_month(scan_root: Path) -> tuple[int, int] | None:
         # Some VaultPath versions override resolve() to return a real Path
         resolved = scan_root.resolve()
         if isinstance(resolved, Path):
-            fs_root = resolved
-        else:
-            fs_root = Path(str(resolved))
-    else:
-        # Last-resort coercion — works as long as __str__ returns a usable
-    if not scan_root.exists():
-        return None    for year_dir in scan_root.rglob("year=*"):
-        if not year_dir.is_dir():
+
+    try:
+        import importlib
+        try:
+            mod = importlib.import_module(cfg["module"])
+        except SyntaxError as syn:
+            log.error(
+                "SyntaxError while importing module '%s': %s (file: %s, line: %s). "
+                "Fix the syntax error in that file before re-running.",
+                cfg["module"],
+                syn.msg,
+                syn.filename,
+                syn.lineno,
+            )
+            sys.exit(1)
+        fn  = getattr(mod, cfg["fn"])
+        fn(mode=args.mode, since=args.since)
+        log.info("Completed scrape %s/%s", PRODUCT, args.country)        if not year_dir.is_dir():
             continue
         try:
             year = int(year_dir.name.split("=")[1])
