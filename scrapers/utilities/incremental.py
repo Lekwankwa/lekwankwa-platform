@@ -43,35 +43,20 @@ def get_vault_latest_month(scan_root: Path) -> tuple[int, int] | None:
     Handles both path layouts used in the vault:
         scan_root/year=YYYY/month=MM/...           (food, trade, IMF)
     """
-    Walk *scan_root* for Hive-partitioned year=/month= directories and
-    return the latest 'YYYY-MM' string found, or None if the vault is empty.
-
-    Accepts either a plain ``pathlib.Path`` or a ``VaultPath`` instance.
-    ``VaultPath`` objects do not implement ``.rglob()``; this function
-    resolves them to a concrete filesystem path before traversal.
-    """
-    # ------------------------------------------------------------------
-    # Resolve VaultPath → pathlib.Path
-    # VaultPath is Lekwankwa's cloud-storage abstraction; it does not
-    # expose .rglob().  Unwrap it using the documented .local_path
-    # property when available, otherwise fall back to Path(str(...)).
-    # ------------------------------------------------------------------
-    if isinstance(scan_root, Path):
-        fs_root: Path = scan_root
-    elif hasattr(scan_root, "local_path"):
-        # Primary VaultPath unwrap path (preferred — avoids str round-trip)
-        fs_root = Path(scan_root.local_path)
-    elif hasattr(scan_root, "resolve"):
-        # Some VaultPath versions override resolve() to return a real Path
-        resolved = scan_root.resolve()
-        if isinstance(resolved, Path):
-            fs_root = resolved
+    if not isinstance(scan_root, Path):
+        if hasattr(scan_root, "local_path"):
+            scan_root = Path(scan_root.local_path)
+        elif hasattr(scan_root, "resolve"):
+            resolved = scan_root.resolve()
+            scan_root = resolved if isinstance(resolved, Path) else Path(str(resolved))
         else:
-            fs_root = Path(str(resolved))
-    else:
-        # Last-resort coercion — works as long as __str__ returns a usable
+            scan_root = Path(str(scan_root))
+
     if not scan_root.exists():
-        return None    for year_dir in scan_root.rglob("year=*"):
+        return None
+
+    latest: tuple[int, int] | None = None
+    for year_dir in scan_root.rglob("year=*"):
         if not year_dir.is_dir():
             continue
         try:
@@ -85,7 +70,6 @@ def get_vault_latest_month(scan_root: Path) -> tuple[int, int] | None:
                 month = int(month_dir.name.split("=")[1])
             except (ValueError, IndexError):
                 continue
-            # Only count partitions that actually contain a parquet file
             if not any(month_dir.glob("*.parquet")):
                 continue
             if latest is None or (year, month) > latest:
