@@ -15,6 +15,7 @@ Usage in each scraper:
 from __future__ import annotations
 
 import logging
+import re
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -36,44 +37,47 @@ BLS_KNOWN_GAPS: frozenset[tuple[int, int]] = frozenset({
 # Vault partition scanner
 # ---------------------------------------------------------------------------
 
-def get_vault_latest_month(scan_root: Path) -> tuple[int, int] | None:
+_YEAR_MONTH_RE = re.compile(r"year=(\d{4})/month=(\d{2})")
+
+
+def _latest_year_month_from_paths(paths: list[str]) -> tuple[int, int] | None:
+    """Extract the max (year, month) from a list of parquet file paths."""
+    latest: tuple[int, int] | None = None
+    for p in paths:
+        m = _YEAR_MONTH_RE.search(p.replace("\\", "/"))
+        if not m:
+            continue
+        year, month = int(m.group(1)), int(m.group(2))
+        if latest is None or (year, month) > latest:
+            latest = (year, month)
+    return latest
+
+
+def get_vault_latest_month(scan_root) -> tuple[int, int] | None:
     """
     Scan a Hive-partitioned vault tree for the most recent year/month partition.
 
     Handles both path layouts used in the vault:
         scan_root/year=YYYY/month=MM/...           (food, trade, IMF)
+
+    Works for both local paths and gs:// VaultPath objects — GCS has no real
+    directories, so listing is done via gcsfs rather than pathlib.rglob().
     """
-    if not isinstance(scan_root, Path):
-        if hasattr(scan_root, "local_path"):
-            scan_root = Path(scan_root.local_path)
-        elif hasattr(scan_root, "resolve"):
-            resolved = scan_root.resolve()
-            scan_root = resolved if isinstance(resolved, Path) else Path(str(resolved))
-        else:
-            scan_root = Path(str(scan_root))
+    root_str = str(scan_root)
 
-    if not scan_root.exists():
-        return None
-
-    latest: tuple[int, int] | None = None
-    for year_dir in scan_root.rglob("year=*"):
-        if not year_dir.is_dir():
-            continue
-        try:
-            year = int(year_dir.name.split("=")[1])
-        except (ValueError, IndexError):
-            continue
-        for month_dir in year_dir.iterdir():
-            if not month_dir.is_dir() or not month_dir.name.startswith("month="):
-                continue
-            try:
-                month = int(month_dir.name.split("=")[1])
-            except (ValueError, IndexError):
-                continue
-            if not any(month_dir.glob("*.parquet")):
-                continue
-            if latest is None or (year, month) > latest:
-                latest = (year, month)
+    if root_str.startswith("gs://"):
+        import gcsfs
+        fs = gcsfs.GCSFileSystem()
+        if not fs.exists(root_str):
+            return None
+        parquet_paths = [p for p in fs.find(root_str) if p.endswith(".parquet")]
+        latest = _latest_year_month_from_paths(parquet_paths)
+    else:
+        local_root = Path(root_str)
+        if not local_root.exists():
+            return None
+        parquet_paths = [str(p) for p in local_root.rglob("*.parquet")]
+        latest = _latest_year_month_from_paths(parquet_paths)
 
     if latest:
         log.info("Vault latest partition: year=%d  month=%02d", *latest)
@@ -213,7 +217,18 @@ def revision_upsert(
         incoming.to_parquet(path, engine="pyarrow", index=False)
         return len(incoming), 0
 
-    existing = pd.read_parquet(path)
+    try:
+        existing = pd.read_parquet(path)
+    except Exception as read_exc:
+        # Existing partition file is unreadable (corrupt footer from an
+        # interrupted write, or an incompatible schema from an older code
+        # version). Rebuild it from the incoming data rather than crashing
+        # the whole scrape — this self-heals the partition going forward.
+        log.warning("Could not read existing partition %s (%s) — rewriting from incoming data.",
+                    path, read_exc)
+        incoming.to_parquet(path, engine="pyarrow", index=False)
+        return len(incoming), 0
+
     if existing.empty:
         incoming.to_parquet(path, engine="pyarrow", index=False)
         return len(incoming), 0
