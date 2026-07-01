@@ -2,11 +2,12 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-#
 # scrapers/utilities/incremental.py — Lekwankwa Corporation
+# Shared incremental-load helpers for all scraper modules.
 #
-"""Provides:
-incremental-load helpers for all food_micropricing (and sibling-product)
+"""
+Provides:
+"""incremental-load helpers for all food_micropricing (and sibling-product)
 scrapers.""""""  - compute_scrape_range()         year-granular start/end for BLS-style scrapers
   - compute_scrape_range_monthly() month-granular start/end for month-loop scrapers
   - revision_upsert()              smart vault write: new rows added, revised rows versioned
