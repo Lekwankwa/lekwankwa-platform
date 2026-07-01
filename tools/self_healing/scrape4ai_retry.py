@@ -63,6 +63,8 @@ def _rerun_with_scrape4ai(program: str, context: dict[str, Any]) -> bool:
 
     # Re-run the scraper via subprocess to get a clean Python process
     cmd = [sys.executable, program, "--mode", "incremental"]
+    if country:
+        cmd.extend(["--country", country])
     log.info("  [Scrape4AI] Re-running: %s", " ".join(cmd))
     result = subprocess.run(
         cmd,

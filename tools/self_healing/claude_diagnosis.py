@@ -374,8 +374,27 @@ def apply_simple_fix(diff_text: str, program: str, context: dict[str, Any]) -> s
             log.error("[GITHUB] PR creation failed: %s", r.text[:200])
             return None
 
-        pr_url = r.json().get("html_url")
+        pr_data   = r.json()
+        pr_url    = pr_data.get("html_url")
+        pr_number = pr_data.get("number")
         log.info("[GITHUB] PR opened: %s", pr_url)
+
+        # Request GitHub Copilot code review
+        if pr_number:
+            try:
+                rc = requests.post(
+                    f"https://api.github.com/repos/{REPO}/pulls/{pr_number}/requested_reviewers",
+                    headers=headers,
+                    data=json.dumps({"copilot_review_requested": True}),
+                    timeout=30,
+                )
+                if rc.status_code in (200, 201):
+                    log.info("[GITHUB] Copilot review requested on PR #%d", pr_number)
+                else:
+                    log.debug("[GITHUB] Copilot review not available: %s", rc.status_code)
+            except Exception as cop_exc:
+                log.debug("[GITHUB] Copilot review request failed (non-fatal): %s", cop_exc)
+
         return pr_url
 
     except Exception as exc:
