@@ -1,12 +1,13 @@
-from __future__ import annotations
+"""
+scrapers/utilities/incremental.py — Lekwankwa Corporation
+Sovereign data pipeline — incremental-load utilities.
 
-import logging
-from pathlib import Path
-#
-# scrapers/utilities/incremental.py — Lekwankwa Corporation
-#
-"""Provides:
-incremental-load helpers for all food_micropricing (and sibling-product)
+Provides:
+    - last_checkpoint()   : read the last successfully ingested period
+    - save_checkpoint()   : persist a new checkpoint after a clean run
+    - incremental_since() : derive the `since` parameter from the checkpoint
+    - full_reload_due()   : True when a scheduled full reload is overdue
+"""incremental-load helpers for all food_micropricing (and sibling-product)
 scrapers.""""""  - compute_scrape_range()         year-granular start/end for BLS-style scrapers
   - compute_scrape_range_monthly() month-granular start/end for month-loop scrapers
   - revision_upsert()              smart vault write: new rows added, revised rows versioned
