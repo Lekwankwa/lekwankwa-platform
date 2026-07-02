@@ -83,6 +83,7 @@ class ValidationResult:
     stage_results: list[dict] = field(default_factory=list)
     script_used: str = ""
     returncode: int = 0
+    stdout_tail: str = ""  # last ~2000 chars of subprocess stdout+stderr (failures only)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -92,6 +93,7 @@ class ValidationResult:
             "stages":       self.stage_results,
             "script_used":  self.script_used,
             "returncode":   self.returncode,
+            "stdout_tail":  self.stdout_tail,
         }
 
 
@@ -144,7 +146,7 @@ def run_9_stage_validation(
             timeout=timeout,
         )
         rc = result.returncode
-        log.debug("[VALIDATION] stdout:\n%s", result.stdout[-2000:])
+        combined = (result.stdout or "") + (result.stderr or "")
         if rc == 0:
             log.info("[VALIDATION] PASS — %s/%s", product, country)
             return ValidationResult(
@@ -153,14 +155,15 @@ def run_9_stage_validation(
             )
         else:
             # Determine severity from stdout — look for CRITICAL or FAIL keywords
-            out_upper = (result.stdout + result.stderr).upper()
+            out_upper = combined.upper()
             severity  = "CRITICAL" if "CRITICAL" in out_upper else "HIGH"
-            log.error("[VALIDATION] FAIL (rc=%d, severity=%s) — %s/%s",
-                      rc, severity, product, country)
+            tail = combined[-2000:]
+            log.error("[VALIDATION] FAIL (rc=%d, severity=%s) — %s/%s\n%s",
+                      rc, severity, product, country, tail)
             return ValidationResult(
                 overall="FAIL", severity=severity,
                 code=f"VALIDATION_FAIL_RC{rc}",
-                script_used=script_rel, returncode=rc,
+                script_used=script_rel, returncode=rc, stdout_tail=tail,
             )
     except subprocess.TimeoutExpired:
         log.error("[VALIDATION] TIMEOUT after %ds — %s/%s", timeout, product, country)
