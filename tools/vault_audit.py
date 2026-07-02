@@ -100,7 +100,7 @@ class ValidationResult:
 def run_9_stage_validation(
     product: str,
     country: str,
-    timeout: int = 600,
+    timeout: int = 1800,
 ) -> ValidationResult:
     """
     Run the full 9-stage + GX + Bitemporal Core validation pipeline for
