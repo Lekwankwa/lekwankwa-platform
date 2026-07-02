@@ -385,21 +385,25 @@ def apply_simple_fix(diff_text: str, program: str, context: dict[str, Any]) -> s
         pr_number = pr_data.get("number")
         log.info("[GITHUB] PR opened: %s", pr_url)
 
-        # Request GitHub Copilot code review
+        # Request GitHub Copilot code review — added via the standard reviewers
+        # array using Copilot's bot login, not a dedicated boolean field (there
+        # isn't one; the requested_reviewers endpoint only takes
+        # reviewers/team_reviewers).
         if pr_number:
             try:
                 rc = requests.post(
                     f"https://api.github.com/repos/{REPO}/pulls/{pr_number}/requested_reviewers",
                     headers=headers,
-                    data=json.dumps({"copilot_review_requested": True}),
+                    data=json.dumps({"reviewers": ["copilot-pull-request-reviewer[bot]"]}),
                     timeout=30,
                 )
                 if rc.status_code in (200, 201):
                     log.info("[GITHUB] Copilot review requested on PR #%d", pr_number)
                 else:
-                    log.debug("[GITHUB] Copilot review not available: %s", rc.status_code)
+                    log.warning("[GITHUB] Copilot review request failed: %s %s",
+                                rc.status_code, rc.text[:200])
             except Exception as cop_exc:
-                log.debug("[GITHUB] Copilot review request failed (non-fatal): %s", cop_exc)
+                log.warning("[GITHUB] Copilot review request failed (non-fatal): %s", cop_exc)
 
         return pr_url
 
