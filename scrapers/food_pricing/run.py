@@ -102,14 +102,39 @@ def run_country(country: str, mode: str, since: str | None, dry_run: bool) -> bo
             log.info("Completed scrape %s/%s/%s", PRODUCT, country, source)
         except Exception as exc:
             log.error("Scraper failed for %s/%s/%s: %s", PRODUCT, country, source, exc,
-                      exc_info=True)
+            return False
+
+        # Post-scrape: 9-stage + GX + Bitemporal Core validation
+        try:
+            val = run_9_stage_validation(product=PRODUCT, country=country)
+        except (RuntimeError, TimeoutError) as exc:
+            log.warning(
+                "Validation timed out for %s/%s/%s, retrying once with extended timeout: %s",
+                PRODUCT, country, source, exc,
+            )
             try:
+                val = run_9_stage_validation(
+                    product=PRODUCT, country=country, timeout=1800
+                )
+            except (RuntimeError, TimeoutError) as exc2:
+                log.error(
+                    "Validation failed again for %s/%s/%s: %s",
+                    PRODUCT, country, source, exc2, exc_info=True,
+                )
                 from tools.self_healing.handler import handle_exception
                 handle_exception(
                     program=__file__,
-                    exception=exc,
+                    exception=exc2,
                     context={
                         "product": PRODUCT, "country": country,
+                        "source": source, "run_date": TODAY,
+                        "layer": "VALIDATION",
+                    },
+                )
+                return False
+        if val.severity in ("CRITICAL", "HIGH"):
+            from tools.self_healing.handler import handle_validation_finding
+            handle_validation_finding(                        "product": PRODUCT, "country": country,
                         "source": source, "run_date": TODAY,
                         "layer": "SCRAPER",
                     },
