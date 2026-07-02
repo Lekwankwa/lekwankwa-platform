@@ -30,12 +30,49 @@ load_all_secrets_to_env()
 
 from tools.release_calendar_extractor import is_release_due
 from tools.vault_audit import run_9_stage_validation
-from tools.live_feed_audit import run_post_delta_audit
-log = logging.getLogger(__name__)
 
-PRODUCT = "food_micropricing"
-TODAY   = date.today().isoformat()
+# Countries routed through each underlying scraper
+COUNTRY_ROUTER: dict[str, dict] = {
+def _normalize_parquet_schema(product: str, country: str, source: str) -> None:
+    """
+    Ensure freshly-written parquet partitions for this product/country/source
+    use a plain Arrow `string` dtype for the `source` column instead of a
+    dictionary/categorical type. Mixed dtypes across monthly partitions
+    (string vs dictionary<values=string,...>) cause pyarrow dataset merges
+    to fail during downstream PIT validation, which silently skips every
+    partition and ultimately raises FileNotFoundError("No food data found
+    in vault").
+    """
+    import pyarrow as pa
+    import pyarrow.parquet as pq
+    from tools.vault_io import list_vault_files, write_vault_file
 
+    try:
+        files = list_vault_files(product=product, country=country, source=source)
+    except Exception as exc:
+        log.warning("Could not list vault files for %s/%s/%s: %s",
+                    product, country, source, exc)
+        return
+
+    for uri in files:
+        try:
+            table = pq.read_table(uri)
+            if "source" not in table.column_names:
+                continue
+            idx = table.schema.get_field_index("source")
+            field_type = table.schema.field(idx).type
+            if pa.types.is_dictionary(field_type):
+                col = table.column("source").cast(pa.string())
+                table = table.set_column(idx, "source", col)
+                write_vault_file(uri, table)
+                log.info("Normalized 'source' column dtype in %s", uri)
+        except Exception as exc:
+            log.warning("Schema normalization failed for %s: %s", uri, exc)
+
+
+    "USA": {
+        "module":  "scrapers.food_pricing.usa_food_scraper",
+        "fn":      "scrape_usa_food_pricing",
 # Countries routed through each underlying scraper
 COUNTRY_ROUTER: dict[str, dict] = {
     "USA": {
@@ -97,13 +134,13 @@ def run_country(country: str, mode: str, since: str | None, dry_run: bool) -> bo
         try:
             import importlib
             mod = importlib.import_module(cfg["module"])
+            mod = importlib.import_module(cfg["module"])
             fn  = getattr(mod, cfg["fn"])
             fn(mode=mode, since=since)
+            _normalize_parquet_schema(PRODUCT, country, source)
             log.info("Completed scrape %s/%s/%s", PRODUCT, country, source)
         except Exception as exc:
-            log.error("Scraper failed for %s/%s/%s: %s", PRODUCT, country, source, exc,
-                      exc_info=True)
-            try:
+            log.error("Scraper failed for %s/%s/%s: %s", PRODUCT, country, source, exc,            try:
                 from tools.self_healing.handler import handle_exception
                 handle_exception(
                     program=__file__,
