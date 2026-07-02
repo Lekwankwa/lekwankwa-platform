@@ -112,7 +112,7 @@ The diff MUST target the file above using the exact path shown."""
     log.info("[CLAUDE] Sending MAJOR_EXCEPTION to Claude Sonnet 5...")
     response = client.messages.create(
         model="claude-sonnet-5",
-        max_tokens=1024,
+        max_tokens=4096,
         system=SYSTEM_PROMPT,
         messages=[{"role": "user", "content": user_msg}],
     )

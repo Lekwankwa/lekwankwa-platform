@@ -39,7 +39,13 @@ def vault_glob(path_str: str, pattern: str) -> list[str]:
         if not fs.exists(path_str):
             return []
         suffix = pattern.lstrip("*")
-        return sorted(p for p in fs.find(path_str) if p.endswith(suffix))
+        # gcsfs.find() returns bare "bucket/key" paths (no "gs://" scheme),
+        # which pandas/pyarrow then treat as local paths and fail to open.
+        # Re-add the scheme so callers can pass results straight into
+        # pd.read_parquet() / pd.DataFrame.to_parquet().
+        return sorted(
+            f"gs://{p}" for p in fs.find(path_str) if p.endswith(suffix)
+        )
     base = Path(path_str)
     if not base.exists():
         return []
