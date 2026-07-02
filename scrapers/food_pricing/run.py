@@ -97,23 +97,55 @@ def run_country(country: str, mode: str, since: str | None, dry_run: bool) -> bo
         try:
             import importlib
             mod = importlib.import_module(cfg["module"])
-            fn  = getattr(mod, cfg["fn"])
-            fn(mode=mode, since=since)
-            log.info("Completed scrape %s/%s/%s", PRODUCT, country, source)
-        except Exception as exc:
-            log.error("Scraper failed for %s/%s/%s: %s", PRODUCT, country, source, exc,
-                      exc_info=True)
+            return False
+
+        # Post-scrape: 9-stage + GX + Bitemporal Core validation
+        DEFAULT_VALIDATION_TIMEOUT = 600   # seconds
+        EXTENDED_VALIDATION_TIMEOUT = 1500  # seconds, used on retry
+
+        val = None
+        for attempt, timeout_s in enumerate(
+            (DEFAULT_VALIDATION_TIMEOUT, EXTENDED_VALIDATION_TIMEOUT), start=1
+        ):
             try:
-                from tools.self_healing.handler import handle_exception
-                handle_exception(
-                    program=__file__,
-                    exception=exc,
-                    context={
-                        "product": PRODUCT, "country": country,
-                        "source": source, "run_date": TODAY,
-                        "layer": "SCRAPER",
-                    },
+                val = run_9_stage_validation(
+                    product=PRODUCT, country=country, timeout=timeout_s
                 )
+                break
+            except RuntimeError as exc:
+                log.error(
+                    "Validation attempt %d failed for %s/%s/%s (timeout=%ss): %s",
+                    attempt, PRODUCT, country, source, timeout_s, exc,
+                    exc_info=True,
+                )
+                if attempt == 2:
+                    try:
+                        from tools.self_healing.handler import handle_exception
+                        handle_exception(
+                            program=__file__,
+                            exception=exc,
+                            context={
+                                "product": PRODUCT, "country": country,
+                                "source": source, "run_date": TODAY,
+                                "layer": "VALIDATION",
+                            },
+                        )
+                    except ImportError:
+                        pass
+                    return False
+
+        if val is not None and val.severity in ("CRITICAL", "HIGH"):
+            from tools.self_healing.handler import handle_validation_finding
+            handle_validation_finding(
+                program=__file__,
+                context={
+                    "product": PRODUCT, "country": country,
+                    "source": source, "run_date": TODAY,
+                    "layer": "VALIDATION",
+                },
+                result=val,
+            )
+            return False                )
             except ImportError:
                 pass
             return False
