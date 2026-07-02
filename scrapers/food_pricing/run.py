@@ -27,12 +27,13 @@ logging.basicConfig(
 
 from tools.secrets import load_all_secrets_to_env
 load_all_secrets_to_env()
+load_all_secrets_to_env()
 
 from tools.release_calendar_extractor import is_release_due
+from tools.vault_io import list_vault_files, read_vault_table, write_vault_table
 from tools.vault_audit import run_9_stage_validation
 from tools.live_feed_audit import run_post_delta_audit
 log = logging.getLogger(__name__)
-
 PRODUCT = "food_micropricing"
 TODAY   = date.today().isoformat()
 
@@ -73,12 +74,52 @@ COUNTRY_ROUTER: dict[str, dict] = {
 EU_MEMBERS = [
     "AUT","BEL","BGR","HRV","CYP","CZE","DNK","EST","FIN","FRA","DEU",
     "GRC","HUN","IRL","ITA","LVA","LTU","LUX","MLT","NLD","POL","PRT",
-    "ROU","SVK","SVN","ESP","SWE",
 ]
+
+
+def _normalize_vault_schema(product: str, country: str, source: str) -> None:
+    """
+    Ensure all parquet partitions for this product/country/source have a
+    consistent, non-dictionary-encoded schema before validation runs.
+
+    Root cause fix for VALIDATION_FAIL_RC1: some scraper runs write the
+    `source` column (and potentially other string columns) as PyArrow
+    dictionary-encoded strings while others write plain strings, causing
+    PyArrow table merges to fail with:
+        "Field source has incompatible types: string vs dictionary<...>"
+    which in turn causes the PIT validator to silently skip every file and
+    raise FileNotFoundError.
+    """
+    import pyarrow as pa
+
+    try:
+        paths = list_vault_files(product=product, country=country, source=source)
+    except Exception as exc:  # pragma: no cover - defensive
+        log.warning("Could not list vault files for schema normalization "
+                    "%s/%s/%s: %s", product, country, source, exc)
+        return
+
+    for path in paths:
+        try:
+            table = read_vault_table(path)
+            needs_fix = any(pa.types.is_dictionary(f.type) for f in table.schema)
+            if not needs_fix:
+                continue
+            columns = {
+                field.name: (table.column(field.name).cast(pa.string())
+                             if pa.types.is_dictionary(field.type)
+                             else table.column(field.name))
+                for field in table.schema
+            }
+            write_vault_table(pa.table(columns), path)
+            log.info("Normalized dictionary-encoded schema for %s", path)
+        except Exception as exc:
+            log.warning("Schema normalization failed for %s: %s", path, exc)
 
 
 def run_country(country: str, mode: str, since: str | None, dry_run: bool) -> bool:
     cfg = COUNTRY_ROUTER.get(country)
+    if cfg is None:
     if cfg is None:
         log.error("No router entry for country=%s", country)
         return False
@@ -114,13 +155,15 @@ def run_country(country: str, mode: str, since: str | None, dry_run: bool) -> bo
                         "layer": "SCRAPER",
                     },
                 )
-            except ImportError:
                 pass
             return False
 
+        # Normalize schema across monthly partitions before running validation
+        _normalize_vault_schema(product=PRODUCT, country=country, source=source)
+
         # Post-scrape: 9-stage + GX + Bitemporal Core validation
         val = run_9_stage_validation(product=PRODUCT, country=country)
-        if val.severity in ("CRITICAL", "HIGH"):
+        if val.severity in ("CRITICAL", "HIGH"):        if val.severity in ("CRITICAL", "HIGH"):
             from tools.self_healing.handler import handle_validation_finding
             handle_validation_finding(
                 program=__file__,
