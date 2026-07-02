@@ -334,6 +334,12 @@ gcloud storage buckets add-iam-policy-binding "${METADATA}" \
     --project="${PROJECT}"
 echo "  ✓ ${SA} → roles/storage.objectAdmin on ${METADATA}"
 
+gcloud storage buckets add-iam-policy-binding "gs://lekwankwa-pipeline-ops" \
+    --member="serviceAccount:${SA}" \
+    --role="roles/storage.objectAdmin" \
+    --project="${PROJECT}"
+echo "  ✓ ${SA} → roles/storage.objectAdmin on gs://lekwankwa-pipeline-ops"
+
 echo ""
 echo "========================================================"
 echo " STEP 7 — Deploy PIT Disclosure Cloud Function"

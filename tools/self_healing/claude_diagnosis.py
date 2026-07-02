@@ -116,7 +116,13 @@ The diff MUST target the file above using the exact path shown."""
         system=SYSTEM_PROMPT,
         messages=[{"role": "user", "content": user_msg}],
     )
-    diagnosis = response.content[0].text
+    text_blocks = [block.text for block in response.content if getattr(block, "type", None) == "text"]
+    if not text_blocks:
+        raise RuntimeError(
+            f"Claude response had no text block (got types: "
+            f"{[getattr(b, 'type', type(b).__name__) for b in response.content]})"
+        )
+    diagnosis = "\n".join(text_blocks)
     log.info("[CLAUDE] Diagnosis received (%d chars)", len(diagnosis))
     return diagnosis
 
