@@ -1,6 +1,6 @@
 """
 tools/self_healing/claude_diagnosis.py — Lekwankwa Corporation
-Layer 3: Claude Sonnet 4.6 diagnosis and auto-fix for MAJOR_EXCEPTION events.
+Layer 3: Claude Sonnet 5 diagnosis and auto-fix for MAJOR_EXCEPTION events.
 
 For SIMPLE fixes (1-5 lines): creates a branch, applies the patch via GitHub
 API, opens a PR, and sends a notification email — no approval gate needed.
@@ -76,7 +76,7 @@ def diagnose_with_claude(
     context: dict[str, Any],
     traceback_str: str,
 ) -> str:
-    """Call Claude Sonnet 4.6 to diagnose a MAJOR_EXCEPTION. Returns diagnosis text."""
+    """Call Claude Sonnet 5 to diagnose a MAJOR_EXCEPTION. Returns diagnosis text."""
     from tools.self_healing.secret_manager import get_secret
     import anthropic
 
@@ -109,9 +109,9 @@ Full traceback:
 Diagnose root cause, classify severity, and provide the unified diff fix.
 The diff MUST target the file above using the exact path shown."""
 
-    log.info("[CLAUDE] Sending MAJOR_EXCEPTION to Claude Sonnet 4.6...")
+    log.info("[CLAUDE] Sending MAJOR_EXCEPTION to Claude Sonnet 5...")
     response = client.messages.create(
-        model="claude-sonnet-4-6",
+        model="claude-sonnet-5",
         max_tokens=1024,
         system=SYSTEM_PROMPT,
         messages=[{"role": "user", "content": user_msg}],
@@ -326,10 +326,10 @@ def apply_simple_fix(diff_text: str, program: str, context: dict[str, Any]) -> s
         commit_msg = (
             f"[AUTO-FIX] Self-healing patch: {context.get('product')} / "
             f"{context.get('country')}\n\n"
-            f"Applied by Claude Sonnet 4.6 self-healing system.\n"
+            f"Applied by Claude Sonnet 5 self-healing system.\n"
             f"Triggered by: {program}\n"
             f"Fix complexity: SIMPLE\n\n"
-            f"Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>"
+            f"Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>"
         )
         r = requests.put(
             f"https://api.github.com/repos/{REPO}/contents/{target_file}",
@@ -356,7 +356,7 @@ def apply_simple_fix(diff_text: str, program: str, context: dict[str, Any]) -> s
                 "head":  branch,
                 "base":  "master",
                 "body": (
-                    f"## Automated Fix — Claude Sonnet 4.6\n\n"
+                    f"## Automated Fix — Claude Sonnet 5\n\n"
                     f"**Product:** {context.get('product')}  \n"
                     f"**Country:** {context.get('country')}  \n"
                     f"**Source:** {context.get('source')}  \n"

@@ -12,7 +12,7 @@ Flow (scraper exception):
       ↓ all fail
   _escalate_to_layer3()
       ↓
-  Claude Sonnet 4.6 diagnosis → Firestore token → approval email
+  Claude Sonnet 5 diagnosis → Firestore token → approval email
 
 Flow (audit / validation / quality report — skips Layer 2):
   handle_audit_finding()  — live_feed_audit.py C1-C5 ERRORs
@@ -123,7 +123,7 @@ def _escalate_to_layer3(
     log.info("[SELF-HEAL] Layer 3 escalation — %s / %s",
              layer, Path(program).name)
 
-    # Claude Sonnet 4.6 diagnosis
+    # Claude Sonnet 5 diagnosis
     try:
         from tools.self_healing.claude_diagnosis import diagnose_with_claude
         diagnosis = diagnose_with_claude(program, exception, context, tb_str)

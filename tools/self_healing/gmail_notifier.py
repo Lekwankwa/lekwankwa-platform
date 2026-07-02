@@ -92,9 +92,9 @@ Severity:  {severity}
 Trigger:   {layer_label}
 
 Layer 1 (Crawl4AI retry):             {layer1_text}
-Layer 2 (Claude Sonnet 4.6 diagnosis): COMPLETE — see below
+Layer 2 (Claude Sonnet 5 diagnosis): COMPLETE — see below
 
-CLAUDE SONNET 4.6 DIAGNOSIS
+CLAUDE SONNET 5 DIAGNOSIS
 ----------------------------
 {diagnosis}
 
@@ -129,11 +129,11 @@ the fix is rejected and logged for manual review.
 <h3>Layer Status</h3>
 <ul>
   <li>Layer 1 (Crawl4AI retry): <b>{layer1_text}</b></li>
-  <li>Layer 2 (Claude Sonnet 4.6 diagnosis): <b style="color:#27ae60">COMPLETE</b></li>
+  <li>Layer 2 (Claude Sonnet 5 diagnosis): <b style="color:#27ae60">COMPLETE</b></li>
   <li>Trigger: <b>{layer_label}</b> — error detected</li>
 </ul>
 
-<h3>Claude Sonnet 4.6 Diagnosis</h3>
+<h3>Claude Sonnet 5 Diagnosis</h3>
 <pre style="background:#f4f4f4;padding:12px;border-radius:4px">{diagnosis}</pre>
 
 <h3>Action Required</h3>
@@ -220,7 +220,7 @@ PULL REQUEST
 ------------
 {pr_url}
 
-CLAUDE SONNET 4.6 DIAGNOSIS
+CLAUDE SONNET 5 DIAGNOSIS
 ----------------------------
 {diagnosis}
 
@@ -251,7 +251,7 @@ Review the PR, confirm the change looks correct, and merge to apply.
   </a>
 </p>
 
-<h3>Claude Sonnet 4.6 Diagnosis</h3>
+<h3>Claude Sonnet 5 Diagnosis</h3>
 <pre style="background:#f4f4f4;padding:12px;border-radius:4px">{diagnosis}</pre>
 
 <p><small>No approval action required — merge the PR to apply the fix.</small></p>
