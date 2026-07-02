@@ -11,12 +11,13 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import argparse
 import logging
 import sys
+import types
 from datetime import date, datetime, timezone
 from pathlib import Path
 
-# Add repo root to path when running directly
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 logging.basicConfig(
@@ -92,23 +93,64 @@ def run_country(country: str, mode: str, since: str | None, dry_run: bool) -> bo
 
         if dry_run:
             log.info("[DRY-RUN] Would scrape %s/%s/%s", PRODUCT, country, source)
-            continue
+            return False
 
+            return False
+
+        # Post-scrape: 9-stage + GX + Bitemporal Core validation
         try:
-            import importlib
-            mod = importlib.import_module(cfg["module"])
-            fn  = getattr(mod, cfg["fn"])
-            fn(mode=mode, since=since)
-            log.info("Completed scrape %s/%s/%s", PRODUCT, country, source)
-        except Exception as exc:
-            log.error("Scraper failed for %s/%s/%s: %s", PRODUCT, country, source, exc,
-                      exc_info=True)
-            try:
-                from tools.self_healing.handler import handle_exception
-                handle_exception(
-                    program=__file__,
-                    exception=exc,
-                    context={
+            val = run_9_stage_validation(product=PRODUCT, country=country)
+        except (RuntimeError, Exception) as val_exc:
+            # The validation subprocess exited non-zero and raised instead of
+            # returning a structured result (e.g. VALIDATION_FAIL_RC1).
+            # Synthesise a minimal result namespace so the self-healing handler
+            # receives the same interface it expects from a structured finding.
+            log.error(
+                "run_9_stage_validation raised for %s/%s/%s: %s",
+                PRODUCT, country, source, val_exc,
+                exc_info=True,
+            )
+            val = types.SimpleNamespace(
+                overall="FAIL",
+                severity="HIGH",
+                code=getattr(val_exc, "code", "VALIDATION_FAIL_EXCEPTION"),
+                stages=[],
+                raw_exception=str(val_exc),
+            )
+
+        if val.severity in ("CRITICAL", "HIGH"):
+            from tools.self_healing.handler import handle_validation_finding
+            handle_validation_finding(
+                program=__file__,
+                context={
+                    "product": PRODUCT, "country": country,
+                    "source": source, "run_date": TODAY,
+                    "layer": "VALIDATION",
+                    "raw_exception": getattr(val, "raw_exception", None),
+                },
+                result=val,
+            )
+            return False
+
+        # Post-delta live feed audit (live products only)                f"validations/food_micropricing/run_all_validations_food_non_eu.py "
+                f"rather than a data-quality finding. "
+                f"Full result: {vars(val) if hasattr(val, '__dict__') else val!r}"
+            )
+
+        if val.severity in ("CRITICAL", "HIGH"):
+            from tools.self_healing.handler import handle_validation_finding
+            handle_validation_finding(
+                program=__file__,
+                context={
+                    "product": PRODUCT, "country": country,
+                    "source": source, "run_date": TODAY,
+                    "layer": "VALIDATION",
+                    "validation_code": getattr(val, "code", None),
+                    "validation_stages": getattr(val, "stages", []),
+                },
+                result=val,
+            )
+            return False                    context={
                         "product": PRODUCT, "country": country,
                         "source": source, "run_date": TODAY,
                         "layer": "SCRAPER",
