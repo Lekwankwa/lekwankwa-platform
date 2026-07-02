@@ -92,23 +92,45 @@ def run_country(country: str, mode: str, since: str | None, dry_run: bool) -> bo
 
         if dry_run:
             log.info("[DRY-RUN] Would scrape %s/%s/%s", PRODUCT, country, source)
-            continue
+            return False
 
-        try:
-            import importlib
-            mod = importlib.import_module(cfg["module"])
-            fn  = getattr(mod, cfg["fn"])
-            fn(mode=mode, since=since)
-            log.info("Completed scrape %s/%s/%s", PRODUCT, country, source)
-        except Exception as exc:
-            log.error("Scraper failed for %s/%s/%s: %s", PRODUCT, country, source, exc,
-                      exc_info=True)
-            try:
-                from tools.self_healing.handler import handle_exception
-                handle_exception(
-                    program=__file__,
-                    exception=exc,
-                    context={
+        # Post-scrape: 9-stage + GX + Bitemporal Core validation
+        val = run_9_stage_validation(product=PRODUCT, country=country)
+
+        # ------------------------------------------------------------------ #
+        # Guard: distinguish a validation-harness crash from a real finding.  #
+        # When stages=[] the subprocess exited before any stage ran — this is #
+        # an infrastructure/environment problem, not a data-quality signal.   #
+        # Raise immediately so the failure is unambiguous in logs and CI.     #
+        # ------------------------------------------------------------------ #
+        if (
+            getattr(val, "code", None) == "VALIDATION_FAIL_RC1"
+            and not getattr(val, "stages", None)
+        ):
+            raise RuntimeError(
+                f"VALIDATION failed: VALIDATION_FAIL_RC1 — validation harness "
+                f"exited with returncode=1 and reported zero completed stages "
+                f"(product={PRODUCT}, country={country}, source={source}). "
+                f"This indicates an environment/import failure inside "
+                f"validations/food_micropricing/run_all_validations_food_non_eu.py "
+                f"rather than a data-quality finding. "
+                f"Full result: {vars(val) if hasattr(val, '__dict__') else val!r}"
+            )
+
+        if val.severity in ("CRITICAL", "HIGH"):
+            from tools.self_healing.handler import handle_validation_finding
+            handle_validation_finding(
+                program=__file__,
+                context={
+                    "product": PRODUCT, "country": country,
+                    "source": source, "run_date": TODAY,
+                    "layer": "VALIDATION",
+                    "validation_code": getattr(val, "code", None),
+                    "validation_stages": getattr(val, "stages", []),
+                },
+                result=val,
+            )
+            return False                    context={
                         "product": PRODUCT, "country": country,
                         "source": source, "run_date": TODAY,
                         "layer": "SCRAPER",
