@@ -30,6 +30,13 @@ import os
 import sys
 import traceback
 
+# Import pandas/numpy FIRST and fully, before gcsfs/pyarrow ever touch GCS.
+# Importing pandas lazily *after* gcsfs has already been used to list/read
+# files reliably corrupts numpy's Cython random-module init in this
+# environment ("cannot import name randbits") — importing it eagerly here,
+# before anything else runs, avoids the ordering conflict entirely.
+import pandas as pd  # noqa: E402,F401
+
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "validations"))
 from _vault_root import VAULT_ROOT, IS_GCS, vault_exists, vault_glob, vault_read_parquet  # noqa: E402
 
@@ -61,7 +68,6 @@ def repair_source(source: str, dry_run: bool) -> tuple[int, int, int]:
     for f in files:
         scanned += 1
         try:
-            import pandas as pd
             # Fast path first — if this already works, the file is fine.
             try:
                 pd.read_parquet(f)
