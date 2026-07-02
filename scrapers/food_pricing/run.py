@@ -105,22 +105,13 @@ def run_country(country: str, mode: str, since: str | None, dry_run: bool) -> bo
             return False
 
         # Post-scrape: 9-stage + GX + Bitemporal Core validation
-        try:
-            val = run_9_stage_validation(product=PRODUCT, country=country)
-        except (RuntimeError, TimeoutError) as exc:
+        val = run_9_stage_validation(product=PRODUCT, country=country)
+        if val.overall == "TIMEOUT":
             log.warning(
-                "Validation timed out for %s/%s/%s, retrying once with extended timeout: %s",
-                PRODUCT, country, source, exc,
+                "Validation timed out for %s/%s/%s, retrying once with extended timeout (1800s).",
+                PRODUCT, country, source,
             )
-            try:
-                val = run_9_stage_validation(
-                    product=PRODUCT, country=country, timeout=1800
-                )
-            except (RuntimeError, TimeoutError) as exc2:
-                log.error(
-                    "Validation failed again for %s/%s/%s: %s",
-                    PRODUCT, country, source, exc2, exc_info=True,
-                )
+            val = run_9_stage_validation(product=PRODUCT, country=country, timeout=1800)
                 from tools.self_healing.handler import handle_exception
                 handle_exception(
                     program=__file__,
