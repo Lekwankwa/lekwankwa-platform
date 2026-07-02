@@ -107,23 +107,52 @@ def run_country(country: str, mode: str, since: str | None, dry_run: bool) -> bo
                 from tools.self_healing.handler import handle_exception
                 handle_exception(
                     program=__file__,
-                    exception=exc,
-                    context={
-                        "product": PRODUCT, "country": country,
-                        "source": source, "run_date": TODAY,
-                        "layer": "SCRAPER",
-                    },
-                )
-            except ImportError:
-                pass
             return False
 
         # Post-scrape: 9-stage + GX + Bitemporal Core validation
-        val = run_9_stage_validation(product=PRODUCT, country=country)
+        try:
+            val = run_9_stage_validation(product=PRODUCT, country=country)
+        except RuntimeError as exc:
+            log.warning(
+                "Validation run for %s/%s timed out on first attempt (%s). Retrying with extended timeout.",
+                PRODUCT, country, exc,
+            )
+            try:
+                val = run_9_stage_validation(
+                    product=PRODUCT, country=country, timeout_seconds=1800
+                )
+            except Exception as exc2:
+                log.error(
+                    "Validation run for %s/%s failed permanently after retry: %s",
+                    PRODUCT, country, exc2, exc_info=True,
+                )
+                try:
+                    from tools.self_healing.handler import handle_exception
+                    handle_exception(
+                        program=__file__,
+                        exception=exc2,
+                        context={
+                            "product": PRODUCT, "country": country,
+                            "source": source, "run_date": TODAY,
+                            "layer": "VALIDATION",
+                        },
+                    )
+                except ImportError:
+                    pass
+                return False
+
         if val.severity in ("CRITICAL", "HIGH"):
             from tools.self_healing.handler import handle_validation_finding
             handle_validation_finding(
                 program=__file__,
+                context={
+                    "product": PRODUCT, "country": country,
+                    "source": source, "run_date": TODAY,
+                    "layer": "VALIDATION",
+                },
+                result=val,
+            )
+            return False                program=__file__,
                 context={
                     "product": PRODUCT, "country": country,
                     "source": source, "run_date": TODAY,
