@@ -98,11 +98,16 @@ def run_country(country: str, mode: str, since: str | None, dry_run: bool) -> bo
             import importlib
             mod = importlib.import_module(cfg["module"])
             fn  = getattr(mod, cfg["fn"])
-            fn(mode=mode, since=since)
-            log.info("Completed scrape %s/%s/%s", PRODUCT, country, source)
+            return False
+
+        # Post-scrape: 9-stage + GX + Bitemporal Core validation
+        try:
+            val = run_9_stage_validation(product=PRODUCT, country=country)
         except Exception as exc:
-            log.error("Scraper failed for %s/%s/%s: %s", PRODUCT, country, source, exc,
-                      exc_info=True)
+            log.error(
+                "Validation harness failed for %s/%s/%s: %s",
+                PRODUCT, country, source, exc, exc_info=True,
+            )
             try:
                 from tools.self_healing.handler import handle_exception
                 handle_exception(
@@ -111,10 +116,25 @@ def run_country(country: str, mode: str, since: str | None, dry_run: bool) -> bo
                     context={
                         "product": PRODUCT, "country": country,
                         "source": source, "run_date": TODAY,
-                        "layer": "SCRAPER",
+                        "layer": "VALIDATION_TIMEOUT",
                     },
                 )
             except ImportError:
+                pass
+            return False
+
+        if val.severity in ("CRITICAL", "HIGH"):
+            from tools.self_healing.handler import handle_validation_finding
+            handle_validation_finding(
+                program=__file__,
+                context={
+                    "product": PRODUCT, "country": country,
+                    "source": source, "run_date": TODAY,
+                    "layer": "VALIDATION",
+                },
+                result=val,
+            )
+            return False            except ImportError:
                 pass
             return False
 
