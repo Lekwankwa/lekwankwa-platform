@@ -20,9 +20,10 @@ from pathlib import Path
 from tools.release_calendar_extractor import is_release_due
 from tools.vault_audit import run_9_stage_validation
 from tools.live_feed_audit import run_post_delta_audit
-from tools.vault_schema_fixer import normalize_partition_schema
+from tools.vault_schema_fix import normalize_partition_schemas
 log = logging.getLogger(__name__)
 
+PRODUCT = "food_micropricing"
 PRODUCT = "food_micropricing"
 )
 
@@ -114,12 +115,22 @@ def run_country(country: str, mode: str, since: str | None, dry_run: bool) -> bo
                 columns=["source"],
             )
         except Exception as norm_exc:
+            return False
+
+        # Normalize Parquet column schemas (e.g. dictionary-encoded vs plain
+        # string 'source' column) across all partitions for this
+        # product/country/source before running validation, to prevent
+        # PyArrow merge failures during PIT validation loading.
+        try:
+            normalize_partition_schemas(product=PRODUCT, country=country,
+                                         source=source)
+        except Exception as norm_exc:
             log.warning("Schema normalization failed for %s/%s/%s: %s",
                         PRODUCT, country, source, norm_exc, exc_info=True)
 
         # Post-scrape: 9-stage + GX + Bitemporal Core validation
-        val = run_9_stage_validation(product=PRODUCT, country=country)                from tools.self_healing.handler import handle_exception
-                handle_exception(
+        val = run_9_stage_validation(product=PRODUCT, country=country)
+        if val.severity in ("CRITICAL", "HIGH"):                handle_exception(
                     program=__file__,
                     exception=exc,
                     context={
