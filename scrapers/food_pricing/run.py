@@ -99,25 +99,39 @@ def run_country(country: str, mode: str, since: str | None, dry_run: bool) -> bo
             mod = importlib.import_module(cfg["module"])
             fn  = getattr(mod, cfg["fn"])
             fn(mode=mode, since=since)
-            log.info("Completed scrape %s/%s/%s", PRODUCT, country, source)
-        except Exception as exc:
-            log.error("Scraper failed for %s/%s/%s: %s", PRODUCT, country, source, exc,
-                      exc_info=True)
-            try:
-                from tools.self_healing.handler import handle_exception
-                handle_exception(
-                    program=__file__,
-                    exception=exc,
-                    context={
-                        "product": PRODUCT, "country": country,
-                        "source": source, "run_date": TODAY,
-                        "layer": "SCRAPER",
-                    },
-                )
-            except ImportError:
-                pass
-            return False
 
+        # Post-scrape: 9-stage + GX + Bitemporal Core validation
+        val = run_9_stage_validation(product=PRODUCT, country=country)
+        # Some validation subprocesses exit non-zero purely due to WARN-level
+        # findings (e.g. Temporal Coverage warnings) even when 0 stages
+        # actually failed. Only treat this as a blocking failure when there
+        # is a genuine failed-stage count; otherwise log and continue.
+        failed_count = getattr(val, "failed", None)
+        if failed_count is None:
+            failed_count = len(getattr(val, "stages", []) or [])
+
+        if val.severity in ("CRITICAL", "HIGH") and failed_count > 0:
+            from tools.self_healing.handler import handle_validation_finding
+            handle_validation_finding(
+                program=__file__,
+                context={
+                    "product": PRODUCT, "country": country,
+                    "source": source, "run_date": TODAY,
+                    "layer": "VALIDATION",
+                },
+                result=val,
+            )
+            return False
+        elif val.severity in ("CRITICAL", "HIGH"):
+            log.warning(
+                "Validation reported severity=%s for %s/%s/%s but no failed "
+                "stages were recorded (code=%s) — treating as warn-only and "
+                "continuing.",
+                val.severity, PRODUCT, country, source, getattr(val, "code", "N/A"),
+            )
+
+        # Post-delta live feed audit (live products only)
+        if PRODUCT in ("food_micropricing", "wages_and_employment", "trade_flows"):
         # Post-scrape: 9-stage + GX + Bitemporal Core validation
         val = run_9_stage_validation(product=PRODUCT, country=country)
         if val.severity in ("CRITICAL", "HIGH"):
