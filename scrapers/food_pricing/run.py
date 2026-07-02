@@ -17,23 +17,21 @@ from datetime import date
 from pathlib import Path
 
 # Add repo root to path when running directly
-from tools.release_calendar_extractor import is_release_due
-from tools.vault_audit import run_9_stage_validation
-from tools.live_feed_audit import run_post_delta_audit
-from tools.vault_schema_fix import normalize_partition_schemas
-log = logging.getLogger(__name__)
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-PRODUCT = "food_micropricing"
-PRODUCT = "food_micropricing"
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(message)s",
+    handlers=[logging.StreamHandler(sys.stdout)],
 )
 
+from tools.secrets import load_all_secrets_to_env
 load_all_secrets_to_env()
 
 from tools.release_calendar_extractor import is_release_due
 from tools.vault_audit import run_9_stage_validation
 from tools.live_feed_audit import run_post_delta_audit
 log = logging.getLogger(__name__)
-
 
 PRODUCT = "food_micropricing"
 TODAY   = date.today().isoformat()
@@ -63,54 +61,13 @@ COUNTRY_ROUTER: dict[str, dict] = {
     "NOR": {
         "module":  "scrapers.food_pricing.ssb_food_scraper",
         "fn":      "scrape_nor_food_pricing",
-    "ROU","SVK","SVN","ESP","SWE",
-]
-
-
-def _normalize_parquet_schema(product: str, country: str, source: str) -> None:
-    """Ensure the 'source' column is a plain string (never dictionary-encoded)
-    across all vault parquet partitions for this product/country/source.
-
-    Upstream writers occasionally emit dictionary-encoded 'source' columns,
-    which causes downstream validation merges to fail with an
-    'incompatible types: string vs dictionary<...>' error, silently
-    skipping partitions and leading to false 'no data found' failures.
-    """
-    import io
-    import pyarrow as pa
-    import pyarrow.parquet as pq
-    from google.cloud import storage
-
-    try:
-        client = storage.Client()
-        bucket = client.bucket("lekwankwa-vault")
-        prefix = f"product={product}/country={country}/source={source}/"
-        for blob in bucket.list_blobs(prefix=prefix):
-            if not blob.name.endswith(".parquet"):
-                continue
-            data = blob.download_as_bytes()
-            table = pq.read_table(io.BytesIO(data))
-            if "source" not in table.column_names:
-                continue
-            idx = table.schema.get_field_index("source")
-            field_type = table.schema.field(idx).type
-            if pa.types.is_dictionary(field_type):
-                col = table.column("source").cast(pa.string())
-                table = table.set_column(idx, "source", table.schema.field(idx).with_type(pa.string()), col)
-                buf = io.BytesIO()
-                pq.write_table(table, buf)
-                blob.upload_from_string(buf.getvalue(),
-                                         content_type="application/octet-stream")
-                log.info("Normalized dictionary-encoded 'source' column in %s",
-                         blob.name)
-    except Exception as norm_exc:
-        log.warning("Schema normalization skipped for %s/%s/%s: %s",
-                    product, country, source, norm_exc)
-
-
-def run_country(country: str, mode: str, since: str | None, dry_run: bool) -> bool:
-    cfg = COUNTRY_ROUTER.get(country)
-    if cfg is None:
+        "sources": ["ssb"],
+    },
+    "EU27": {
+        "module":  "scrapers.food_pricing.eurostat_food_scraper",
+        "fn":      "scrape_eu27_food_pricing",
+        "sources": ["eurostat"],
+    },
 }
 
 EU_MEMBERS = [
@@ -125,13 +82,13 @@ def run_country(country: str, mode: str, since: str | None, dry_run: bool) -> bo
     if cfg is None:
         log.error("No router entry for country=%s", country)
         return False
-            fn  = getattr(mod, cfg["fn"])
-            fn(mode=mode, since=since)
-            log.info("Completed scrape %s/%s/%s", PRODUCT, country, source)
-            _normalize_parquet_schema(PRODUCT, country, source)
-        except Exception as exc:
-            log.error("Scraper failed for %s/%s/%s: %s", PRODUCT, country, source, exc,
-                      exc_info=True)            continue
+
+    for source in cfg["sources"]:
+        if not is_release_due(product=PRODUCT, country=country,
+                              source=source, as_of=TODAY):
+            log.info("No release due today for %s/%s/%s — skipping.",
+                     PRODUCT, country, source)
+            continue
 
         if dry_run:
             log.info("[DRY-RUN] Would scrape %s/%s/%s", PRODUCT, country, source)
@@ -141,37 +98,14 @@ def run_country(country: str, mode: str, since: str | None, dry_run: bool) -> bo
             import importlib
             mod = importlib.import_module(cfg["module"])
             fn  = getattr(mod, cfg["fn"])
-            except ImportError:
-                pass
-            return False
-
-        # Normalize vault parquet schema for this product/country/source before
-        # validation runs, to prevent Arrow dictionary-vs-string merge failures
-        # caused by inconsistent encodings across historical files.
-        try:
-            normalize_partition_schema(
-                product=PRODUCT,
-                country=country,
-                source=source,
-                columns=["source"],
-            )
-        except Exception as norm_exc:
-            return False
-
-        # Normalize Parquet column schemas (e.g. dictionary-encoded vs plain
-        # string 'source' column) across all partitions for this
-        # product/country/source before running validation, to prevent
-        # PyArrow merge failures during PIT validation loading.
-        try:
-            normalize_partition_schemas(product=PRODUCT, country=country,
-                                         source=source)
-        except Exception as norm_exc:
-            log.warning("Schema normalization failed for %s/%s/%s: %s",
-                        PRODUCT, country, source, norm_exc, exc_info=True)
-
-        # Post-scrape: 9-stage + GX + Bitemporal Core validation
-        val = run_9_stage_validation(product=PRODUCT, country=country)
-        if val.severity in ("CRITICAL", "HIGH"):                handle_exception(
+            fn(mode=mode, since=since)
+            log.info("Completed scrape %s/%s/%s", PRODUCT, country, source)
+        except Exception as exc:
+            log.error("Scraper failed for %s/%s/%s: %s", PRODUCT, country, source, exc,
+                      exc_info=True)
+            try:
+                from tools.self_healing.handler import handle_exception
+                handle_exception(
                     program=__file__,
                     exception=exc,
                     context={
