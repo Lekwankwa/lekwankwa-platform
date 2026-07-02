@@ -26,10 +26,15 @@ Date: May 31, 2026
 
 import pandas as pd
 import json
+import re
+import sys
 from pathlib import Path
 from collections import defaultdict
 from typing import Dict, List, Tuple, Any
 import logging
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from _vault_root import VAULT_ROOT, vault_exists, vault_glob, vault_file_size_kb  # noqa: E402
 
 # Setup logging
 logging.basicConfig(
@@ -46,7 +51,7 @@ logger = logging.getLogger(__name__)
 #  CONFIGURATION
 # ══════════════════════════════════════════════════════════════════════════════
 
-VAULT_DIR = Path("lekwankwa-historical-vault")
+VAULT_DIR = VAULT_ROOT
 PRODUCT = "food_micropricing"
 COUNTRY = "USA"
 SOURCES = ["bls", "usda_ers"]
@@ -105,12 +110,12 @@ KNOWN_OUTLIERS = [
 #  VALIDATION FUNCTIONS
 # ══════════════════════════════════════════════════════════════════════════════
 
-def _validate_file(parquet_file: Path, year: str,
+def _validate_file(parquet_file: str, year: str,
                    price_col: str = "observed_price_local",
                    name_col: str = "standard_name") -> Dict[str, Any]:
     """Validate a single Parquet partition file."""
     results = {
-        "file": str(parquet_file.relative_to(VAULT_DIR)),
+        "file": parquet_file[len(VAULT_DIR) + 1:] if parquet_file.startswith(VAULT_DIR) else parquet_file,
         "year": year,
         "checks_passed": [],
         "checks_failed": [],
@@ -118,12 +123,12 @@ def _validate_file(parquet_file: Path, year: str,
         "row_count": 0,
         "file_size_kb": 0
     }
-    
+
     try:
         # Load Parquet file
         df = pd.read_parquet(parquet_file)
         results["row_count"] = len(df)
-        results["file_size_kb"] = parquet_file.stat().st_size / 1024
+        results["file_size_kb"] = vault_file_size_kb(parquet_file)
         
         # CHECK 1: Empty Payload Trap
         if len(df) < MIN_ROWS_PER_YEAR:
@@ -218,48 +223,42 @@ def validate_vault():
 
     for src in SOURCES:
         fname    = SOURCE_FILES[src]
-        src_path = VAULT_DIR / f"product={PRODUCT}" / f"country={COUNTRY}" / f"source={src}"
+        src_path = f"{VAULT_DIR}/product={PRODUCT}/country={COUNTRY}/source={src}"
         price_col = PRICE_COL[src]
         name_col  = NAME_COL[src]
 
-        if not src_path.exists():
+        if not vault_exists(src_path):
             logger.warning(f"Vault path not found for source={src} — skipping")
             continue
 
-        year_folders = sorted([d for d in src_path.iterdir() if d.is_dir() and d.name.startswith("year=")])
-        if not year_folders:
-            logger.warning(f"No year folders found for source={src}")
+        files = vault_glob(src_path, fname)
+        # Group by (year, month) parsed from the partition path.
+        partitions: dict[tuple[str, str], str] = {}
+        for f in files:
+            m = re.search(r"year=(\d+)/month=(\d+)", f.replace("\\", "/"))
+            if m:
+                partitions[(m.group(1), m.group(2))] = f
+
+        if not partitions:
+            logger.warning(f"No year/month partitions found for source={src}")
             continue
 
         logger.info("=" * 70)
         logger.info(f"HIVE VAULT SANITY CHECK — source={src}")
         logger.info("=" * 70)
-        logger.info(f"Vault: {src_path.relative_to(VAULT_DIR)}")
-        logger.info(f"Years to validate: {len(year_folders)}")
+        logger.info(f"Vault: {src_path}")
+        logger.info(f"Partitions to validate: {len(partitions)}")
         logger.info("=" * 70)
 
         src_results_list = []
 
-        for year_folder in year_folders:
-            year = year_folder.name.split("=")[1]
-            month_folders = sorted([d for d in year_folder.iterdir()
-                                    if d.is_dir() and d.name.startswith("month=")])
-            if not month_folders:
-                logger.warning(f"No month folders in {year_folder.name}")
-                continue
+        for year in sorted({k[0] for k in partitions}):
+            months = sorted((k, v) for k, v in partitions.items() if k[0] == year)
 
             last_results = None
-            for month_folder in month_folders:
-                month = month_folder.name.split("=")[1]
-                parquet_file = month_folder / fname
-
-                if not parquet_file.exists():
-                    logger.warning(f"Missing {fname} in {year_folder.name}/{month_folder.name}")
-                    continue
-
-                logger.info(f"\nValidating {year_folder.name}/{month_folder.name} [{src}]...")
-                # Patch column names into validate_parquet_file via module-level globals
-                results = _validate_file(parquet_file, year, price_col, name_col)
+            for (yr, month), parquet_file in months:
+                logger.info(f"\nValidating year={yr}/month={month} [{src}]...")
+                results = _validate_file(parquet_file, yr, price_col, name_col)
                 all_results.append(results)
                 src_results_list.append(results)
                 last_results = results

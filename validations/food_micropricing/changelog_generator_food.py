@@ -27,11 +27,16 @@ Date: May 31, 2026
 """
 
 import pandas as pd
+import re
+import sys
 from pathlib import Path
 from datetime import datetime
 from typing import List, Dict, Any
 import logging
 import hashlib
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from _vault_root import VAULT_ROOT, IS_GCS, vault_exists, vault_glob  # noqa: E402
 
 # Setup logging
 logging.basicConfig(
@@ -48,7 +53,7 @@ logger = logging.getLogger(__name__)
 #  CONFIGURATION
 # ══════════════════════════════════════════════════════════════════════════════
 
-VAULT_DIR = Path("lekwankwa-historical-vault")
+VAULT_DIR = VAULT_ROOT
 PRODUCT = "food_micropricing"
 COUNTRY = "USA"
 SOURCES = ["bls", "usda_ers"]
@@ -281,7 +286,7 @@ def detect_schema_evolution(df: pd.DataFrame, year: int, previous_schema: Dict) 
 #  MAIN CHANGELOG GENERATION PIPELINE
 # ══════════════════════════════════════════════════════════════════════════════
 
-def generate_changelog_for_year(year_folder: Path, year: int,
+def generate_changelog_for_year(year_path: str, year: int,
                                 previous_schema: Dict = None,
                                 source: str = "bls") -> Dict:
     """
@@ -289,34 +294,38 @@ def generate_changelog_for_year(year_folder: Path, year: int,
     Always creates the file (minimum 1 entry).
     """
     fname = SOURCE_FILES.get(source, "food_pricing_data.parquet")
-    month_folders = sorted([d for d in year_folder.iterdir() if d.is_dir() and d.name.startswith("month=")])
+    month_files = {}
+    for f in vault_glob(year_path, fname):
+        m = re.search(r"month=(\d+)", f.replace("\\", "/"))
+        if m:
+            month_files[int(m.group(1))] = f
 
-    if not month_folders:
-        logger.warning(f"No month folders found in {year_folder.name}")
+    if not month_files:
+        logger.warning(f"No month folders found in {year_path}")
         return {"success": False, "schema": None}
 
     try:
         all_dfs = []
-        for month_folder in month_folders:
-            parquet_file = month_folder / fname
-            if parquet_file.exists():
+        for month, parquet_file in sorted(month_files.items()):
+            try:
                 all_dfs.append(pd.read_parquet(parquet_file))
-            else:
-                logger.warning(f"Missing {fname} in {month_folder.name}")
-        
+            except Exception:
+                logger.warning(f"Missing/unreadable {fname} in month={month:02d}")
+
         if not all_dfs:
-            logger.warning(f"No data files found in {year_folder.name}")
+            logger.warning(f"No data files found in {year_path}")
             return {"success": False, "schema": None}
-        
+
         df = pd.concat(all_dfs, ignore_index=True)
         logger.info(f"  Processing {len(df)} records from {len(all_dfs)} months...")
-        
-        # Load outliers count
-        outliers_file = year_folder / "outliers.parquet"
+
+        # Load outliers count (sum across month partitions written by outlier_extractor_food.py)
         outliers_count = 0
-        if outliers_file.exists():
-            outliers_df = pd.read_parquet(outliers_file)
-            outliers_count = len(outliers_df)
+        for outliers_file in vault_glob(year_path, "outliers.parquet"):
+            try:
+                outliers_count += len(pd.read_parquet(outliers_file))
+            except Exception:
+                pass
         
         # Generate changelog entries
         changelog_entries = []
@@ -347,7 +356,9 @@ def generate_changelog_for_year(year_folder: Path, year: int,
                 changelog_df[col] = None
         
         # Save to parquet
-        changelog_file = year_folder / "changelog.parquet"
+        changelog_file = f"{year_path}/changelog.parquet"
+        if not IS_GCS:
+            Path(changelog_file).parent.mkdir(parents=True, exist_ok=True)
         changelog_df.to_parquet(
             changelog_file,
             engine='pyarrow',
@@ -388,42 +399,46 @@ def run_changelog_generation():
     overall_year_count = 0
     
     for source in SOURCES:
-        vault_path = VAULT_DIR / f"product={PRODUCT}" / f"country={COUNTRY}" / f"source={source}"
-        
-        if not vault_path.exists():
+        vault_path = f"{VAULT_DIR}/product={PRODUCT}/country={COUNTRY}/source={source}"
+
+        if not vault_exists(vault_path):
             logger.warning(f"Vault path not found for source '{source}': {vault_path}")
             continue
-        
-        year_folders = sorted([d for d in vault_path.iterdir() if d.is_dir() and d.name.startswith("year=")])
-        
-        if not year_folders:
+
+        fname = SOURCE_FILES.get(source, "food_pricing_data.parquet")
+        years = sorted({
+            int(m.group(1)) for f in vault_glob(vault_path, fname)
+            if (m := re.search(r"year=(\d+)", f.replace("\\", "/")))
+        })
+
+        if not years:
             logger.warning(f"No year folders found in {vault_path}")
             continue
-        
+
         logger.info(f"\n{'-' * 70}")
         logger.info(f"Processing SOURCE: {source.upper()}")
-        logger.info(f"Years to process: {len(year_folders)}")
+        logger.info(f"Years to process: {len(years)}")
         logger.info(f"{'-' * 70}")
-        
+
         source_successful = 0
         source_entries = 0
         previous_schema = None
-        
-        for year_folder in year_folders:
-            year = int(year_folder.name.split("=")[1])
-            logger.info(f"\nGenerating changelog for {source}/{year_folder.name}...")
-            
-            result = generate_changelog_for_year(year_folder, year, previous_schema, source=source)
-            
+
+        for year in years:
+            year_path = f"{vault_path}/year={year}"
+            logger.info(f"\nGenerating changelog for {source}/year={year}...")
+
+            result = generate_changelog_for_year(year_path, year, previous_schema, source=source)
+
             if result["success"]:
                 source_successful += 1
                 source_entries += result.get("entries", 0)
                 previous_schema = result.get("schema")
-        
-        logger.info(f"\n{source.upper()} Summary: {source_successful}/{len(year_folders)} years, {source_entries} changelog entries")
+
+        logger.info(f"\n{source.upper()} Summary: {source_successful}/{len(years)} years, {source_entries} changelog entries")
         total_successful += source_successful
         total_entries_all += source_entries
-        overall_year_count += len(year_folders)
+        overall_year_count += len(years)
     
     # Overall Summary
     logger.info("\n" + "=" * 70)

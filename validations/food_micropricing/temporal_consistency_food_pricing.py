@@ -24,11 +24,15 @@ Date: 2026-06-13
 """
 
 import json
+import sys
 import pandas as pd
 import numpy as np
 from pathlib import Path
 from datetime import datetime, timezone
 import logging
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from _vault_root import VAULT_ROOT, vault_glob_paths  # noqa: E402
 
 logging.basicConfig(
     level=logging.INFO,
@@ -44,7 +48,7 @@ logger = logging.getLogger(__name__)
 # CONFIGURATION
 # =============================================================================
 
-VAULT_DIR = Path("lekwankwa-historical-vault")
+VAULT_DIR = VAULT_ROOT
 PRODUCT   = "food_micropricing"
 COUNTRY   = "USA"
 
@@ -84,10 +88,8 @@ SOURCE_FILES = {
 def _all_partitions(source, file_glob=None):
     if file_glob is None:
         file_glob = SOURCE_FILES.get(source, "*.parquet")
-    return sorted(Path(".").glob(str(
-        VAULT_DIR / f"product={PRODUCT}" / f"country={COUNTRY}"
-        / f"source={source}" / "year=*" / "month=*" / file_glob
-    )))
+    src_path = f"{VAULT_DIR}/product={PRODUCT}/country={COUNTRY}/source={source}"
+    return sorted(vault_glob_paths(src_path, file_glob), key=lambda p: str(p))
 
 
 def _load_sample(source, n, file_glob=None):

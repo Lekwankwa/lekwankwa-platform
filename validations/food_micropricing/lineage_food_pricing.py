@@ -27,11 +27,15 @@ Date: 2026-06-07
 """
 
 import json
+import sys
 import pandas as pd
 import numpy as np
 from pathlib import Path
 from datetime import datetime, timedelta
 import logging
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from _vault_root import VAULT_ROOT, vault_glob  # noqa: E402
 
 logging.basicConfig(
     level=logging.INFO,
@@ -47,7 +51,7 @@ logger = logging.getLogger(__name__)
 # CONFIGURATION
 # =============================================================================
 
-VAULT_DIR   = Path("lekwankwa-historical-vault")
+VAULT_DIR   = VAULT_ROOT
 PRODUCT     = "food_micropricing"
 COUNTRY     = "USA"
 SOURCES     = ["bls", "usda_ers"]
@@ -93,8 +97,8 @@ def _result(status, standard, message, details=None):
 
 def load_sample(source: str) -> pd.DataFrame:
     fname = SOURCE_FILES.get(source, "*.parquet")
-    path  = VAULT_DIR / f"product={PRODUCT}" / f"country={COUNTRY}" / f"source={source}"
-    files = sorted(path.rglob(fname))
+    path  = f"{VAULT_DIR}/product={PRODUCT}/country={COUNTRY}/source={source}"
+    files = vault_glob(path, fname)
     step  = max(1, len(files) // SAMPLE_FILES)
     dfs   = []
     for f in files[::step][:SAMPLE_FILES]:
@@ -108,8 +112,8 @@ def load_sample(source: str) -> pd.DataFrame:
 
 def load_all_files(source: str):
     fname = SOURCE_FILES.get(source, "*.parquet")
-    path  = VAULT_DIR / f"product={PRODUCT}" / f"country={COUNTRY}" / f"source={source}"
-    return sorted(path.rglob(fname))
+    path  = f"{VAULT_DIR}/product={PRODUCT}/country={COUNTRY}/source={source}"
+    return vault_glob(path, fname)
 
 
 # =============================================================================

@@ -16,9 +16,10 @@ from bitemporal_core import (  # noqa: E402
     check_bitemporal_uniqueness, check_supersession_integrity,
     write_report,
 )
+from _vault_root import VAULT_ROOT, vault_exists, vault_glob  # noqa: E402
 
 # ── Config ────────────────────────────────────────────────────────────────────
-VAULT_BASE  = Path("lekwankwa-historical-vault")
+VAULT_BASE  = VAULT_ROOT
 PRODUCT     = "food_micropricing"
 COUNTRY     = "USA"
 SOURCES     = ["bls", "usda_ers"]
@@ -56,12 +57,12 @@ def _load():
         "usda_ers": "food_pricing_data.parquet", # ERS Food Price Outlook pipeline
     }
     for src in SOURCES:
-        src_path = VAULT_BASE / f"product={PRODUCT}" / f"country={COUNTRY}" / f"source={src}"
-        if not src_path.exists():
+        src_path = f"{VAULT_BASE}/product={PRODUCT}/country={COUNTRY}/source={src}"
+        if not vault_exists(src_path):
             logger.warning(f"  source={src}: vault path not found — skipping")
             continue
         fname = _FILENAMES.get(src, "*.parquet")
-        files = list(src_path.rglob(fname))
+        files = vault_glob(src_path, fname)
         dfs = []
         for f in files:
             try:

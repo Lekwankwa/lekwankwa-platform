@@ -32,11 +32,15 @@ Date: 2026-06-13
 
 import json
 import re
+import sys
 import pandas as pd
 import numpy as np
 from pathlib import Path
 from datetime import datetime
 import logging
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from _vault_root import VAULT_ROOT, vault_glob_paths  # noqa: E402
 
 logging.basicConfig(
     level=logging.INFO,
@@ -52,7 +56,7 @@ logger = logging.getLogger(__name__)
 # CONFIGURATION
 # =============================================================================
 
-VAULT_DIR = Path("lekwankwa-historical-vault")
+VAULT_DIR = VAULT_ROOT
 PRODUCT   = "food_micropricing"
 COUNTRY   = "USA"
 SOURCES   = ["bls"]
@@ -110,8 +114,8 @@ def _result(status, check, message, details=None):
 
 def _load_sample(product, source, file_glob, n_files):
     """Load up to n_files partition files and concatenate."""
-    pattern = VAULT_DIR / f"product={product}" / f"country={COUNTRY}" / f"source={source}" / "year=*" / "month=*" / file_glob
-    files   = sorted(Path(".").glob(str(pattern)))
+    src_path = f"{VAULT_DIR}/product={product}/country={COUNTRY}/source={source}"
+    files   = sorted(vault_glob_paths(src_path, file_glob), key=lambda p: str(p))
     step    = max(1, len(files) // n_files)
     sampled = files[::step][:n_files]
     if not sampled:
@@ -121,9 +125,9 @@ def _load_sample(product, source, file_glob, n_files):
 
 
 def _get_ym_set(product, source, file_glob):
-    pattern = VAULT_DIR / f"product={product}" / f"country={COUNTRY}" / f"source={source}" / "year=*" / "month=*" / file_glob
+    src_path = f"{VAULT_DIR}/product={product}/country={COUNTRY}/source={source}"
     yms = set()
-    for f in Path(".").glob(str(pattern)):
+    for f in vault_glob_paths(src_path, file_glob):
         year  = int(f.parent.parent.name.split("=")[1])
         month = int(f.parent.name.split("=")[1])
         yms.add((year, month))
@@ -212,10 +216,10 @@ def chk_pit_fields_completeness(bls_df):
 
 def chk_country_alignment_with_employment(bls_df):
     """Spot-check that food country_code matches employment country_code."""
-    emp_files = sorted(Path(".").glob(str(
-        VAULT_DIR / "product=macro_employment" / f"country={COUNTRY}"
-        / f"source={EMP_CES_SRC}" / "year=2020" / "month=01" / "*.parquet"
-    )))
+    emp_files = sorted(vault_glob_paths(
+        f"{VAULT_DIR}/product=macro_employment/country={COUNTRY}/source={EMP_CES_SRC}/year=2020/month=01",
+        "*.parquet",
+    ), key=lambda p: str(p))
     if not emp_files:
         return _result("SKIP", "Country Code Alignment w/ Employment",
                        "Employment vault not found — skipping cross-dataset check")
@@ -235,10 +239,10 @@ def chk_bls_series_isolation_from_employment():
     """Verify no APU (food CPI) series IDs appear in employment CES/JOLTS data."""
     emp_series = set()
     for src in [EMP_CES_SRC, EMP_JOLTS_SRC]:
-        files = sorted(Path(".").glob(str(
-            VAULT_DIR / "product=macro_employment" / f"country={COUNTRY}"
-            / f"source={src}" / "year=2020" / "month=01" / "*.parquet"
-        )))
+        files = sorted(vault_glob_paths(
+            f"{VAULT_DIR}/product=macro_employment/country={COUNTRY}/source={src}/year=2020/month=01",
+            "*.parquet",
+        ), key=lambda p: str(p))
         for f in files[:2]:
             df = pd.read_parquet(f)
             if "source_series_id" in df.columns:
@@ -261,10 +265,10 @@ def chk_source_vocabulary_isolation():
     """Verify source field values are product-isolated — no 'eia' in food, no 'bls'/'usda' in electricity."""
     issues = []
     # Check electricity for BLS/USDA source values
-    elec_files = sorted(Path(".").glob(str(
-        VAULT_DIR / "product=electricity" / f"country={COUNTRY}"
-        / f"source={ELEC_SOURCE}" / "year=2020" / "month=01" / "electricity_generation_data.parquet"
-    )))
+    elec_files = sorted(vault_glob_paths(
+        f"{VAULT_DIR}/product=electricity/country={COUNTRY}/source={ELEC_SOURCE}/year=2020/month=01",
+        "electricity_generation_data.parquet",
+    ), key=lambda p: str(p))
     if elec_files:
         elec_df = pd.read_parquet(elec_files[0])
         elec_sources = set(elec_df["source"].dropna().unique()) if "source" in elec_df.columns else set()
@@ -274,10 +278,10 @@ def chk_source_vocabulary_isolation():
 
     # Check employment for 'eia' source values
     for src in [EMP_CES_SRC, EMP_JOLTS_SRC]:
-        emp_files = sorted(Path(".").glob(str(
-            VAULT_DIR / "product=macro_employment" / f"country={COUNTRY}"
-            / f"source={src}" / "year=2020" / "month=01" / "*.parquet"
-        )))
+        emp_files = sorted(vault_glob_paths(
+            f"{VAULT_DIR}/product=macro_employment/country={COUNTRY}/source={src}/year=2020/month=01",
+            "*.parquet",
+        ), key=lambda p: str(p))
         for f in emp_files[:1]:
             df = pd.read_parquet(f)
             emp_sources = set(df["source"].dropna().unique()) if "source" in df.columns else set()

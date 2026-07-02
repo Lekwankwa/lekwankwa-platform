@@ -36,7 +36,7 @@ VAL_ROOT   = REPO_ROOT / "validations"
 # Map (product, geo_scope) → run_all_validations script, relative to REPO_ROOT
 _SCRIPT_MAP: dict[tuple[str, str], str] = {
     # food_micropricing
-    ("food_micropricing",                    "USA"):    "validations/food_micropricing/run_all_validations_food_non_eu.py",
+    ("food_micropricing",                    "USA"):    "validations/food_micropricing/run_all_validations_food_micropricing.py",
     ("food_micropricing",                    "EU27"):   "validations/food_micropricing/run_all_validations_food_eu27.py",
     ("food_micropricing",                    "non_eu"): "validations/food_micropricing/run_all_validations_food_non_eu.py",
     # wages_and_employment

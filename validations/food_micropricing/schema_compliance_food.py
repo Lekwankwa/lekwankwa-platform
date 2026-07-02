@@ -38,9 +38,13 @@ Date: 2026-06-13
 import re
 import json
 import logging
+import sys
 import pandas as pd
 from pathlib import Path
 from datetime import datetime
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from _vault_root import VAULT_ROOT, vault_exists, vault_glob  # noqa: E402
 
 logging.basicConfig(
     level=logging.INFO,
@@ -56,7 +60,7 @@ logger = logging.getLogger(__name__)
 # CONFIGURATION
 # =============================================================================
 
-VAULT_DIR = Path("lekwankwa-historical-vault")
+VAULT_DIR = VAULT_ROOT
 PRODUCT   = "food_micropricing"
 COUNTRY   = "USA"
 SOURCES   = ["bls"]
@@ -82,10 +86,10 @@ VALID_CATEGORIES = {
     "Beverages", "Dairy & Eggs", "Vegetables", "Sugar & Spices",
 }
 REQUIRED_COLUMNS = [
-    "country_code", "item_name", "item_description", "item_code",
-    "category", "item_value", "unit", "currency", "usd_equivalent",
+    "country_code", "standard_name", "local_name", "global_coicop_code",
+    "category", "observed_price_local", "unit_measure_standardized", "currency", "price_usd_equivalent",
     "data_quality_certified", "data_timestamp", "conversion_timestamp",
-    "source", "source_series_id", "extraction_method", "source_url",
+    "source", "source_series_id", "extraction_method", "portal_url",
     "record_id", "published_date", "as_of_date", "revision_number",
 ]
 
@@ -100,13 +104,13 @@ UUID_PATTERN = re.compile(
 # =============================================================================
 
 def load_sample(source: str, max_files: int = 80) -> pd.DataFrame:
-    source_path = VAULT_DIR / f"product={PRODUCT}" / f"country={COUNTRY}" / f"source={source}"
-    if not source_path.exists():
+    source_path = f"{VAULT_DIR}/product={PRODUCT}/country={COUNTRY}/source={source}"
+    if not vault_exists(source_path):
         logger.warning(f"Vault path not found: {source_path}")
         return pd.DataFrame()
     all_files = sorted(
-        f for f in source_path.rglob("*.parquet")
-        if "outliers" not in f.name and "changelog" not in f.name
+        f for f in vault_glob(source_path, "*.parquet")
+        if "outliers" not in f and "changelog" not in f
     )
     step    = max(1, len(all_files) // max_files)
     sampled = all_files[::step][:max_files]
@@ -240,10 +244,10 @@ def check_category_vocabulary(df: pd.DataFrame) -> dict:
 
 
 def check_coicop_item_codes(df: pd.DataFrame) -> dict:
-    if "item_code" not in df.columns:
+    if "global_coicop_code" not in df.columns:
         return {"status": "FAIL", "check": "COICOP item_code format",
-                "message": "item_code column missing"}
-    codes   = df["item_code"].dropna().astype(str)
+                "message": "global_coicop_code column missing"}
+    codes   = df["global_coicop_code"].dropna().astype(str)
     valid   = codes.apply(lambda x: bool(COICOP_PATTERN.match(x)))
     n_fail  = int((~valid).sum())
     if n_fail == 0:
@@ -276,21 +280,21 @@ def check_bls_series_ids(df: pd.DataFrame) -> dict:
 
 
 def check_portal_url(df: pd.DataFrame) -> dict:
-    if "source_url" not in df.columns:
+    if "portal_url" not in df.columns:
         return {"status": "WARN", "check": "BLS portal URL",
-                "message": "source_url column missing"}
+                "message": "portal_url column missing"}
     bls_df = df[df["source"] == "bls"] if "source" in df.columns else df
-    wrong  = bls_df[bls_df["source_url"] != BLS_PORTAL_URL]
+    wrong  = bls_df[bls_df["portal_url"] != BLS_PORTAL_URL]
     if len(wrong) == 0:
         return {"status": "PASS", "check": "BLS portal URL",
-                "message": f"All BLS records have source_url={BLS_PORTAL_URL!r}"}
+                "message": f"All BLS records have portal_url={BLS_PORTAL_URL!r}"}
     return {"status": "WARN", "check": "BLS portal URL",
-            "message": f"{len(wrong):,} BLS records have non-standard source_url",
-            "values": wrong["source_url"].value_counts().head(5).to_dict()}
+            "message": f"{len(wrong):,} BLS records have non-standard portal_url",
+            "values": wrong["portal_url"].value_counts().head(5).to_dict()}
 
 
 def check_item_value_positive(df: pd.DataFrame) -> dict:
-    for col in ("item_value", "usd_equivalent"):
+    for col in ("observed_price_local", "price_usd_equivalent"):
         if col not in df.columns:
             continue
         numeric    = pd.to_numeric(df[col], errors="coerce")
@@ -300,7 +304,7 @@ def check_item_value_positive(df: pd.DataFrame) -> dict:
             return {"status": "WARN", "check": "Item value positive",
                     "message": f"{zero_neg:,} records have {col} <= 0 (nulls: {nulls})"}
     return {"status": "PASS", "check": "Item value positive",
-            "message": "All item_value and usd_equivalent values > 0"}
+            "message": "All observed_price_local and price_usd_equivalent values > 0"}
 
 
 def check_pit_ordering(df: pd.DataFrame) -> dict:
