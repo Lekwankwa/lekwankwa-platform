@@ -15,12 +15,16 @@ import logging
 import sys
 from datetime import date
 from pathlib import Path
-
 # Add repo root to path when running directly
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
+import pyarrow as pa
+import pyarrow.parquet as pq
+import pyarrow.fs as pafs
+
 logging.basicConfig(
     level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(message)s",
     format="%(asctime)s %(levelname)s %(message)s",
     handlers=[logging.StreamHandler(sys.stdout)],
 )
@@ -67,12 +71,49 @@ COUNTRY_ROUTER: dict[str, dict] = {
         "module":  "scrapers.food_pricing.eurostat_food_scraper",
         "fn":      "scrape_eu27_food_pricing",
         "sources": ["eurostat"],
-    },
-}
+]
 
-EU_MEMBERS = [
-    "AUT","BEL","BGR","HRV","CYP","CZE","DNK","EST","FIN","FRA","DEU",
-    "GRC","HUN","IRL","ITA","LVA","LTU","LUX","MLT","NLD","POL","PRT",
+
+def normalize_source_dtype(product: str, country: str, source: str) -> None:
+    """
+    Ensure the 'source' column is a plain string (never dictionary-encoded)
+    across all monthly parquet partitions for this product/country/source.
+
+    Mixed dictionary-encoded vs plain-string 'source' columns across monthly
+    partitions cause PyArrow table merges in downstream PIT validation to
+    fail with 'incompatible types', silently dropping every file and
+    triggering a false 'No food data found in vault' error.
+    """
+    fs = pafs.GcsFileSystem()
+    prefix = f"lekwankwa-vault/product={product}/country={country}/source={source}/"
+    try:
+        infos = fs.get_file_info(pafs.FileSelector(prefix, recursive=True))
+    except FileNotFoundError:
+        log.warning("normalize_source_dtype: no partitions found under %s", prefix)
+        return
+
+    for info in infos:
+        if not info.path.endswith(".parquet"):
+            continue
+        try:
+            table = pq.read_table(info.path, filesystem=fs)
+            field_idx = table.schema.get_field_index("source")
+            if field_idx == -1:
+                continue
+            if pa.types.is_dictionary(table.schema.field(field_idx).type):
+                table = table.set_column(
+                    field_idx, "source", table.column("source").cast(pa.string())
+                )
+                pq.write_table(table, info.path, filesystem=fs)
+                log.info("Normalized dictionary-encoded 'source' column in %s", info.path)
+        except Exception as norm_exc:
+            log.error("Failed to normalize schema for %s: %s", info.path, norm_exc,
+                      exc_info=True)
+
+
+def run_country(country: str, mode: str, since: str | None, dry_run: bool) -> bool:
+    cfg = COUNTRY_ROUTER.get(country)
+    if cfg is None:
     "ROU","SVK","SVN","ESP","SWE",
 ]
 
@@ -99,13 +140,15 @@ def run_country(country: str, mode: str, since: str | None, dry_run: bool) -> bo
             mod = importlib.import_module(cfg["module"])
             fn  = getattr(mod, cfg["fn"])
             fn(mode=mode, since=since)
-            log.info("Completed scrape %s/%s/%s", PRODUCT, country, source)
-        except Exception as exc:
-            log.error("Scraper failed for %s/%s/%s: %s", PRODUCT, country, source, exc,
-                      exc_info=True)
-            try:
-                from tools.self_healing.handler import handle_exception
-                handle_exception(
+                pass
+            return False
+
+        # Guard against dictionary-vs-string schema drift before validation
+        normalize_source_dtype(PRODUCT, country, source)
+
+        # Post-scrape: 9-stage + GX + Bitemporal Core validation
+        val = run_9_stage_validation(product=PRODUCT, country=country)
+        if val.severity in ("CRITICAL", "HIGH"):                handle_exception(
                     program=__file__,
                     exception=exc,
                     context={
