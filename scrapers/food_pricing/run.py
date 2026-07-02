@@ -27,13 +27,13 @@ PRODUCT = "food_micropricing"
 PRODUCT = "food_micropricing"
 )
 
-from tools.secrets import load_all_secrets_to_env
 load_all_secrets_to_env()
 
 from tools.release_calendar_extractor import is_release_due
 from tools.vault_audit import run_9_stage_validation
 from tools.live_feed_audit import run_post_delta_audit
 log = logging.getLogger(__name__)
+
 
 PRODUCT = "food_micropricing"
 TODAY   = date.today().isoformat()
@@ -63,13 +63,54 @@ COUNTRY_ROUTER: dict[str, dict] = {
     "NOR": {
         "module":  "scrapers.food_pricing.ssb_food_scraper",
         "fn":      "scrape_nor_food_pricing",
-        "sources": ["ssb"],
-    },
-    "EU27": {
-        "module":  "scrapers.food_pricing.eurostat_food_scraper",
-        "fn":      "scrape_eu27_food_pricing",
-        "sources": ["eurostat"],
-    },
+    "ROU","SVK","SVN","ESP","SWE",
+]
+
+
+def _normalize_parquet_schema(product: str, country: str, source: str) -> None:
+    """Ensure the 'source' column is a plain string (never dictionary-encoded)
+    across all vault parquet partitions for this product/country/source.
+
+    Upstream writers occasionally emit dictionary-encoded 'source' columns,
+    which causes downstream validation merges to fail with an
+    'incompatible types: string vs dictionary<...>' error, silently
+    skipping partitions and leading to false 'no data found' failures.
+    """
+    import io
+    import pyarrow as pa
+    import pyarrow.parquet as pq
+    from google.cloud import storage
+
+    try:
+        client = storage.Client()
+        bucket = client.bucket("lekwankwa-vault")
+        prefix = f"product={product}/country={country}/source={source}/"
+        for blob in bucket.list_blobs(prefix=prefix):
+            if not blob.name.endswith(".parquet"):
+                continue
+            data = blob.download_as_bytes()
+            table = pq.read_table(io.BytesIO(data))
+            if "source" not in table.column_names:
+                continue
+            idx = table.schema.get_field_index("source")
+            field_type = table.schema.field(idx).type
+            if pa.types.is_dictionary(field_type):
+                col = table.column("source").cast(pa.string())
+                table = table.set_column(idx, "source", table.schema.field(idx).with_type(pa.string()), col)
+                buf = io.BytesIO()
+                pq.write_table(table, buf)
+                blob.upload_from_string(buf.getvalue(),
+                                         content_type="application/octet-stream")
+                log.info("Normalized dictionary-encoded 'source' column in %s",
+                         blob.name)
+    except Exception as norm_exc:
+        log.warning("Schema normalization skipped for %s/%s/%s: %s",
+                    product, country, source, norm_exc)
+
+
+def run_country(country: str, mode: str, since: str | None, dry_run: bool) -> bool:
+    cfg = COUNTRY_ROUTER.get(country)
+    if cfg is None:
 }
 
 EU_MEMBERS = [
@@ -84,13 +125,13 @@ def run_country(country: str, mode: str, since: str | None, dry_run: bool) -> bo
     if cfg is None:
         log.error("No router entry for country=%s", country)
         return False
-
-    for source in cfg["sources"]:
-        if not is_release_due(product=PRODUCT, country=country,
-                              source=source, as_of=TODAY):
-            log.info("No release due today for %s/%s/%s — skipping.",
-                     PRODUCT, country, source)
-            continue
+            fn  = getattr(mod, cfg["fn"])
+            fn(mode=mode, since=since)
+            log.info("Completed scrape %s/%s/%s", PRODUCT, country, source)
+            _normalize_parquet_schema(PRODUCT, country, source)
+        except Exception as exc:
+            log.error("Scraper failed for %s/%s/%s: %s", PRODUCT, country, source, exc,
+                      exc_info=True)            continue
 
         if dry_run:
             log.info("[DRY-RUN] Would scrape %s/%s/%s", PRODUCT, country, source)
