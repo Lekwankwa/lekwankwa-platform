@@ -17,12 +17,13 @@ from datetime import date
 from pathlib import Path
 
 # Add repo root to path when running directly
-sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+from tools.release_calendar_extractor import is_release_due
+from tools.vault_audit import run_9_stage_validation
+from tools.live_feed_audit import run_post_delta_audit
+from tools.vault_schema_fixer import normalize_partition_schema
+log = logging.getLogger(__name__)
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s %(levelname)s %(message)s",
-    handlers=[logging.StreamHandler(sys.stdout)],
+PRODUCT = "food_micropricing"
 )
 
 from tools.secrets import load_all_secrets_to_env
@@ -98,13 +99,26 @@ def run_country(country: str, mode: str, since: str | None, dry_run: bool) -> bo
             import importlib
             mod = importlib.import_module(cfg["module"])
             fn  = getattr(mod, cfg["fn"])
-            fn(mode=mode, since=since)
-            log.info("Completed scrape %s/%s/%s", PRODUCT, country, source)
-        except Exception as exc:
-            log.error("Scraper failed for %s/%s/%s: %s", PRODUCT, country, source, exc,
-                      exc_info=True)
-            try:
-                from tools.self_healing.handler import handle_exception
+            except ImportError:
+                pass
+            return False
+
+        # Normalize vault parquet schema for this product/country/source before
+        # validation runs, to prevent Arrow dictionary-vs-string merge failures
+        # caused by inconsistent encodings across historical files.
+        try:
+            normalize_partition_schema(
+                product=PRODUCT,
+                country=country,
+                source=source,
+                columns=["source"],
+            )
+        except Exception as norm_exc:
+            log.warning("Schema normalization failed for %s/%s/%s: %s",
+                        PRODUCT, country, source, norm_exc, exc_info=True)
+
+        # Post-scrape: 9-stage + GX + Bitemporal Core validation
+        val = run_9_stage_validation(product=PRODUCT, country=country)                from tools.self_healing.handler import handle_exception
                 handle_exception(
                     program=__file__,
                     exception=exc,
