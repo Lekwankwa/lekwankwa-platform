@@ -94,22 +94,22 @@ def run_source(country: str, cfg: dict, source_filter: str | None,
 
     val = run_9_stage_validation(product=PRODUCT, country=country)
     if val.severity in ("CRITICAL", "HIGH"):
-        from tools.self_healing.handler import handle_exception
-        handle_exception(
+        from tools.self_healing.handler import handle_validation_finding
+        handle_validation_finding(
             program=__file__,
-            exception=Exception(f"Validation failed: {val.code}"),
             context={"product": PRODUCT, "country": country, "source": source,
-                     "run_date": TODAY, "layer": "VALIDATION", "finding": val.to_dict()},
+                     "run_date": TODAY, "layer": "VALIDATION"},
+            result=val,
         )
         return False
     audit = run_post_delta_audit(product=PRODUCT, country=country)
     if audit.severity in ("CRITICAL", "HIGH"):
-        from tools.self_healing.handler import handle_exception
-        handle_exception(
+        from tools.self_healing.handler import handle_validation_finding
+        handle_validation_finding(
             program=__file__,
-            exception=Exception(f"Live feed audit failed: {audit.code}"),
             context={"product": PRODUCT, "country": country, "source": source,
-                     "run_date": TODAY, "layer": "LIVE_FEED_AUDIT", "finding": audit.to_dict()},
+                     "run_date": TODAY, "layer": "LIVE_FEED_AUDIT"},
+            result=audit,
         )
         return False
     from tools.trigger_downstream import trigger_all_metadata

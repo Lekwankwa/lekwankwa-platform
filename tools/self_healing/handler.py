@@ -219,6 +219,48 @@ def handle_exception(
 
 
 # ---------------------------------------------------------------------------
+# Entry point 1b: Validation / live-feed-audit result objects (no Layer 2)
+# ---------------------------------------------------------------------------
+
+def handle_validation_finding(
+    program: str,
+    context: dict[str, Any],
+    result: Any,
+) -> None:
+    """
+    Entry point for run_9_stage_validation() / run_post_delta_audit() results
+    with severity CRITICAL or HIGH.
+
+    Not retryable — a bad validation or audit result reflects a data/logic
+    problem that re-running the scraper will reproduce identically. Skips
+    Layer 2 (Scrape4AI retry) entirely and escalates straight to Layer 3
+    (Claude diagnosis), matching handle_audit_finding()/handle_quality_finding().
+    """
+    severity = getattr(result, "severity", None)
+    if severity is None and isinstance(result, dict):
+        severity = result.get("severity")
+    if severity not in ("CRITICAL", "HIGH"):
+        return
+
+    code = getattr(result, "code", None)
+    if code is None and isinstance(result, dict):
+        code = result.get("code", "?")
+
+    finding = result.to_dict() if hasattr(result, "to_dict") else result
+
+    context["severity"] = severity
+    layer = context.get("layer", "VALIDATION")
+
+    synthetic_exc = RuntimeError(f"{layer} failed: {code}")
+    tb_str = json.dumps(finding, default=str, indent=2)
+
+    log.error("[SELF-HEAL] %s finding — %s/%s — %s",
+              layer, context.get("product", "?"), context.get("country", "?"), code)
+    log_event(program, context, f"{layer}_FLAG")
+    _escalate_to_layer3(program, synthetic_exc, context, tb_str)
+
+
+# ---------------------------------------------------------------------------
 # Entry point 2: Live feed audit / validation errors (no Layer 2)
 # ---------------------------------------------------------------------------
 

@@ -73,11 +73,26 @@ def main():
         from tools.vault_audit import run_9_stage_validation
         from tools.live_feed_audit import run_post_delta_audit
         from tools.trigger_downstream import trigger_all_metadata
+        from tools.self_healing.handler import handle_validation_finding
         val = run_9_stage_validation(product=PRODUCT, country=args.country)
-        if val.severity not in ("CRITICAL", "HIGH"):
-            audit = run_post_delta_audit(product=PRODUCT, country=args.country)
-            if audit.severity not in ("CRITICAL", "HIGH"):
-                trigger_all_metadata()
+        if val.severity in ("CRITICAL", "HIGH"):
+            handle_validation_finding(
+                program=__file__,
+                context={"product": PRODUCT, "country": args.country, "source": SOURCE,
+                         "run_date": TODAY, "layer": "VALIDATION"},
+                result=val,
+            )
+            sys.exit(1)
+        audit = run_post_delta_audit(product=PRODUCT, country=args.country)
+        if audit.severity in ("CRITICAL", "HIGH"):
+            handle_validation_finding(
+                program=__file__,
+                context={"product": PRODUCT, "country": args.country, "source": SOURCE,
+                         "run_date": TODAY, "layer": "LIVE_FEED_AUDIT"},
+                result=audit,
+            )
+            sys.exit(1)
+        trigger_all_metadata()
         sys.exit(0)
     except Exception as exc:
         log.error("Failed %s/%s: %s", PRODUCT, args.country, exc, exc_info=True)
