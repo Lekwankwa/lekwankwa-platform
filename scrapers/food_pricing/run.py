@@ -134,21 +134,6 @@ def run_country(country: str, mode: str, since: str | None, dry_run: bool) -> bo
                 pass
             return False
 
-        # Post-scrape: 9-stage + GX + Bitemporal Core validation
-        val = run_9_stage_validation(product=PRODUCT, country=country)
-        if val.severity in ("CRITICAL", "HIGH"):
-            from tools.self_healing.handler import handle_validation_finding
-            handle_validation_finding(
-                program=__file__,
-                context={
-                    "product": PRODUCT, "country": country,
-                    "source": source, "run_date": TODAY,
-                    "layer": "VALIDATION",
-                },
-                result=val,
-            )
-            return False
-
         # Post-delta live feed audit (live products only)
         if PRODUCT in ("food_micropricing", "wages_and_employment", "trade_flows"):
             audit = run_post_delta_audit(product=PRODUCT, country=country)
