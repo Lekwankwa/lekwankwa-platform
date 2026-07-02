@@ -13,6 +13,7 @@ from __future__ import annotations
 import argparse
 import logging
 import sys
+import time
 from datetime import date
 from pathlib import Path
 
@@ -111,16 +112,46 @@ def run_country(country: str, mode: str, since: str | None, dry_run: bool) -> bo
                     context={
                         "product": PRODUCT, "country": country,
                         "source": source, "run_date": TODAY,
-                        "layer": "SCRAPER",
-                    },
-                )
-            except ImportError:
-                pass
             return False
 
         # Post-scrape: 9-stage + GX + Bitemporal Core validation
-        val = run_9_stage_validation(product=PRODUCT, country=country)
-        if val.severity in ("CRITICAL", "HIGH"):
+        val = None
+        max_attempts = 3
+        for attempt in range(1, max_attempts + 1):
+            try:
+                val = run_9_stage_validation(
+                    product=PRODUCT, country=country, timeout=900
+                )
+                break
+            except RuntimeError as exc:
+                is_timeout = "VALIDATION_TIMEOUT" in str(exc)
+                if is_timeout and attempt < max_attempts:
+                    backoff = 30 * attempt
+                    log.warning(
+                        "Validation timed out for %s/%s (attempt %d/%d) — "
+                        "retrying in %ds",
+                        PRODUCT, country, attempt, max_attempts, backoff,
+                    )
+                    time.sleep(backoff)
+                    continue
+                log.error(
+                    "Validation failed permanently for %s/%s after %d attempt(s): %s",
+                    PRODUCT, country, attempt, exc, exc_info=True,
+                )
+                from tools.self_healing.handler import handle_exception
+                handle_exception(
+                    program=__file__,
+                    exception=exc,
+                    context={
+                        "product": PRODUCT, "country": country,
+                        "source": source, "run_date": TODAY,
+                        "layer": "VALIDATION",
+                        "attempts": attempt,
+                    },
+                )
+                return False
+
+        if val is not None and val.severity in ("CRITICAL", "HIGH"):
             from tools.self_healing.handler import handle_validation_finding
             handle_validation_finding(
                 program=__file__,
@@ -131,6 +162,10 @@ def run_country(country: str, mode: str, since: str | None, dry_run: bool) -> bo
                 },
                 result=val,
             )
+            return False
+
+        # Post-delta live feed audit (live products only)
+        if PRODUCT in ("food_micropricing", "wages_and_employment", "trade_flows"):            )
             return False
 
         # Post-delta live feed audit (live products only)
