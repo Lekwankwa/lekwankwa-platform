@@ -16,28 +16,42 @@ Usage:
 """
 
 import json
+import os
+import re
 import sys
 import argparse
 from pathlib import Path
 from datetime import datetime
 
-VAULT = Path("lekwankwa-historical-vault")
+_VAULT_ROOT = os.environ.get("VAULT_ROOT", "").strip() or "lekwankwa-historical-vault"
 
 
 # ── Core mathematics ───────────────────────────────────────────────────────
 
 def get_vault_years(product: str, country: str, source: str) -> set:
     """Scan Hive partition directories and return the set of years present."""
-    base = VAULT / f"product={product}" / f"country={country}" / f"source={source}"
-    if not base.exists():
-        return set()
+    base = f"{_VAULT_ROOT.rstrip('/')}/product={product}/country={country}/source={source}"
     years = set()
-    for p in base.iterdir():
-        if p.is_dir() and p.name.startswith("year="):
-            try:
-                years.add(int(p.name.split("=")[1]))
-            except ValueError:
-                pass
+
+    if _VAULT_ROOT.startswith("gs://"):
+        import gcsfs
+        fs = gcsfs.GCSFileSystem()
+        if not fs.exists(base):
+            return years
+        for p in fs.find(base):
+            m = re.search(r"year=(\d{4})", p)
+            if m:
+                years.add(int(m.group(1)))
+    else:
+        base_path = Path(base)
+        if not base_path.exists():
+            return years
+        for p in base_path.iterdir():
+            if p.is_dir() and p.name.startswith("year="):
+                try:
+                    years.add(int(p.name.split("=")[1]))
+                except ValueError:
+                    pass
     return years
 
 

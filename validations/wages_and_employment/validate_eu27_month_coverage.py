@@ -21,12 +21,13 @@ Usage:
 
 from __future__ import annotations
 
+import os
 import sys
 from pathlib import Path
 
 import pandas as pd
 
-VAULT = Path("lekwankwa-historical-vault")
+_VAULT_ROOT = os.environ.get("VAULT_ROOT", "").strip() or "lekwankwa-historical-vault"
 SOURCE = "eurostat_sdmx"
 PRODUCT = "wages_and_employment"
 
@@ -46,14 +47,25 @@ SERIES_B_START = 2009
 
 
 def _load_country(iso3: str) -> pd.DataFrame:
-    base = VAULT / f"product={PRODUCT}" / f"country={iso3}" / f"source={SOURCE}"
-    if not base.exists():
-        return pd.DataFrame()
+    base = f"{_VAULT_ROOT.rstrip('/')}/product={PRODUCT}/country={iso3}/source={SOURCE}"
     frames = []
-    for f in sorted(base.rglob("*.parquet")):
+
+    if _VAULT_ROOT.startswith("gs://"):
+        import gcsfs
+        fs = gcsfs.GCSFileSystem()
+        if not fs.exists(base):
+            return pd.DataFrame()
+        paths = sorted(p for p in fs.find(base) if p.endswith(".parquet"))
+    else:
+        base_path = Path(base)
+        if not base_path.exists():
+            return pd.DataFrame()
+        paths = sorted(str(p) for p in base_path.rglob("*.parquet"))
+
+    for f in paths:
         try:
             df = pd.read_parquet(f)
-            df["_file"] = f.name
+            df["_file"] = f.rsplit("/", 1)[-1]
             frames.append(df)
         except Exception:
             pass
