@@ -28,6 +28,7 @@ from __future__ import annotations
 import argparse
 import os
 import sys
+import traceback
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "validations"))
 from _vault_root import VAULT_ROOT, IS_GCS, vault_exists, vault_glob, vault_read_parquet  # noqa: E402
@@ -43,8 +44,12 @@ def _write(path: str, df) -> None:
                    use_dictionary=False)
 
 
+_PRINTED_FULL_TRACEBACK = False
+
+
 def repair_source(source: str, dry_run: bool) -> tuple[int, int, int]:
     """Returns (scanned, repaired, failed) counts for one source."""
+    global _PRINTED_FULL_TRACEBACK
     base = f"{VAULT_ROOT}/product={PRODUCT}/country={COUNTRY}/source={source}"
     if not vault_exists(base):
         print(f"  source={source}: vault path not found, skipping")
@@ -81,6 +86,12 @@ def repair_source(source: str, dry_run: bool) -> tuple[int, int, int]:
         except Exception as exc:
             failed += 1
             print(f"  FAILED: {f} -> {exc}")
+            if not _PRINTED_FULL_TRACEBACK:
+                _PRINTED_FULL_TRACEBACK = True
+                print("  --- FULL TRACEBACK (first failure only) ---")
+                traceback.print_exc()
+                print("  --- END TRACEBACK ---")
+                return scanned, repaired, failed
 
     return scanned, repaired, failed
 
