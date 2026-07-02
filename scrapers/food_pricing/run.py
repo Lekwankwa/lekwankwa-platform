@@ -10,7 +10,6 @@ Usage:
 """
 from __future__ import annotations
 
-import argparse
 import logging
 import sys
 from datetime import date
@@ -18,17 +17,19 @@ from pathlib import Path
 
 # Add repo root to path when running directly
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s %(levelname)s %(message)s",
     handlers=[logging.StreamHandler(sys.stdout)],
-)
-
 from tools.secrets import load_all_secrets_to_env
 load_all_secrets_to_env()
 
+from tools.schema_utils import normalize_vault_schema
 from tools.release_calendar_extractor import is_release_due
+from tools.vault_audit import run_9_stage_validation
+from tools.live_feed_audit import run_post_delta_audit
 from tools.vault_audit import run_9_stage_validation
 from tools.live_feed_audit import run_post_delta_audit
 log = logging.getLogger(__name__)
@@ -99,15 +100,27 @@ def run_country(country: str, mode: str, since: str | None, dry_run: bool) -> bo
             mod = importlib.import_module(cfg["module"])
             fn  = getattr(mod, cfg["fn"])
             fn(mode=mode, since=since)
+            import importlib
+            mod = importlib.import_module(cfg["module"])
+            fn  = getattr(mod, cfg["fn"])
+            fn(mode=mode, since=since)
             log.info("Completed scrape %s/%s/%s", PRODUCT, country, source)
+
+            # Normalize schema across all vault partitions for this
+            # product/country/source to prevent PyArrow merge failures
+            # in downstream validators caused by mixed string/dictionary
+            # column encodings (e.g. the `source` field).
+            try:
+                normalize_vault_schema(product=PRODUCT, country=country,
+                                       source=source,
+                                       string_columns=["source", "item",
+                                                        "unit", "geo"])
+            except Exception as schema_exc:
+                log.error("Schema normalization failed for %s/%s/%s: %s",
+                          PRODUCT, country, source, schema_exc, exc_info=True)
         except Exception as exc:
             log.error("Scraper failed for %s/%s/%s: %s", PRODUCT, country, source, exc,
-                      exc_info=True)
-            try:
-                from tools.self_healing.handler import handle_exception
-                handle_exception(
-                    program=__file__,
-                    exception=exc,
+                      exc_info=True)                    exception=exc,
                     context={
                         "product": PRODUCT, "country": country,
                         "source": source, "run_date": TODAY,
