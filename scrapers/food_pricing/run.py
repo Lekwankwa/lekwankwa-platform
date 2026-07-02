@@ -10,14 +10,17 @@ Usage:
 """
 from __future__ import annotations
 
-import argparse
 import logging
 import sys
 from datetime import date
 from pathlib import Path
 
+import pyarrow as pa
+import pyarrow.dataset as ds
+
 # Add repo root to path when running directly
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+
 
 logging.basicConfig(
     level=logging.INFO,
@@ -70,12 +73,46 @@ COUNTRY_ROUTER: dict[str, dict] = {
     },
 }
 
-EU_MEMBERS = [
-    "AUT","BEL","BGR","HRV","CYP","CZE","DNK","EST","FIN","FRA","DEU",
-    "GRC","HUN","IRL","ITA","LVA","LTU","LUX","MLT","NLD","POL","PRT",
-    "ROU","SVK","SVN","ESP","SWE",
 ]
 
+
+def _normalize_vault_schema(product: str, country: str, source: str) -> None:
+    """
+    Guard against mixed Arrow schemas (string vs dictionary-encoded string)
+    for the same logical column across monthly parquet partitions, which
+    breaks downstream merges in the validation layer.
+
+    Rewrites any partition where `source` (or other string columns) is
+    dictionary-encoded back to plain string, in place.
+    """
+    vault_prefix = f"gs://lekwankwa-vault/product={product}/country={country}/source={source}"
+    try:
+        dataset = ds.dataset(vault_prefix, format="parquet", partitioning="hive")
+    except FileNotFoundError:
+        log.warning("No existing partitions to normalize for %s/%s/%s",
+                    product, country, source)
+        return
+
+    for fragment in dataset.get_fragments():
+        table = fragment.to_table()
+        changed = False
+        new_columns = {}
+        for field in table.schema:
+            col = table.column(field.name)
+            if pa.types.is_dictionary(field.type):
+                col = col.cast(field.type.value_type)
+                changed = True
+            new_columns[field.name] = col
+        if changed:
+            fixed_table = pa.table(new_columns)
+            import pyarrow.parquet as pq
+            pq.write_table(fixed_table, fragment.path, filesystem=dataset.filesystem)
+            log.info("Normalized dictionary-encoded schema for %s", fragment.path)
+
+
+def run_country(country: str, mode: str, since: str | None, dry_run: bool) -> bool:
+    cfg = COUNTRY_ROUTER.get(country)
+    if cfg is None:
 
 def run_country(country: str, mode: str, since: str | None, dry_run: bool) -> bool:
     cfg = COUNTRY_ROUTER.get(country)
@@ -105,14 +142,22 @@ def run_country(country: str, mode: str, since: str | None, dry_run: bool) -> bo
                       exc_info=True)
             try:
                 from tools.self_healing.handler import handle_exception
-                handle_exception(
-                    program=__file__,
-                    exception=exc,
-                    context={
-                        "product": PRODUCT, "country": country,
-                        "source": source, "run_date": TODAY,
-                        "layer": "SCRAPER",
-                    },
+            except ImportError:
+                pass
+            return False
+
+        # Normalize schema across partitions before validation runs, to
+        # avoid PyArrow merge failures caused by mixed dictionary/string
+        # encodings for the same column (e.g. `source`).
+        try:
+            _normalize_vault_schema(PRODUCT, country, source)
+        except Exception as norm_exc:
+            log.warning("Schema normalization failed for %s/%s/%s: %s",
+                       PRODUCT, country, source, norm_exc)
+
+        # Post-scrape: 9-stage + GX + Bitemporal Core validation
+        val = run_9_stage_validation(product=PRODUCT, country=country)
+        if val.severity in ("CRITICAL", "HIGH"):                    },
                 )
             except ImportError:
                 pass
