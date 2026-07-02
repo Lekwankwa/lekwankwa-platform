@@ -100,6 +100,37 @@ def vault_glob_paths(path_str: str, pattern: str) -> list["VaultFilePath"]:
     return [VaultFilePath(p) for p in vault_glob(path_str, pattern)]
 
 
+def vault_read_parquet(path_str: str, columns: list[str] | None = None):
+    """
+    Read a single parquet file robustly.
+
+    pandas.read_parquet() on a gs:// path routes through pyarrow's dataset
+    API, which — for paths containing Hive-style "key=value" segments
+    (year=2026/month=03/...) — can auto-discover a partitioned dataset
+    rooted higher up the tree and try to unify schemas across unrelated
+    sibling files, failing with "Unable to merge: Field ... incompatible
+    types" even though only ONE specific file was requested. Reading via
+    an explicit open file handle instead of a path string prevents pyarrow
+    from ever inferring a directory/partitioning structure.
+    """
+    import pandas as pd
+    path_str = str(path_str)  # accept VaultFilePath or other path-like objects too
+    try:
+        return pd.read_parquet(path_str, columns=columns)
+    except Exception as exc:
+        if "Unable to merge" not in str(exc):
+            raise
+        import pyarrow.parquet as pq
+        if path_str.startswith("gs://"):
+            import gcsfs
+            with gcsfs.GCSFileSystem().open(path_str, "rb") as fh:
+                table = pq.read_table(fh, columns=columns)
+        else:
+            with open(path_str, "rb") as fh:
+                table = pq.read_table(fh, columns=columns)
+        return table.to_pandas()
+
+
 def vault_file_size_kb(path_str: str) -> float:
     if IS_GCS:
         import gcsfs

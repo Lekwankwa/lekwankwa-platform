@@ -44,7 +44,7 @@ from pathlib import Path
 from datetime import datetime
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from _vault_root import VAULT_ROOT, vault_exists, vault_glob  # noqa: E402
+from _vault_root import VAULT_ROOT, vault_exists, vault_glob, vault_read_parquet  # noqa: E402
 
 logging.basicConfig(
     level=logging.INFO,
@@ -117,7 +117,7 @@ def load_sample(source: str, max_files: int = 80) -> pd.DataFrame:
     dfs = []
     for f in sampled:
         try:
-            dfs.append(pd.read_parquet(f))
+            dfs.append(vault_read_parquet(f))
         except Exception as exc:
             logger.warning(f"  Cannot read {f}: {exc}")
     if not dfs:

@@ -32,7 +32,7 @@ from datetime import datetime, timezone
 import logging
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from _vault_root import VAULT_ROOT, vault_glob_paths  # noqa: E402
+from _vault_root import VAULT_ROOT, vault_glob_paths, vault_read_parquet  # noqa: E402
 
 logging.basicConfig(
     level=logging.INFO,
@@ -95,7 +95,7 @@ def _all_partitions(source, file_glob=None):
 def _load_sample(source, n, file_glob=None):
     files = _all_partitions(source, file_glob)
     step  = max(1, len(files) // n)
-    return pd.concat([pd.read_parquet(f) for f in files[::step][:n]], ignore_index=True)
+    return pd.concat([vault_read_parquet(f) for f in files[::step][:n]], ignore_index=True)
 
 
 def _partition_ym(path: Path):
@@ -150,7 +150,7 @@ def chk_bls_partition_path_alignment(files, n_sample=60):
     sampled = files[::max(1, len(files) // n_sample)][:n_sample]
     for f in sampled:
         p_year, p_month = _partition_ym(f)
-        df = pd.read_parquet(f)
+        df = vault_read_parquet(f)
         if df.empty:
             continue
         ts = pd.to_datetime(df["data_timestamp"], utc=True)
@@ -175,7 +175,7 @@ def chk_bls_intra_series_gaps(files):
     if not dense:
         return _result("SKIP", "BLS Intra-Series Gap Detection", "No BLS data for 2017-2019")
 
-    frames = [pd.read_parquet(f, columns=["source_series_id", "data_timestamp"])
+    frames = [vault_read_parquet(f, columns=["source_series_id", "data_timestamp"])
               for f in dense]
     combined = pd.concat(frames, ignore_index=True)
     combined["_dt"] = pd.to_datetime(combined["data_timestamp"], utc=True)
@@ -222,8 +222,8 @@ def chk_bls_pct_change_accuracy(all_files):
         if not f0_list or not f1_list:
             continue
 
-        d0 = pd.read_parquet(f0_list[0], columns=["source_series_id", "observed_price_local"])
-        d1 = pd.read_parquet(f1_list[0], columns=["source_series_id", "observed_price_local", "pct_change_mom"])
+        d0 = vault_read_parquet(f0_list[0], columns=["source_series_id", "observed_price_local"])
+        d1 = vault_read_parquet(f1_list[0], columns=["source_series_id", "observed_price_local", "pct_change_mom"])
         d0 = d0.dropna(subset=["observed_price_local"]).set_index("source_series_id")
         d1 = d1.dropna(subset=["observed_price_local", "pct_change_mom"]).set_index("source_series_id")
         common = d0.index.intersection(d1.index)
@@ -262,7 +262,7 @@ def chk_bls_first_obs_null_pct(all_files):
     earliest_files = sorted(all_files)[:30]
     frames = []
     for f in earliest_files:
-        df = pd.read_parquet(f, columns=["source_series_id", "data_timestamp", "pct_change_mom"])
+        df = vault_read_parquet(f, columns=["source_series_id", "data_timestamp", "pct_change_mom"])
         frames.append(df)
     combined = pd.concat(frames, ignore_index=True)
     combined["_dt"] = pd.to_datetime(combined["data_timestamp"], utc=True)

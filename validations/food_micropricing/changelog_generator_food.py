@@ -36,7 +36,7 @@ import logging
 import hashlib
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from _vault_root import VAULT_ROOT, IS_GCS, vault_exists, vault_glob  # noqa: E402
+from _vault_root import VAULT_ROOT, IS_GCS, vault_exists, vault_glob, vault_read_parquet  # noqa: E402
 
 # Setup logging
 logging.basicConfig(
@@ -308,7 +308,7 @@ def generate_changelog_for_year(year_path: str, year: int,
         all_dfs = []
         for month, parquet_file in sorted(month_files.items()):
             try:
-                all_dfs.append(pd.read_parquet(parquet_file))
+                all_dfs.append(vault_read_parquet(parquet_file))
             except Exception:
                 logger.warning(f"Missing/unreadable {fname} in month={month:02d}")
 
@@ -323,7 +323,7 @@ def generate_changelog_for_year(year_path: str, year: int,
         outliers_count = 0
         for outliers_file in vault_glob(year_path, "outliers.parquet"):
             try:
-                outliers_count += len(pd.read_parquet(outliers_file))
+                outliers_count += len(vault_read_parquet(outliers_file))
             except Exception:
                 pass
         
@@ -475,7 +475,7 @@ def _run_eu27_changelog() -> bool:
             files = list(yr_dir.rglob("food_pricing_data.parquet"))
             n_records = 0
             for f in files:
-                try: n_records += len(pd.read_parquet(f))
+                try: n_records += len(vault_read_parquet(f))
                 except Exception: pass
             if n_records == 0: continue
             cid = hashlib.md5(f"{iso}_{year}_{run_ts}".encode()).hexdigest()[:12]

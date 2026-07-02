@@ -40,7 +40,7 @@ from datetime import datetime
 import logging
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from _vault_root import VAULT_ROOT, vault_glob_paths  # noqa: E402
+from _vault_root import VAULT_ROOT, vault_glob_paths, vault_read_parquet  # noqa: E402
 
 logging.basicConfig(
     level=logging.INFO,
@@ -120,7 +120,7 @@ def _load_sample(product, source, file_glob, n_files):
     sampled = files[::step][:n_files]
     if not sampled:
         return pd.DataFrame()
-    frames = [pd.read_parquet(f) for f in sampled]
+    frames = [vault_read_parquet(f) for f in sampled]
     return pd.concat(frames, ignore_index=True)
 
 
@@ -223,7 +223,7 @@ def chk_country_alignment_with_employment(bls_df):
     if not emp_files:
         return _result("SKIP", "Country Code Alignment w/ Employment",
                        "Employment vault not found — skipping cross-dataset check")
-    emp_df   = pd.read_parquet(emp_files[0])
+    emp_df   = vault_read_parquet(emp_files[0])
     food_cc  = set(bls_df["country_code"].dropna().unique()) if "country_code" in bls_df.columns else set()
     emp_cc   = set(emp_df["country_code"].dropna().unique())  if "country_code" in emp_df.columns else set()
     food_valid = food_cc <= {"US", "USA"}
@@ -244,7 +244,7 @@ def chk_bls_series_isolation_from_employment():
             "*.parquet",
         ), key=lambda p: str(p))
         for f in files[:2]:
-            df = pd.read_parquet(f)
+            df = vault_read_parquet(f)
             if "source_series_id" in df.columns:
                 emp_series.update(df["source_series_id"].dropna().unique())
 
@@ -270,7 +270,7 @@ def chk_source_vocabulary_isolation():
         "electricity_generation_data.parquet",
     ), key=lambda p: str(p))
     if elec_files:
-        elec_df = pd.read_parquet(elec_files[0])
+        elec_df = vault_read_parquet(elec_files[0])
         elec_sources = set(elec_df["source"].dropna().unique()) if "source" in elec_df.columns else set()
         bad = elec_sources & {"bls", "bls_ces", "bls_jolts"}
         if bad:
@@ -283,7 +283,7 @@ def chk_source_vocabulary_isolation():
             "*.parquet",
         ), key=lambda p: str(p))
         for f in emp_files[:1]:
-            df = pd.read_parquet(f)
+            df = vault_read_parquet(f)
             emp_sources = set(df["source"].dropna().unique()) if "source" in df.columns else set()
             bad_emp = emp_sources & {"bls", "usda", "eia"}
             if bad_emp:

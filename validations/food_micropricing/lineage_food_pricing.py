@@ -35,7 +35,7 @@ from datetime import datetime, timedelta
 import logging
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from _vault_root import VAULT_ROOT, vault_glob  # noqa: E402
+from _vault_root import VAULT_ROOT, vault_glob, vault_read_parquet  # noqa: E402
 
 logging.basicConfig(
     level=logging.INFO,
@@ -103,7 +103,7 @@ def load_sample(source: str) -> pd.DataFrame:
     dfs   = []
     for f in files[::step][:SAMPLE_FILES]:
         try:
-            dfs.append(pd.read_parquet(f))
+            dfs.append(vault_read_parquet(f))
         except Exception as e:
             logger.warning(f"  Could not read {f}: {e}")
     df = pd.concat(dfs, ignore_index=True) if dfs else pd.DataFrame()
@@ -242,8 +242,8 @@ def chk_partition_integrity(source):
     empty = []
     for f in files:
         try:
-            pf = pd.read_parquet(f, columns=["record_id"] if "record_id" in
-                                 pd.read_parquet(f, columns=None).columns else None)
+            pf = vault_read_parquet(f, columns=["record_id"] if "record_id" in
+                                 vault_read_parquet(f, columns=None).columns else None)
             if len(pf) == 0:
                 empty.append(str(f))
         except Exception as e:
@@ -494,11 +494,11 @@ def _run_eu27_lineage() -> bool:
         total_files += len(iso_files)
         for f in iso_files:
             try:
-                df_tmp = pd.read_parquet(f)
+                df_tmp = vault_read_parquet(f)
                 if df_tmp.empty: empty_files += 1
             except Exception: empty_files += 1
         if iso_files:
-            try: frames.append(pd.read_parquet(iso_files[0]))
+            try: frames.append(vault_read_parquet(iso_files[0]))
             except Exception: pass
 
     chk("PASS" if empty_files == 0 else "WARN", "L1 Partition Integrity",

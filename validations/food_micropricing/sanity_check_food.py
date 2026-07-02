@@ -34,7 +34,7 @@ from typing import Dict, List, Tuple, Any
 import logging
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from _vault_root import VAULT_ROOT, vault_exists, vault_glob, vault_file_size_kb  # noqa: E402
+from _vault_root import VAULT_ROOT, vault_exists, vault_glob, vault_file_size_kb, vault_read_parquet  # noqa: E402
 
 # Setup logging
 logging.basicConfig(
@@ -126,7 +126,7 @@ def _validate_file(parquet_file: str, year: str,
 
     try:
         # Load Parquet file
-        df = pd.read_parquet(parquet_file)
+        df = vault_read_parquet(parquet_file)
         results["row_count"] = len(df)
         results["file_size_kb"] = vault_file_size_kb(parquet_file)
         
