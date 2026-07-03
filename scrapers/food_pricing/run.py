@@ -1,10 +1,11 @@
-"""
-scrapers/food_pricing/run.py — Lekwankwa Corporation
-Cloud Scheduler entry point for food_micropricing across all countries.
+from __future__ import annotations
 
-Usage:
-    python scrapers/food_pricing/run.py --country USA
-    python scrapers/food_pricing/run.py --country EU27
+import argparse
+import logging
+import sys
+from types import SimpleNamespace
+from datetime import date
+from pathlib import Path
     python scrapers/food_pricing/run.py --country ALL_EU
     python scrapers/food_pricing/run.py --country GBR --dry-run
 """
@@ -107,23 +108,51 @@ def run_country(country: str, mode: str, since: str | None, dry_run: bool) -> bo
                 from tools.self_healing.handler import handle_exception
                 handle_exception(
                     program=__file__,
-                    exception=exc,
-                    context={
-                        "product": PRODUCT, "country": country,
             return False
 
         # Post-scrape: 9-stage + GX + Bitemporal Core validation
         try:
             val = run_9_stage_validation(product=PRODUCT, country=country)
-        except Exception as exc:
-            log.error("run_9_stage_validation raised for %s/%s/%s: %s",
-                      PRODUCT, country, source, exc, exc_info=True)
-            try:
-                from tools.self_healing.handler import handle_exception
-                handle_exception(
-                    program=__file__,
-                    exception=exc,
-                    context={
+        except RuntimeError as exc:
+            # The validation harness can raise instead of returning a result
+            # object (e.g. when its internal stage-parsing fails to populate
+            # `stages` even though the underlying job actually succeeded).
+            # Never let this crash the run uncontrolled — route it through
+            # self-healing with a synthesized result so downstream handling
+            # is consistent.
+            log.error("Validation harness raised for %s/%s/%s: %s",
+                       PRODUCT, country, source, exc, exc_info=True)
+            val = SimpleNamespace(
+                overall="FAIL",
+                severity="HIGH",
+                code=str(exc).split(":")[-1].strip() or "VALIDATION_HARNESS_ERROR",
+                stages=[],
+            )
+            from tools.self_healing.handler import handle_validation_finding
+            handle_validation_finding(
+                program=__file__,
+                context={
+                    "product": PRODUCT, "country": country,
+                    "source": source, "run_date": TODAY,
+                    "layer": "VALIDATION",
+                    "exception": str(exc),
+                },
+                result=val,
+            )
+            return False
+
+        if val.severity in ("CRITICAL", "HIGH"):
+            from tools.self_healing.handler import handle_validation_finding
+            handle_validation_finding(
+                program=__file__,
+                context={
+                    "product": PRODUCT, "country": country,
+                    "source": source, "run_date": TODAY,
+                    "layer": "VALIDATION",
+                },
+                result=val,
+            )
+            return False                    context={
                         "product": PRODUCT, "country": country,
                         "source": source, "run_date": TODAY,
                         "layer": "VALIDATION",
