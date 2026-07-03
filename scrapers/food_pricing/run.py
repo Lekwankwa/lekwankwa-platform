@@ -100,28 +100,47 @@ def run_country(country: str, mode: str, since: str | None, dry_run: bool) -> bo
             fn  = getattr(mod, cfg["fn"])
             fn(mode=mode, since=since)
             log.info("Completed scrape %s/%s/%s", PRODUCT, country, source)
-        except Exception as exc:
-            log.error("Scraper failed for %s/%s/%s: %s", PRODUCT, country, source, exc,
-                      exc_info=True)
-            try:
-                from tools.self_healing.handler import handle_exception
-                handle_exception(
-                    program=__file__,
-                    exception=exc,
-                    context={
-                        "product": PRODUCT, "country": country,
-                        "source": source, "run_date": TODAY,
-                        "layer": "SCRAPER",
-                    },
-                )
             except ImportError:
                 pass
             return False
 
         # Post-scrape: 9-stage + GX + Bitemporal Core validation
-        val = run_9_stage_validation(product=PRODUCT, country=country)
+        val = run_9_stage_validation(product=PRODUCT, country=country,
+                                      timeout=900)
+
+        # A returncode-only failure with no populated stage detail
+        # (code=VALIDATION_FAIL_RC1, stages=[]) indicates the validator
+        # subprocess was killed/timed out mid-run (e.g. slow gcsfs
+        # partition enumeration across multiple sources) rather than a
+        # genuine content failure. Retry once with a longer timeout
+        # before treating it as a real HIGH/CRITICAL finding.
+        if (val.severity in ("CRITICAL", "HIGH")
+                and getattr(val, "code", None) == "VALIDATION_FAIL_RC1"
+                and not getattr(val, "stages", None)):
+            log.warning(
+                "Validation for %s/%s returned empty-stage RC1 "
+                "(likely subprocess timeout) — retrying once with "
+                "extended timeout before escalating.",
+                PRODUCT, country,
+            )
+            val = run_9_stage_validation(product=PRODUCT, country=country,
+                                          timeout=2700)
+
         if val.severity in ("CRITICAL", "HIGH"):
             from tools.self_healing.handler import handle_validation_finding
+            handle_validation_finding(
+                program=__file__,
+                context={
+                    "product": PRODUCT, "country": country,
+                    "source": source, "run_date": TODAY,
+                    "layer": "VALIDATION",
+                },
+                result=val,
+            )
+            return False
+
+        # Post-delta live feed audit (live products only)
+        if PRODUCT in ("food_micropricing", "wages_and_employment", "trade_flows"):            from tools.self_healing.handler import handle_validation_finding
             handle_validation_finding(
                 program=__file__,
                 context={
