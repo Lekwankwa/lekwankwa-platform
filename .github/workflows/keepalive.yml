@@ -24,5 +24,7 @@ jobs:
 
       - name: Push keepalive commit
         run: |
+          git fetch origin keepalive:keepalive 2>/dev/null || true
+          git checkout keepalive 2>/dev/null || git checkout -b keepalive
           git commit --allow-empty -m "chore: keepalive [skip ci] $(date -u '+%Y-%m-%d %H:%M UTC')"
-          git push
+          git push origin keepalive
