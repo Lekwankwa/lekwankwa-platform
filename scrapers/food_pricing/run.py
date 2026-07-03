@@ -1,11 +1,10 @@
-from __future__ import annotations
+"""
+scrapers/food_pricing/run.py — Lekwankwa Corporation
+Cloud Scheduler entry point for food_micropricing across all countries.
 
-import argparse
-import logging
-import sys
-from types import SimpleNamespace
-from datetime import date
-from pathlib import Path
+Usage:
+    python scrapers/food_pricing/run.py --country USA
+    python scrapers/food_pricing/run.py --country EU27
     python scrapers/food_pricing/run.py --country ALL_EU
     python scrapers/food_pricing/run.py --country GBR --dry-run
 """
@@ -98,95 +97,26 @@ def run_country(country: str, mode: str, since: str | None, dry_run: bool) -> bo
         try:
             import importlib
             mod = importlib.import_module(cfg["module"])
-            return False
-
-        # Post-scrape: 9-stage + GX + Bitemporal Core validation
-            return False
-
-        # Post-scrape: 9-stage + GX + Bitemporal Core validation
-        try:
-            val = run_9_stage_validation(product=PRODUCT, country=country, timeout=900)
-        except RuntimeError as val_exc:
-            log.error(
-                "9-stage validation timed out/crashed for %s/%s/%s: %s",
-                PRODUCT, country, source, val_exc, exc_info=True,
-            )
+            fn  = getattr(mod, cfg["fn"])
+            fn(mode=mode, since=since)
+            log.info("Completed scrape %s/%s/%s", PRODUCT, country, source)
+        except Exception as exc:
+            log.error("Scraper failed for %s/%s/%s: %s", PRODUCT, country, source, exc,
+                      exc_info=True)
             try:
-                val = run_9_stage_validation(product=PRODUCT, country=country, timeout=2400)
-            except RuntimeError as retry_exc:
-                log.error(
-                    "9-stage validation retry also failed for %s/%s/%s: %s",
-                    PRODUCT, country, source, retry_exc, exc_info=True,
-                )
-                from tools.self_healing.handler import handle_validation_finding
-                class _TimeoutResult:
-                    severity = "HIGH"
-                    code = "VALIDATION_TIMEOUT"
-                    stages: list = []
-                handle_validation_finding(
-                    program=__file__,
-                    context={
-                        "product": PRODUCT, "country": country,
-                        "source": source, "run_date": TODAY,
-                        "layer": "VALIDATION",
-                    },
-                    result=_TimeoutResult(),
-                )
-                return False
-        if val.severity in ("CRITICAL", "HIGH"):
-            from tools.self_healing.handler import handle_validation_finding
-            handle_validation_finding(        except TimeoutError as timeout_exc:
-            log.error(
-                "Validation timed out after %ss for %s/%s/%s: %s",
-                VALIDATION_TIMEOUT_SECS, PRODUCT, country, source, timeout_exc,
-                exc_info=True,
-            )
-            val = SimpleNamespace(
-                severity="HIGH",
-                code="VALIDATION_TIMEOUT",
-                stages=[],
-                overall="TIMEOUT",
-                stdout_tail="",
-                returncode=-1,
-            )
-
-        if val.severity in ("CRITICAL", "HIGH"):
-            from tools.self_healing.handler import handle_validation_finding
-            handle_validation_finding(
-            val = run_9_stage_validation(
-                product=PRODUCT, country=country, timeout=1200
-                context={
-                    "product": PRODUCT, "country": country,
-                    "source": source, "run_date": TODAY,
-                    "layer": "VALIDATION" if val.code != "VALIDATION_TIMEOUT" else "VALIDATION_TIMEOUT",
-                },
-                result=val,
-            )                from tools.self_healing.handler import handle_exception
+                from tools.self_healing.handler import handle_exception
                 handle_exception(
                     program=__file__,
                     exception=exc,
                     context={
                         "product": PRODUCT, "country": country,
                         "source": source, "run_date": TODAY,
-                        "layer": "VALIDATION",
+                        "layer": "SCRAPER",
                     },
                 )
             except ImportError:
                 pass
             return False
-
-        if val.severity in ("CRITICAL", "HIGH"):
-            from tools.self_healing.handler import handle_validation_finding
-            handle_validation_finding(
-                program=__file__,
-                context={
-                    "product": PRODUCT, "country": country,
-                    "source": source, "run_date": TODAY,
-                    "layer": "VALIDATION",
-                },
-                result=val,
-            )
-            return False            return False
 
         # Post-scrape: 9-stage + GX + Bitemporal Core validation
         val = run_9_stage_validation(product=PRODUCT, country=country)
