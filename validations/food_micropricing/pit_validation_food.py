@@ -16,7 +16,7 @@ from bitemporal_core import (  # noqa: E402
     check_bitemporal_uniqueness, check_supersession_integrity,
     write_report,
 )
-from _vault_root import VAULT_ROOT, vault_exists, vault_glob, vault_read_parquet  # noqa: E402
+from _vault_root import VAULT_ROOT, vault_exists, vault_glob_since as vault_glob, vault_read_parquet  # noqa: E402
 
 # ── Config ────────────────────────────────────────────────────────────────────
 VAULT_BASE  = VAULT_ROOT

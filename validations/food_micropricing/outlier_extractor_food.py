@@ -32,7 +32,7 @@ from typing import List, Dict, Tuple
 import logging
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from _vault_root import VAULT_ROOT, IS_GCS, vault_exists, vault_glob, vault_read_parquet  # noqa: E402
+from _vault_root import VAULT_ROOT, IS_GCS, vault_exists, vault_glob_since as vault_glob, vault_read_parquet  # noqa: E402
 
 # Setup logging
 logging.basicConfig(

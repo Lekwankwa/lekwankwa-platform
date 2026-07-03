@@ -44,7 +44,7 @@ from pathlib import Path
 from datetime import datetime
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from _vault_root import VAULT_ROOT, vault_exists, vault_glob, vault_read_parquet  # noqa: E402
+from _vault_root import VAULT_ROOT, vault_exists, vault_glob_since as vault_glob, vault_read_parquet  # noqa: E402
 
 logging.basicConfig(
     level=logging.INFO,
