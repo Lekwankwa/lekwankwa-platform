@@ -157,7 +157,11 @@ def run_9_stage_validation(
             # Determine severity from stdout — look for CRITICAL or FAIL keywords
             out_upper = combined.upper()
             severity  = "CRITICAL" if "CRITICAL" in out_upper else "HIGH"
-            tail = combined[-2000:]
+            # 2000 chars was nowhere near enough for a 10-stage pipeline's
+            # print output — the actual failing stage and summary board were
+            # always truncated off. 20000 chars comfortably covers the full
+            # per-stage summary section even for verbose stages.
+            tail = combined[-20000:]
             log.error("[VALIDATION] FAIL (rc=%d, severity=%s) — %s/%s\n%s",
                       rc, severity, product, country, tail)
             return ValidationResult(
