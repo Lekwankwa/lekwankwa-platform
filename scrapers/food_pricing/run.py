@@ -101,25 +101,52 @@ def run_country(country: str, mode: str, since: str | None, dry_run: bool) -> bo
             fn(mode=mode, since=since)
             log.info("Completed scrape %s/%s/%s", PRODUCT, country, source)
         except Exception as exc:
-            log.error("Scraper failed for %s/%s/%s: %s", PRODUCT, country, source, exc,
-                      exc_info=True)
-            try:
-                from tools.self_healing.handler import handle_exception
-                handle_exception(
-                    program=__file__,
-                    exception=exc,
-                    context={
-                        "product": PRODUCT, "country": country,
-                        "source": source, "run_date": TODAY,
-                        "layer": "SCRAPER",
-                    },
-                )
-            except ImportError:
-                pass
-            return False
 
         # Post-scrape: 9-stage + GX + Bitemporal Core validation
         val = run_9_stage_validation(product=PRODUCT, country=country)
+        if val.severity in ("CRITICAL", "HIGH"):
+            # Partition-integrity failures (empty/unreadable Hive partition
+            # files) are usually transient artifacts of a truncated prior
+            # write, not genuine data-quality problems. Attempt a targeted
+            # repair re-scrape before treating this as a hard failure.
+            findings = getattr(val, "findings", []) or []
+            partition_only_failure = bool(findings) and all(
+                "partition integrity" in str(f).lower() for f in findings
+            )
+
+            if partition_only_failure:
+                log.warning(
+                    "Validation failed on Partition Integrity only for "
+                    "%s/%s/%s — attempting repair re-scrape (mode=full).",
+                    PRODUCT, country, source,
+                )
+                try:
+                    import importlib
+                    mod = importlib.import_module(cfg["module"])
+                    fn  = getattr(mod, cfg["fn"])
+                    fn(mode="full", since=since)
+                    val = run_9_stage_validation(product=PRODUCT, country=country)
+                except Exception as repair_exc:
+                    log.error(
+                        "Repair re-scrape failed for %s/%s/%s: %s",
+                        PRODUCT, country, source, repair_exc, exc_info=True,
+                    )
+
+            if val.severity in ("CRITICAL", "HIGH"):
+                from tools.self_healing.handler import handle_validation_finding
+                handle_validation_finding(
+                    program=__file__,
+                    context={
+                        "product": PRODUCT, "country": country,
+                        "source": source, "run_date": TODAY,
+                        "layer": "VALIDATION",
+                    },
+                    result=val,
+                )
+                return False
+
+        # Post-delta live feed audit (live products only)
+        if PRODUCT in ("food_micropricing", "wages_and_employment", "trade_flows"):        val = run_9_stage_validation(product=PRODUCT, country=country)
         if val.severity in ("CRITICAL", "HIGH"):
             from tools.self_healing.handler import handle_validation_finding
             handle_validation_finding(
