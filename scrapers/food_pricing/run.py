@@ -138,7 +138,26 @@ def run_country(country: str, mode: str, since: str | None, dry_run: bool) -> bo
             os.environ.pop("VALIDATION_SINCE_YEAR", None)
 
         # Post-scrape: 9-stage + GX + Bitemporal Core validation
-        val = run_9_stage_validation(product=PRODUCT, country=country)
+        try:
+            val = run_9_stage_validation(product=PRODUCT, country=country)
+        except Exception as exc:
+            log.error("run_9_stage_validation raised for %s/%s/%s: %s",
+                      PRODUCT, country, source, exc, exc_info=True)
+            try:
+                from tools.self_healing.handler import handle_exception
+                handle_exception(
+                    program=__file__,
+                    exception=exc,
+                    context={
+                        "product": PRODUCT, "country": country,
+                        "source": source, "run_date": TODAY,
+                        "layer": "VALIDATION",
+                    },
+                )
+            except ImportError:
+                pass
+            return False
+
         if val.severity in ("CRITICAL", "HIGH"):
             from tools.self_healing.handler import handle_validation_finding
             handle_validation_finding(
@@ -154,7 +173,26 @@ def run_country(country: str, mode: str, since: str | None, dry_run: bool) -> bo
 
         # Post-delta live feed audit (live products only)
         if PRODUCT in ("food_micropricing", "wages_and_employment", "trade_flows"):
-            audit = run_post_delta_audit(product=PRODUCT, country=country)
+            try:
+                audit = run_post_delta_audit(product=PRODUCT, country=country)
+            except Exception as exc:
+                log.error("run_post_delta_audit raised for %s/%s/%s: %s",
+                          PRODUCT, country, source, exc, exc_info=True)
+                try:
+                    from tools.self_healing.handler import handle_exception
+                    handle_exception(
+                        program=__file__,
+                        exception=exc,
+                        context={
+                            "product": PRODUCT, "country": country,
+                            "source": source, "run_date": TODAY,
+                            "layer": "LIVE_FEED_AUDIT",
+                        },
+                    )
+                except ImportError:
+                    pass
+                return False
+
             if audit.severity in ("CRITICAL", "HIGH"):
                 from tools.self_healing.handler import handle_validation_finding
                 handle_validation_finding(
