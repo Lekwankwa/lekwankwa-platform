@@ -242,8 +242,7 @@ def chk_partition_integrity(source):
     empty = []
     for f in files:
         try:
-            pf = vault_read_parquet(f, columns=["record_id"] if "record_id" in
-                                 vault_read_parquet(f, columns=None).columns else None)
+            pf = vault_read_parquet(f)
             if len(pf) == 0:
                 empty.append(str(f))
         except Exception as e:
