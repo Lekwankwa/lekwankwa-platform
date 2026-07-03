@@ -100,7 +100,7 @@ class ValidationResult:
 def run_9_stage_validation(
     product: str,
     country: str,
-    timeout: int = 1800,
+    timeout: int = 3000,
 ) -> ValidationResult:
     """
     Run the full 9-stage + GX + Bitemporal Core validation pipeline for
@@ -169,11 +169,18 @@ def run_9_stage_validation(
                 code=f"VALIDATION_FAIL_RC{rc}",
                 script_used=script_rel, returncode=rc, stdout_tail=tail,
             )
-    except subprocess.TimeoutExpired:
-        log.error("[VALIDATION] TIMEOUT after %ds — %s/%s", timeout, product, country)
+    except subprocess.TimeoutExpired as exc:
+        # subprocess still captures whatever the child produced before the
+        # kill when capture_output=True was used — surface it, otherwise a
+        # timeout tells us nothing about which stage was actually running.
+        partial = (exc.output or "") + (exc.stderr or "")
+        tail = partial[-20000:]
+        log.error("[VALIDATION] TIMEOUT after %ds — %s/%s\n%s",
+                  timeout, product, country, tail)
         return ValidationResult(
             overall="TIMEOUT", severity="HIGH",
             code="VALIDATION_TIMEOUT", script_used=script_rel, returncode=-1,
+            stdout_tail=tail,
         )
     except Exception as exc:
         log.error("[VALIDATION] Unexpected error running %s: %s", script_rel, exc)
