@@ -102,7 +102,16 @@ def run_country(country: str, mode: str, since: str | None, dry_run: bool) -> bo
             log.info("Completed scrape %s/%s/%s", PRODUCT, country, source)
         except Exception as exc:
             log.error("Scraper failed for %s/%s/%s: %s", PRODUCT, country, source, exc,
-                      exc_info=True)
+            except ImportError:
+                pass
+            return False
+
+        # Post-scrape: 9-stage + GX + Bitemporal Core validation
+        try:
+            val = run_9_stage_validation(product=PRODUCT, country=country)
+        except Exception as exc:
+            log.error("Validation runner crashed for %s/%s/%s: %s",
+                      PRODUCT, country, source, exc, exc_info=True)
             try:
                 from tools.self_healing.handler import handle_exception
                 handle_exception(
@@ -111,15 +120,13 @@ def run_country(country: str, mode: str, since: str | None, dry_run: bool) -> bo
                     context={
                         "product": PRODUCT, "country": country,
                         "source": source, "run_date": TODAY,
-                        "layer": "SCRAPER",
+                        "layer": "VALIDATION",
                     },
                 )
             except ImportError:
                 pass
             return False
 
-        # Post-scrape: 9-stage + GX + Bitemporal Core validation
-        val = run_9_stage_validation(product=PRODUCT, country=country)
         if val.severity in ("CRITICAL", "HIGH"):
             from tools.self_healing.handler import handle_validation_finding
             handle_validation_finding(
@@ -135,11 +142,41 @@ def run_country(country: str, mode: str, since: str | None, dry_run: bool) -> bo
 
         # Post-delta live feed audit (live products only)
         if PRODUCT in ("food_micropricing", "wages_and_employment", "trade_flows"):
-            audit = run_post_delta_audit(product=PRODUCT, country=country)
+            try:
+                audit = run_post_delta_audit(product=PRODUCT, country=country)
+            except Exception as exc:
+                log.error("Live feed audit crashed for %s/%s/%s: %s",
+                          PRODUCT, country, source, exc, exc_info=True)
+                try:
+                    from tools.self_healing.handler import handle_exception
+                    handle_exception(
+                        program=__file__,
+                        exception=exc,
+                        context={
+                            "product": PRODUCT, "country": country,
+                            "source": source, "run_date": TODAY,
+                            "layer": "LIVE_FEED_AUDIT",
+                        },
+                    )
+                except ImportError:
+                    pass
+                return False
+
             if audit.severity in ("CRITICAL", "HIGH"):
                 from tools.self_healing.handler import handle_validation_finding
                 handle_validation_finding(
                     program=__file__,
+                    context={
+                        "product": PRODUCT, "country": country,
+                        "source": source, "run_date": TODAY,
+                        "layer": "LIVE_FEED_AUDIT",
+                    },
+                    result=audit,
+                )
+                return False
+    from tools.trigger_downstream import trigger_all_metadata
+    trigger_all_metadata()
+    return True                    program=__file__,
                     context={
                         "product": PRODUCT, "country": country,
                         "source": source, "run_date": TODAY,
