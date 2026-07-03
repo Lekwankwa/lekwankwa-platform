@@ -107,24 +107,35 @@ def run_country(country: str, mode: str, since: str | None, dry_run: bool) -> bo
                 from tools.self_healing.handler import handle_exception
                 handle_exception(
                     program=__file__,
-            return False
-
-        # Post-scrape: 9-stage + GX + Bitemporal Core validation
-        val = run_9_stage_validation(product=PRODUCT, country=country, source=source)
-        if val.severity in ("CRITICAL", "HIGH") and (
-            getattr(val, "source", source) == source
-        ):
-            from tools.self_healing.handler import handle_validation_finding
-            handle_validation_finding(
-                program=__file__,                pass
-            return False
-
         # Post-scrape: 9-stage + GX + Bitemporal Core validation
         val = run_9_stage_validation(product=PRODUCT, country=country)
         if val.severity in ("CRITICAL", "HIGH"):
-            from tools.self_healing.handler import handle_validation_finding
-            handle_validation_finding(
-                program=__file__,
+            failed_count = getattr(val, "failed_count", None)
+            warned_count = getattr(val, "warned_count", 0)
+            if failed_count == 0 and warned_count > 0:
+                # No real failures — only WARN-level findings (e.g. discontinued
+                # series gaps) were escalated to HIGH by the aggregator. Do not
+                # block the pipeline on these; log and continue.
+                log.warning(
+                    "Validation severity=%s for %s/%s/%s but 0 real failures "
+                    "(%d warnings) — treating as non-blocking and continuing.",
+                    val.severity, PRODUCT, country, source, warned_count,
+                )
+            else:
+                from tools.self_healing.handler import handle_validation_finding
+                handle_validation_finding(
+                    program=__file__,
+                    context={
+                        "product": PRODUCT, "country": country,
+                        "source": source, "run_date": TODAY,
+                        "layer": "VALIDATION",
+                    },
+                    result=val,
+                )
+                return False
+
+        # Post-delta live feed audit (live products only)
+        if PRODUCT in ("food_micropricing", "wages_and_employment", "trade_flows"):                program=__file__,
                 context={
                     "product": PRODUCT, "country": country,
                     "source": source, "run_date": TODAY,
