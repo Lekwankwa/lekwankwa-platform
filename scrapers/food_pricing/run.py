@@ -107,15 +107,16 @@ def run_country(country: str, mode: str, since: str | None, dry_run: bool) -> bo
                 from tools.self_healing.handler import handle_exception
                 handle_exception(
                     program=__file__,
-                    exception=exc,
-                    context={
-                        "product": PRODUCT, "country": country,
-                        "source": source, "run_date": TODAY,
-                        "layer": "SCRAPER",
-                    },
-                )
-            except ImportError:
-                pass
+            return False
+
+        # Post-scrape: 9-stage + GX + Bitemporal Core validation
+        val = run_9_stage_validation(product=PRODUCT, country=country, source=source)
+        if val.severity in ("CRITICAL", "HIGH") and (
+            getattr(val, "source", source) == source
+        ):
+            from tools.self_healing.handler import handle_validation_finding
+            handle_validation_finding(
+                program=__file__,                pass
             return False
 
         # Post-scrape: 9-stage + GX + Bitemporal Core validation
