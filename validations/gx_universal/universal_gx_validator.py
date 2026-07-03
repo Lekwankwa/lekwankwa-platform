@@ -22,11 +22,14 @@ Date: 2026-06-07 | Updated 2026-06-17 (EU27 multi-country support)
 
 import pandas as pd
 from pathlib import Path
-import glob
 import json
 from datetime import datetime
 import sys
 import argparse
+import fnmatch
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from _vault_root import vault_glob, vault_read_parquet  # noqa: E402
 
 
 def load_config(config_path: str) -> dict:
@@ -79,14 +82,18 @@ def run_validation(config_path: str) -> bool:
     sources          = config.get('sources', [])
     excluded_countries = set(config.get('excluded_countries', []))
 
+    # vault_glob recursively lists everything under vault_path matching the
+    # filename suffix — fetch once and filter in Python, since it (unlike
+    # stdlib glob) also works against gs:// paths via gcsfs.
+    all_files = vault_glob(vault_path, "*.parquet")
+
     if source_filter:
         # Multi-country Hive layout: vault_path/country=*/source=X/year=*/month=*/*.parquet
-        pattern = f"{vault_path}/country=*/source={source_filter}/year=*/month=*/*.parquet"
-        matches = glob.glob(pattern)
+        matches = [f for f in all_files if f"source={source_filter}" in f]
         for f in matches:
             if excluded_countries:
                 # Extract country from path segment country=XXX
-                parts = Path(f).parts
+                parts = f.split("/")
                 skip = False
                 for part in parts:
                     if part.startswith("country="):
@@ -103,20 +110,20 @@ def run_validation(config_path: str) -> bool:
             fname = source_file_map.get(src)
             if not fname:
                 continue
-            pattern = f"{vault_path}/**/source={src}/**/{fname}"
-            matches = glob.glob(pattern, recursive=True)
+            matches = [f for f in all_files if f"source={src}" in f and f.endswith(fname)]
             parquet_files.extend(matches)
         if not parquet_files:
-            pattern = f"{vault_path}/**/{list(source_file_map.values())[0]}"
-            parquet_files = glob.glob(pattern, recursive=True)
+            fname = list(source_file_map.values())[0]
+            parquet_files = [f for f in all_files if f.endswith(fname)]
     else:
         file_patterns = config.get('file_patterns', [
-            "**/base_data.parquet",
+            "*base_data.parquet",
             "**/*_data.parquet",
             "**/*_pit_*.parquet",
         ])
         for pattern in file_patterns:
-            matches = glob.glob(f"{vault_path}/{pattern}", recursive=True)
+            glob_pattern = f"*{pattern.replace('**/', '')}"
+            matches = [f for f in all_files if fnmatch.fnmatch(f, glob_pattern)]
             parquet_files.extend([
                 f for f in matches
                 if "outliers" not in f and "changelog" not in f
@@ -138,7 +145,7 @@ def run_validation(config_path: str) -> bool:
     frames = []
     for f in parquet_files:
         try:
-            frames.append(pd.read_parquet(f))
+            frames.append(vault_read_parquet(f))
         except Exception as e:
             print(f"  [WARN] Could not read {f}: {e}")
     if not frames:

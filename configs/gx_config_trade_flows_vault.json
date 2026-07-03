@@ -1,0 +1,113 @@
+{
+  "product_name": "Lekwankwa USA Trade Flows Index",
+  "product_code": "trade_flows",
+  "vault_path": "gs://lekwankwa-vault/product=trade_flows/country=USA",
+  "description": "Universal validation for US Census Bureau FT-900 international trade in goods data — HS2 chapter level, world total, monthly with Point-in-Time (PIT) capability",
+  "sources": ["census_ft900"],
+  "gold_standards": {
+    "census_ft900": "schema gold standards/trade_flows.json"
+  },
+  "schema_version": "1.0",
+  "file_patterns": ["**/*_data.parquet"],
+
+  "critical_checks": {
+    "row_count": {
+      "min": 100,
+      "max": 10000000,
+      "description": "HS2 chapters x 12 months x ~37 years x 2 flows ≈ 85K records"
+    },
+
+    "required_columns": [
+      "record_id",
+      "iso_alpha3",
+      "country_code",
+      "partner_country_code",
+      "partner_country_name",
+      "commodity_code",
+      "commodity_name",
+      "trade_flow",
+      "sovereign_series_id",
+      "source_series_id",
+      "macro_metric_name",
+      "observed_value",
+      "trade_value",
+      "unit_of_measure",
+      "currency",
+      "reporting_date",
+      "data_timestamp",
+      "official_release_date",
+      "published_date",
+      "as_of_date",
+      "conversion_timestamp",
+      "market_tier",
+      "source",
+      "source_agency",
+      "source_sub_category",
+      "portal_url",
+      "source_url",
+      "extraction_method",
+      "data_quality_certified",
+      "is_revised_figure",
+      "revision_number",
+      "superseded_by"
+    ],
+
+    "non_null_fields": [
+      "record_id",
+      "iso_alpha3",
+      "country_code",
+      "commodity_code",
+      "trade_flow",
+      "sovereign_series_id",
+      "macro_metric_name",
+      "observed_value",
+      "trade_value",
+      "unit_of_measure",
+      "currency",
+      "reporting_date",
+      "data_timestamp",
+      "published_date",
+      "as_of_date",
+      "source",
+      "data_quality_certified",
+      "revision_number"
+    ],
+
+    "value_constraints": {
+      "observed_value": {
+        "min": 0.0,
+        "max": 1000000.0,
+        "description": "Trade value in USD_MILLIONS (max ~$1 trillion)"
+      },
+      "trade_value": {
+        "min": 0.0,
+        "max": 1000000.0,
+        "description": "Trade value in USD_MILLIONS (alias)"
+      }
+    },
+
+    "categorical_constraints": {
+      "iso_alpha3":             ["USA"],
+      "country_code":           ["US"],
+      "market_tier":            ["Developed"],
+      "source_agency":          ["CENSUS"],
+      "source_sub_category":    ["TRADE"],
+      "trade_flow":             ["Export", "Import"],
+      "unit_of_measure":        ["USD_MILLIONS"],
+      "currency":               ["USD"],
+      "source":                 ["census_ft900"],
+      "extraction_method":      ["api"],
+      "data_quality_certified": [true, false],
+      "confidence_tier":        ["PRIMARY", "SECONDARY"]
+    },
+
+    "timestamp_checks": {
+      "data_timestamp": {
+        "min_year": 2010,
+        "max_year": 2030,
+        "format": "datetime64",
+        "description": "Monthly reference date (YYYY-MM-01T00:00:00+00:00)"
+      }
+    }
+  }
+}

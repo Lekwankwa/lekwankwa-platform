@@ -1,0 +1,87 @@
+{
+  "product_name": "Food Micropricing",
+  "product_code": "food_micropricing",
+  "vault_path": "gs://lekwankwa-vault/product=food_micropricing/country=USA",
+  "description": "Universal validation for BLS and USDA ERS food pricing data - Schema v5.0 (Gold Standard)",
+  "sources": ["bls", "usda_ers"],
+  "schema_version": "5.0",
+
+  "source_file_map": {
+    "bls":      "food_pricing_data.parquet",
+    "usda_ers": "food_pricing_data.parquet"
+  },
+
+  "critical_checks": {
+    "row_count": {
+      "min": 100,
+      "max": 1000000,
+      "description": "Validate reasonable data volume across all sources"
+    },
+
+    "required_columns": [
+      "record_id",
+      "country_code",
+      "iso_alpha3",
+      "standard_name",
+      "local_name",
+      "global_coicop_code",
+      "category",
+      "observed_price_local",
+      "price_usd_equivalent",
+      "currency",
+      "pct_change_mom",
+      "observation_period",
+      "data_timestamp",
+      "official_release_date",
+      "published_date",
+      "as_of_date",
+      "conversion_timestamp",
+      "sovereign_series_id",
+      "portal_url",
+      "confidence_tier",
+      "is_revised_figure",
+      "revision_number",
+      "source",
+      "extraction_method",
+      "data_quality_certified"
+    ],
+
+    "non_null_fields": [
+      "record_id",
+      "standard_name",
+      "observed_price_local",
+      "currency",
+      "source",
+      "data_timestamp",
+      "published_date",
+      "as_of_date",
+      "revision_number",
+      "sovereign_series_id",
+      "confidence_tier"
+    ],
+
+    "value_constraints": {
+      "observed_price_local": {
+        "min": 0.01,
+        "max": 1000000,
+        "description": "Reasonable price range for food items"
+      }
+    },
+
+    "categorical_constraints": {
+      "country_code": ["US"],
+      "currency": ["USD"],
+      "source": ["bls", "usda_ers"],
+      "data_quality_certified": [true, false],
+      "confidence_tier": ["PRIMARY", "SECONDARY", "INDICATIVE", "EXPERIMENTAL"]
+    },
+
+    "timestamp_checks": {
+      "data_timestamp": {
+        "min_year": 1980,
+        "max_year": 2030,
+        "format": "datetime64"
+      }
+    }
+  }
+}
