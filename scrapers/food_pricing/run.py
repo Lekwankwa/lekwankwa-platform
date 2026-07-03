@@ -108,23 +108,44 @@ def run_country(country: str, mode: str, since: str | None, dry_run: bool) -> bo
                 handle_exception(
                     program=__file__,
                     exception=exc,
-                    context={
-                        "product": PRODUCT, "country": country,
-                        "source": source, "run_date": TODAY,
-                        "layer": "SCRAPER",
-                    },
-                )
-            except ImportError:
-                pass
             return False
 
         # Post-scrape: 9-stage + GX + Bitemporal Core validation
-        val = run_9_stage_validation(product=PRODUCT, country=country)
+        try:
+            # Scope validation to the source we just scraped so an
+            # unrelated source's validator crash doesn't block delivery
+            # of a passing source.
+            val = run_9_stage_validation(product=PRODUCT, country=country,
+                                          source=source)
+        except Exception as val_exc:
+            log.error(
+                "Validation subprocess crashed for %s/%s/%s: %s",
+                PRODUCT, country, source, val_exc, exc_info=True,
+            )
+            from tools.self_healing.handler import handle_exception
+            handle_exception(
+                program=__file__,
+                exception=val_exc,
+                context={
+                    "product": PRODUCT, "country": country,
+                    "source": source, "run_date": TODAY,
+                    "layer": "VALIDATION",
+                },
+            )
+            return False
+
         if val.severity in ("CRITICAL", "HIGH"):
             from tools.self_healing.handler import handle_validation_finding
             handle_validation_finding(
                 program=__file__,
                 context={
+                    "product": PRODUCT, "country": country,
+                    "source": source, "run_date": TODAY,
+                    "layer": "VALIDATION",
+                },
+                result=val,
+            )
+            return False                context={
                     "product": PRODUCT, "country": country,
                     "source": source, "run_date": TODAY,
                     "layer": "VALIDATION",
