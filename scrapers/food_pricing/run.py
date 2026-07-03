@@ -97,25 +97,37 @@ def run_country(country: str, mode: str, since: str | None, dry_run: bool) -> bo
         try:
             import importlib
             mod = importlib.import_module(cfg["module"])
-            fn  = getattr(mod, cfg["fn"])
-            fn(mode=mode, since=since)
-            log.info("Completed scrape %s/%s/%s", PRODUCT, country, source)
-        except Exception as exc:
-            log.error("Scraper failed for %s/%s/%s: %s", PRODUCT, country, source, exc,
-                      exc_info=True)
-            try:
-                from tools.self_healing.handler import handle_exception
+            return False
+
+        # Post-scrape: 9-stage + GX + Bitemporal Core validation
+        val = run_9_stage_validation(product=PRODUCT, country=country, source=source)
+        val_scoped_to_source = getattr(val, "source", source) == source
+        val_is_actual_failure = (
+            getattr(val, "overall", None) == "FAIL"
+            and val.severity in ("CRITICAL", "HIGH")
+            and val_scoped_to_source
+        )
+        if val_is_actual_failure:
+            log.error("Validation failed for %s/%s/%s (source-scoped result)",
+                      PRODUCT, country, source)
+            from tools.self_healing.handler import handle_validation_finding
+            handle_validation_finding(
+                program=__file__,
                 handle_exception(
                     program=__file__,
                     exception=exc,
                     context={
-                        "product": PRODUCT, "country": country,
-                        "source": source, "run_date": TODAY,
-                        "layer": "SCRAPER",
-                    },
-                )
-            except ImportError:
-                pass
+                result=val,
+            )
+            return False
+        elif val.severity in ("CRITICAL", "HIGH") and not val_scoped_to_source:
+            log.warning(
+                "Validation harness reported %s severity but result is not scoped "
+                "to source=%s (country-wide run) — not blocking this source.",
+                val.severity, source)
+
+        # Post-delta live feed audit (live products only)
+        if PRODUCT in ("food_micropricing", "wages_and_employment", "trade_flows"):                pass
             return False
 
         # Post-scrape: 9-stage + GX + Bitemporal Core validation
