@@ -32,7 +32,7 @@ from datetime import datetime, timezone
 import logging
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from _vault_root import VAULT_ROOT, vault_glob_paths, vault_read_parquet  # noqa: E402
+from _vault_root import VAULT_ROOT, vault_glob_paths_since as vault_glob_paths, vault_read_parquet  # noqa: E402
 
 logging.basicConfig(
     level=logging.INFO,

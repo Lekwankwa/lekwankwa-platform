@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import argparse
 import logging
+import os
 import sys
 from datetime import date
 from pathlib import Path
@@ -117,6 +118,24 @@ def run_country(country: str, mode: str, since: str | None, dry_run: bool) -> bo
             except ImportError:
                 pass
             return False
+
+        # Scope validation to the incremental window instead of the full
+        # ~46-year vault — the whole history has already been validated
+        # once; re-checking all of it on every run is what was making
+        # validation take 45-60+ minutes. Mirrors the same "latest vault
+        # partition minus revision lookback" window the scraper itself
+        # just used, so validation always covers at least what was
+        # touched this run. Full-mode runs intentionally re-process
+        # everything, so validation stays unscoped for those.
+        if mode == "incremental":
+            from scrapers.utilities.incremental import get_vault_latest_month
+            vault_root_env = os.environ.get("VAULT_ROOT", "").strip().rstrip("/") or "lekwankwa-historical-vault"
+            scan_root = f"{vault_root_env}/product={PRODUCT}/country={country}/source={source}"
+            latest = get_vault_latest_month(scan_root)
+            if latest:
+                os.environ["VALIDATION_SINCE_YEAR"] = str(max(1, latest[0] - 2))
+        else:
+            os.environ.pop("VALIDATION_SINCE_YEAR", None)
 
         # Post-scrape: 9-stage + GX + Bitemporal Core validation
         val = run_9_stage_validation(product=PRODUCT, country=country)

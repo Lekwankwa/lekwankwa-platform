@@ -18,10 +18,43 @@ Usage:
 from __future__ import annotations
 
 import os
+import re
 from pathlib import Path
 
 VAULT_ROOT = os.environ.get("VAULT_ROOT", "").strip().rstrip("/") or "lekwankwa-historical-vault"
 IS_GCS = VAULT_ROOT.startswith("gs://")
+
+_YEAR_RE = re.compile(r"year=(\d{4})")
+
+
+def vault_glob_since(path_str: str, pattern: str) -> list[str]:
+    """
+    Same as vault_glob(), but scoped to the incremental window instead of
+    the full vault history.
+
+    The vault has already been validated in full once; re-validating all
+    ~46 years of history on every incremental run is what was making
+    validation take 45-60+ minutes. run.py sets VALIDATION_SINCE_YEAR to
+    the same start year the scraper itself used for its incremental fetch
+    (see scrapers/utilities/incremental.py compute_scrape_range) before
+    invoking validation, so both stay in lockstep. If the env var isn't
+    set (e.g. a product not yet wired up, or ad-hoc/local runs), falls
+    back to scanning everything — never silently narrows scope.
+    """
+    all_files = vault_glob(path_str, pattern)
+    since_year = os.environ.get("VALIDATION_SINCE_YEAR", "").strip()
+    if not since_year:
+        return all_files
+    try:
+        cutoff = int(since_year)
+    except ValueError:
+        return all_files
+    kept = []
+    for f in all_files:
+        m = _YEAR_RE.search(f)
+        if m is None or int(m.group(1)) >= cutoff:
+            kept.append(f)
+    return kept
 
 
 def vault_exists(path_str: str) -> bool:
@@ -98,6 +131,11 @@ class VaultFilePath:
 def vault_glob_paths(path_str: str, pattern: str) -> list["VaultFilePath"]:
     """Same as vault_glob(), but wraps results in VaultFilePath for .parent/.name access."""
     return [VaultFilePath(p) for p in vault_glob(path_str, pattern)]
+
+
+def vault_glob_paths_since(path_str: str, pattern: str) -> list["VaultFilePath"]:
+    """Same as vault_glob_since(), but wraps results in VaultFilePath."""
+    return [VaultFilePath(p) for p in vault_glob_since(path_str, pattern)]
 
 
 def vault_read_parquet(path_str: str, columns: list[str] | None = None):
