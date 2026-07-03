@@ -9,12 +9,13 @@ Usage:
     python scrapers/food_pricing/run.py --country GBR --dry-run
 """
 from __future__ import annotations
-
 import argparse
 import logging
 import sys
+import time
 from datetime import date
 from pathlib import Path
+
 
 # Add repo root to path when running directly
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
@@ -31,12 +32,18 @@ load_all_secrets_to_env()
 from tools.release_calendar_extractor import is_release_due
 from tools.vault_audit import run_9_stage_validation
 from tools.live_feed_audit import run_post_delta_audit
-log = logging.getLogger(__name__)
-
 PRODUCT = "food_micropricing"
 TODAY   = date.today().isoformat()
 
+# Retry policy for transient validation-harness failures (e.g. empty
+# `stages` payload + VALIDATION_FAIL_RC1 caused by subprocess timeouts or
+# slow GCS partition scans), as opposed to genuine data-quality failures.
+VALIDATION_MAX_RETRIES = 3
+VALIDATION_RETRY_BACKOFF_SECONDS = 30
+
 # Countries routed through each underlying scraper
+COUNTRY_ROUTER: dict[str, dict] = {
+    "USA": {
 COUNTRY_ROUTER: dict[str, dict] = {
     "USA": {
         "module":  "scrapers.food_pricing.usa_food_scraper",
@@ -125,15 +132,35 @@ def run_country(country: str, mode: str, since: str | None, dry_run: bool) -> bo
             handle_validation_finding(
                 program=__file__,
                 context={
-                    "product": PRODUCT, "country": country,
-                    "source": source, "run_date": TODAY,
-                    "layer": "VALIDATION",
-                },
-                result=val,
-            )
             return False
 
-        # Post-delta live feed audit (live products only)
+        # Post-scrape: 9-stage + GX + Bitemporal Core validation
+        # Retry on transient validation-harness failures (empty `stages`
+        # payload with code VALIDATION_FAIL_RC1) before treating the run as
+        # a genuine data failure — these are typically caused by network or
+        # GCS-listing stalls inside the validation subprocess, not by actual
+        # broken data (all individual stage logs show PASS/WARN, not FAIL).
+        val = None
+        for attempt in range(1, VALIDATION_MAX_RETRIES + 1):
+            val = run_9_stage_validation(product=PRODUCT, country=country)
+            transient = (
+                val.severity in ("CRITICAL", "HIGH")
+                and not getattr(val, "stages", None)
+                and getattr(val, "code", "") == "VALIDATION_FAIL_RC1"
+            )
+            if not transient:
+                break
+            log.warning(
+                "Transient validation harness failure (empty stages, RC1) "
+                "for %s/%s/%s — retry %d/%d",
+                PRODUCT, country, source, attempt, VALIDATION_MAX_RETRIES,
+            )
+            time.sleep(VALIDATION_RETRY_BACKOFF_SECONDS * attempt)
+
+        if val.severity in ("CRITICAL", "HIGH"):
+            from tools.self_healing.handler import handle_validation_finding
+            handle_validation_finding(
+                program=__file__,        # Post-delta live feed audit (live products only)
         if PRODUCT in ("food_micropricing", "wages_and_employment", "trade_flows"):
             audit = run_post_delta_audit(product=PRODUCT, country=country)
             if audit.severity in ("CRITICAL", "HIGH"):
