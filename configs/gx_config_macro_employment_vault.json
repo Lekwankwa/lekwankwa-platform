@@ -1,0 +1,86 @@
+{
+  "product_name": "Wages & Employment",
+  "product_code": "wages_and_employment",
+  "vault_path": "gs://lekwankwa-vault/product=wages_and_employment/country=USA",
+  "description": "Universal validation for BLS CES employment indices and CPS unemployment rates with Point-in-Time (PIT) capability",
+  "sources": ["bls_ces", "bls_cps"],
+  "schema_version": "2.0",
+
+  "critical_checks": {
+    "row_count": {
+      "min": 1000,
+      "max": 50000000,
+      "description": "CES ~9K + CPS ~4K records across all historical years"
+    },
+
+    "required_columns": [
+      "record_id",
+      "iso_alpha3",
+      "country_code",
+      "market_tier",
+      "source_agency",
+      "source_sub_category",
+      "portal_url",
+      "sovereign_series_id",
+      "data_vintage_id",
+      "confidence_tier",
+      "macro_metric_name",
+      "reporting_date",
+      "data_timestamp",
+      "official_release_date",
+      "observed_value",
+      "unit_of_measure",
+      "is_revised_figure",
+      "source",
+      "extraction_method",
+      "data_quality_certified",
+      "conversion_timestamp",
+      "as_of_date",
+      "revision_number",
+      "superseded_by"
+    ],
+
+    "non_null_fields": [
+      "record_id",
+      "iso_alpha3",
+      "country_code",
+      "sovereign_series_id",
+      "macro_metric_name",
+      "reporting_date",
+      "data_timestamp",
+      "observed_value",
+      "unit_of_measure",
+      "source",
+      "data_quality_certified"
+    ],
+
+    "value_constraints": {
+      "observed_value": {
+        "min": 0.0,
+        "max": 200.0,
+        "description": "Hourly earnings USD, unemployment rate %, or index value"
+      }
+    },
+
+    "categorical_constraints": {
+      "iso_alpha3": ["USA"],
+      "country_code": ["US", "USA"],
+      "market_tier": ["Developed"],
+      "source_agency": ["BLS"],
+      "source_sub_category": ["CES", "CPS"],
+      "confidence_tier": ["PRIMARY", "SECONDARY"],
+      "source": ["bls_ces", "bls_cps"],
+      "extraction_method": ["api", "scraper", "manual"],
+      "data_quality_certified": [true, false]
+    },
+
+    "timestamp_checks": {
+      "data_timestamp": {
+        "min_year": 1939,
+        "max_year": 2030,
+        "format": "datetime64",
+        "description": "CES goes back to 1939, CPS from 1948"
+      }
+    }
+  }
+}

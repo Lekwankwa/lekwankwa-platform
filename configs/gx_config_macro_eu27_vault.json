@@ -1,0 +1,71 @@
+{
+  "product_name": "EU27 Global Macro Baseline (Eurostat)",
+  "product_code": "macro_eu27",
+  "vault_path": "gs://lekwankwa-vault/product=global_macro",
+  "source_filter": "eurostat_sdmx",
+  "excluded_countries": ["USA"],
+  "description": "Universal validation for EU27 GDP, GFCF, HICP and real rates from Eurostat SDMX",
+  "sources": ["eurostat_sdmx"],
+  "schema_version": "5.0",
+  "critical_checks": {
+    "row_count": {
+      "min": 1000,
+      "max": 5000000,
+      "description": "27 EU countries x multiple macro series from 1995-2026"
+    },
+    "required_columns": [
+      "data_vintage_id",
+      "confidence_tier",
+      "sovereign_series_id",
+      "macro_metric_name",
+      "reporting_date",
+      "official_release_date",
+      "as_of_date",
+      "observed_value",
+      "unit_of_measure",
+      "is_revised_figure",
+      "data_timestamp",
+      "revision_number",
+      "iso_alpha3",
+      "country_name",
+      "source",
+      "source_agency",
+      "source_sub_category",
+      "sdmx_frequency",
+      "published_date",
+      "data_quality_certified"
+    ],
+    "non_null_fields": [
+      "data_vintage_id",
+      "sovereign_series_id",
+      "macro_metric_name",
+      "reporting_date",
+      "observed_value",
+      "iso_alpha3",
+      "source_agency",
+      "data_quality_certified"
+    ],
+    "value_constraints": {
+      "observed_value": {
+        "min": -500.0,
+        "max": 15000000.0,
+        "description": "GDP/GFCF in million EUR (large for DEU/FRA), rates can be negative"
+      }
+    },
+    "categorical_constraints": {
+      "iso_alpha3": ["AUT","BEL","BGR","HRV","CYP","CZE","DNK","EST","FIN","FRA","DEU","GRC","HUN","IRL","ITA","LVA","LTU","LUX","MLT","NLD","POL","PRT","ROU","SVK","SVN","ESP","SWE"],
+      "source_agency": ["EUROSTAT"],
+      "source": ["eurostat_sdmx"],
+      "confidence_tier": ["PRIMARY", "DERIVED"],
+      "data_quality_certified": [true, false]
+    },
+    "timestamp_checks": {
+      "reporting_date": {
+        "min_year": 1990,
+        "max_year": 2027,
+        "format": "datetime64",
+        "description": "Macro series can start from early 1990s for some EU countries"
+      }
+    }
+  }
+}

@@ -1,0 +1,74 @@
+{
+  "product_name": "EU27 Food Micropricing (Eurostat HICP)",
+  "product_code": "food_micropricing_eu27",
+  "vault_path": "gs://lekwankwa-vault/product=food_micropricing",
+  "source_filter": "eurostat_sdmx",
+  "excluded_countries": ["USA"],
+  "description": "Universal validation for EU27 food HICP subcategory indices (CP01 basket) from Eurostat SDMX",
+  "sources": ["eurostat_sdmx"],
+  "schema_version": "5.0",
+  "critical_checks": {
+    "row_count": {
+      "min": 50000,
+      "max": 10000000,
+      "description": "27 EU countries x 11 HICP food subcategories x monthly from 2000-2025"
+    },
+    "required_columns": [
+      "data_vintage_id",
+      "confidence_tier",
+      "global_coicop_code",
+      "standard_name",
+      "local_name",
+      "category",
+      "observation_period",
+      "official_release_date",
+      "as_of_date",
+      "is_revised_figure",
+      "observed_price_local",
+      "sovereign_series_id",
+      "data_timestamp",
+      "revision_number",
+      "iso_alpha3",
+      "country_name",
+      "source",
+      "source_agency",
+      "source_sub_category",
+      "sdmx_frequency",
+      "unit_of_measure",
+      "published_date",
+      "data_quality_certified"
+    ],
+    "non_null_fields": [
+      "data_vintage_id",
+      "sovereign_series_id",
+      "standard_name",
+      "observation_period",
+      "observed_price_local",
+      "iso_alpha3",
+      "source_agency",
+      "data_quality_certified"
+    ],
+    "value_constraints": {
+      "observed_price_local": {
+        "min": 10.0,
+        "max": 600.0,
+        "description": "HICP food subcategory index 2015=100; Eastern EU 2000 values ~40-70; post-2022 up to 200+"
+      }
+    },
+    "categorical_constraints": {
+      "iso_alpha3": ["AUT","BEL","BGR","HRV","CYP","CZE","DNK","EST","FIN","FRA","DEU","GRC","HUN","IRL","ITA","LVA","LTU","LUX","MLT","NLD","POL","PRT","ROU","SVK","SVN","ESP","SWE"],
+      "source_agency": ["EUROSTAT"],
+      "source": ["eurostat_sdmx"],
+      "confidence_tier": ["PRIMARY"],
+      "data_quality_certified": [true, false]
+    },
+    "timestamp_checks": {
+      "observation_period": {
+        "min_year": 2000,
+        "max_year": 2026,
+        "format": "string",
+        "description": "Monthly HICP food data from January 2000"
+      }
+    }
+  }
+}
