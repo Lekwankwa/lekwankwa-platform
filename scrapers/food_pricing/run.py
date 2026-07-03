@@ -101,14 +101,41 @@ def run_country(country: str, mode: str, since: str | None, dry_run: bool) -> bo
             return False
 
         # Post-scrape: 9-stage + GX + Bitemporal Core validation
-        VALIDATION_TIMEOUT_SECS = 900
+            return False
+
+        # Post-scrape: 9-stage + GX + Bitemporal Core validation
         try:
-            val = run_9_stage_validation(
-                product=PRODUCT,
-                country=country,
-                timeout=VALIDATION_TIMEOUT_SECS,
+            val = run_9_stage_validation(product=PRODUCT, country=country, timeout=900)
+        except RuntimeError as val_exc:
+            log.error(
+                "9-stage validation timed out/crashed for %s/%s/%s: %s",
+                PRODUCT, country, source, val_exc, exc_info=True,
             )
-        except TimeoutError as timeout_exc:
+            try:
+                val = run_9_stage_validation(product=PRODUCT, country=country, timeout=2400)
+            except RuntimeError as retry_exc:
+                log.error(
+                    "9-stage validation retry also failed for %s/%s/%s: %s",
+                    PRODUCT, country, source, retry_exc, exc_info=True,
+                )
+                from tools.self_healing.handler import handle_validation_finding
+                class _TimeoutResult:
+                    severity = "HIGH"
+                    code = "VALIDATION_TIMEOUT"
+                    stages: list = []
+                handle_validation_finding(
+                    program=__file__,
+                    context={
+                        "product": PRODUCT, "country": country,
+                        "source": source, "run_date": TODAY,
+                        "layer": "VALIDATION",
+                    },
+                    result=_TimeoutResult(),
+                )
+                return False
+        if val.severity in ("CRITICAL", "HIGH"):
+            from tools.self_healing.handler import handle_validation_finding
+            handle_validation_finding(        except TimeoutError as timeout_exc:
             log.error(
                 "Validation timed out after %ss for %s/%s/%s: %s",
                 VALIDATION_TIMEOUT_SECS, PRODUCT, country, source, timeout_exc,
