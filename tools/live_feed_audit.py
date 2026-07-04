@@ -1,9 +1,10 @@
-"""
-Lekwankwa Corporation — Live Feed Post-Delta Audit
-===================================================
-Run automatically after vault_extractor --mode live AND the 9-stage validation
-suite both PASS. This is NOT a replacement for the 9-stage suite — it is a
-separate fast sweep checking for the specific failure patterns discovered
+from __future__ import annotations
+
+import argparse
+import subprocess
+import json
+import logging
+import os
 during the vault/extractor build.
 
 Checks
@@ -317,12 +318,54 @@ def check_cross_pipeline_duplicates(
             continue
 
         vault_iso = pd.concat(frames, ignore_index=True)
+            "file": filename, "detail": detail, **extra}
 
-        if "confidence_tier" in vault_iso.columns:
-            vault_iso = vault_iso[vault_iso["confidence_tier"].isin(["PRIMARY", "SECONDARY"])].copy()
-        if vault_iso.empty:
-            continue
 
+# ── Auto-backfill for known scraper-placeholder dqc pattern (C2) ─────────────
+
+_DQC_BACKFILL_SCRIPT = _ROOT / "tools" / "backfill_dqc.py"
+
+
+def _attempt_dqc_backfill(
+    product: str, by_country_source: dict[str, int], run_date: str
+) -> bool:
+    """
+    Invoke the per-source DQC backfill script for each affected
+    (country, source) pair reported by check_scraper_placeholder, so that
+    known-good PRIMARY/SECONDARY rows are flipped from dqc=False to
+    dqc=True prior to re-checking, instead of requiring a human to
+    remember to run the backfill manually before every delivery.
+
+    Returns True if at least one backfill invocation succeeded, else False.
+    """
+    if not _DQC_BACKFILL_SCRIPT.exists():
+        log.error(
+            "[C2 AUTO-BACKFILL] Backfill script not found at %s — cannot "
+            "auto-remediate. Run it manually before retrying delivery.",
+            _DQC_BACKFILL_SCRIPT,
+        )
+        return False
+
+    any_success = False
+    for cs_key in by_country_source:
+        country, source = cs_key.split("/", 1)
+        cmd = [
+            sys.executable, str(_DQC_BACKFILL_SCRIPT),
+            "--product", product, "--country", country,
+            "--source", source, "--run-date", run_date,
+        ]
+        try:
+            log.info("[C2 AUTO-BACKFILL] Running: %s", " ".join(cmd))
+            subprocess.run(cmd, check=True, timeout=600)
+            any_success = True
+        except Exception as exc:
+            log.error("[C2 AUTO-BACKFILL] Backfill failed for %s: %s", cs_key, exc)
+    return any_success
+
+
+# ── Pre-flight: 9-stage PASS guard ────────────────────────────────────────────
+
+def _nine_stage_passed(summary_path: Path) -> bool:
         if "reporting_date" not in vault_iso.columns:
             continue
 
@@ -392,13 +435,35 @@ def check_cross_pipeline_duplicates(
     return violations
 
 
-# ── Check C4: Timestamp contamination ─────────────────────────────────────────
+    all_violations += _run("C2_SCRAPER_PLACEHOLDER_DQC",
+        check_scraper_placeholder, df, delta_path.name)
 
-def check_timestamp_contamination(
-    df: pd.DataFrame, run_date: str, filename: str
-) -> list[dict[str, Any]]:
-    """
-    Flag records where as_of_date or conversion_timestamp carries today's pipeline
+    # ── Auto-remediate C2 before failing hard ────────────────────────────────
+    c2_errors = [v for v in all_violations
+                 if v["check"] == "C2_SCRAPER_PLACEHOLDER_DQC" and v["severity"] == "ERROR"]
+    if c2_errors:
+        by_cs = c2_errors[0].get("by_country_source", {})
+        if by_cs and _attempt_dqc_backfill(product, by_cs, run_date):
+            log.info("[C2 AUTO-BACKFILL] Reloading delta and re-running C2 check...")
+            try:
+                df = pd.read_parquet(delta_path)
+            except Exception as exc:
+                log.error("[C2 AUTO-BACKFILL] Could not reload delta after backfill: %s", exc)
+            else:
+                all_violations = [
+                    v for v in all_violations if v["check"] != "C2_SCRAPER_PLACEHOLDER_DQC"
+                ]
+                all_violations += _run("C2_SCRAPER_PLACEHOLDER_DQC",
+                    check_scraper_placeholder, df, delta_path.name)
+                if check_results.get("C2_SCRAPER_PLACEHOLDER_DQC") == "PASS":
+                    log.info("[C2 AUTO-BACKFILL] Backfill resolved all dqc violations.")
+                else:
+                    log.error("[C2 AUTO-BACKFILL] Violations remain after backfill attempt "
+                              "— manual intervention required.")
+
+    all_violations += _run("C3_CROSS_PIPELINE_DUPLICATE",
+        check_cross_pipeline_duplicates, df, product, vault_root,
+        delta_path.name, skip_vault_check)    Flag records where as_of_date or conversion_timestamp carries today's pipeline
     run date rather than the historically correct publication date.
 
     as_of_date contamination pattern (housing/USA census_bps, June 2026):
