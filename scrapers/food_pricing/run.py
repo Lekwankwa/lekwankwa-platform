@@ -175,11 +175,14 @@ def run_country(country: str, mode: str, since: str | None, dry_run: bool) -> bo
 
         # Post-delta live feed audit (live products only)
         if PRODUCT in ("food_micropricing", "wages_and_employment", "trade_flows"):
+        if PRODUCT in ("food_micropricing", "wages_and_employment", "trade_flows"):
             try:
                 audit = run_post_delta_audit(product=PRODUCT, country=country)
             except Exception as exc:
-                log.error("run_post_delta_audit raised for %s/%s/%s: %s",
-                          PRODUCT, country, source, exc, exc_info=True)
+                exc_severity = getattr(exc, "severity", "CRITICAL")
+                exc_code = getattr(exc, "code", "UNKNOWN")
+                log.error("run_post_delta_audit raised for %s/%s/%s [severity=%s code=%s]: %s",
+                          PRODUCT, country, source, exc_severity, exc_code, exc, exc_info=True)
                 try:
                     from tools.self_healing.handler import handle_exception
                     handle_exception(
@@ -189,11 +192,22 @@ def run_country(country: str, mode: str, since: str | None, dry_run: bool) -> bo
                             "product": PRODUCT, "country": country,
                             "source": source, "run_date": TODAY,
                             "layer": "LIVE_FEED_AUDIT",
+                            "severity": exc_severity,
+                            "code": exc_code,
                         },
                     )
                 except ImportError:
                     pass
-                return False
+                if exc_severity == "CRITICAL":
+                    # Delivery genuinely at risk — abort this country's run
+                    # entirely, including the trigger_all_metadata call.
+                    return False
+                # HIGH severity: pipeline disrupted but delivery not at
+                # risk — flag it, but keep processing remaining sources
+                # and countries instead of aborting the whole run.
+                log.warning("Continuing past HIGH-severity LIVE_FEED_AUDIT flag "
+                            "(%s) for %s/%s/%s", exc_code, PRODUCT, country, source)
+                continue
 
             if audit.severity in ("CRITICAL", "HIGH"):
                 from tools.self_healing.handler import handle_validation_finding
@@ -206,12 +220,12 @@ def run_country(country: str, mode: str, since: str | None, dry_run: bool) -> bo
                     },
                     result=audit,
                 )
-                return False
+                if audit.severity == "CRITICAL":
+                    return False
+                continue
     from tools.trigger_downstream import trigger_all_metadata
     trigger_all_metadata()
     return True
-
-
 def main():
     parser = argparse.ArgumentParser(
         description="food_micropricing cloud scraper entry point"
