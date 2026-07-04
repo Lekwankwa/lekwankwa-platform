@@ -105,28 +105,13 @@ def run_country(country: str, mode: str, since: str | None, dry_run: bool) -> bo
             log.error("Scraper failed for %s/%s/%s: %s", PRODUCT, country, source, exc,
                       exc_info=True)
             try:
-
-        # Post-scrape: 9-stage + GX + Bitemporal Core validation
-        val = run_9_stage_validation(product=PRODUCT, country=country)
-
-        # Guard against a known harness bug: the underlying validation
-        # script (run_all_validations_food_micropricing.py) can exit
-        # non-zero / report overall FAIL *after* every individual stage
-        # has already logged PASS, yielding a FAIL/HIGH verdict with an
-        # empty `stages` list. That pattern indicates a transient
-        # aggregation/return-code bug rather than a genuine data-quality
-        # failure, so retry once before treating it as authoritative.
-        if val.severity in ("CRITICAL", "HIGH") and not val.stages:
-            log.warning(
-                "Validation returned %s with no attributable stage for %s/%s/%s — "
-                "retrying once before escalating (possible transient harness failure).",
-                val.severity, PRODUCT, country, source,
-            )
-            val = run_9_stage_validation(product=PRODUCT, country=country)
-
-        if val.severity in ("CRITICAL", "HIGH"):
-            from tools.self_healing.handler import handle_validation_finding
-            handle_validation_finding(                        "source": source, "run_date": TODAY,
+                from tools.self_healing.handler import handle_exception
+                handle_exception(
+                    program=__file__,
+                    exception=exc,
+                    context={
+                        "product": PRODUCT, "country": country,
+                        "source": source, "run_date": TODAY,
                         "layer": "SCRAPER",
                         "module": cfg["module"], "fn": cfg["fn"],
                         "mode": mode, "since": since,
