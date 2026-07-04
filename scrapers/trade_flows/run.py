@@ -1,9 +1,10 @@
-"""
-scrapers/trade_flows/run.py — Lekwankwa Corporation
-Cloud Scheduler entry point for trade_flows across all countries.
+from __future__ import annotations
 
-Usage:
-    python scrapers/trade_flows/run.py --country USA
+import argparse
+import inspect
+import logging
+import sys
+from datetime import date
     python scrapers/trade_flows/run.py --country GBR --mode full
 """
 from __future__ import annotations
@@ -78,11 +79,21 @@ def main():
         import importlib
         mod = importlib.import_module(cfg["module"])
         fn  = getattr(mod, cfg["fn"])
-        fn(mode=args.mode, since=args.since)
+        candidate_kwargs = {"mode": args.mode, "since": args.since}
+        try:
+            sig = inspect.signature(fn)
+            accepted = set(sig.parameters.keys())
+            has_var_kw = any(p.kind == inspect.Parameter.VAR_KEYWORD
+                              for p in sig.parameters.values())
+            call_kwargs = candidate_kwargs if has_var_kw else {
+                k: v for k, v in candidate_kwargs.items() if k in accepted
+            }
+        except (TypeError, ValueError):
+            call_kwargs = {}
+        fn(**call_kwargs)
         log.info("Completed scrape %s/%s", PRODUCT, args.country)
     except Exception as exc:
-        log.error("Failed %s/%s: %s", PRODUCT, args.country, exc, exc_info=True)
-        try:
+        log.error("Failed %s/%s: %s", PRODUCT, args.country, exc, exc_info=True)        try:
             from tools.self_healing.handler import handle_exception
             handle_exception(
                 program=__file__, exception=exc,
