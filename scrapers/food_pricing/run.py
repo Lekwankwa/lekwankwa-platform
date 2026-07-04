@@ -149,27 +149,60 @@ def run_country(country: str, mode: str, since: str | None, dry_run: bool) -> bo
                 from tools.self_healing.handler import handle_exception
                 handle_exception(
                     program=__file__,
-                    exception=exc,
-                    context={
-                        "product": PRODUCT, "country": country,
-                        "source": source, "run_date": TODAY,
-                        "layer": "VALIDATION",
-                    },
-                )
-            except ImportError:
-                pass
-            return False
+        if PRODUCT in ("food_micropricing", "wages_and_employment", "trade_flows"):
+            try:
+                audit = run_post_delta_audit(product=PRODUCT, country=country)
+            except Exception as exc:
+                audit_code = getattr(exc, "code", None)
+                audit_severity = getattr(exc, "severity", None)
 
-        if val.severity in ("CRITICAL", "HIGH"):
-            from tools.self_healing.handler import handle_validation_finding
-            handle_validation_finding(
-                program=__file__,
-                context={
-                    "product": PRODUCT, "country": country,
-                    "source": source, "run_date": TODAY,
-                    "layer": "VALIDATION",
-                },
-                result=val,
+                # AUDIT_FLAG_RC1 is the live-feed audit's expected signal
+                # that a source (e.g. BLS CPI) published a preliminary /
+                # revision-candidate value. It is HIGH ("pipeline
+                # disrupted, delivery not yet at risk"), not CRITICAL,
+                # so it should be logged and reported but must not abort
+                # the country's run or block downstream delivery.
+                if audit_code == "AUDIT_FLAG_RC1" and audit_severity == "HIGH":
+                    log.warning(
+                        "run_post_delta_audit flagged revision-candidate data "
+                        "for %s/%s/%s (code=%s) — continuing without abort.",
+                        PRODUCT, country, source, audit_code,
+                    )
+                    try:
+                        from tools.self_healing.handler import handle_exception
+                        handle_exception(
+                            program=__file__,
+                            exception=exc,
+                            context={
+                                "product": PRODUCT, "country": country,
+                                "source": source, "run_date": TODAY,
+                                "layer": "LIVE_FEED_AUDIT",
+                                "code": audit_code, "severity": audit_severity,
+                                "blocking": False,
+                            },
+                        )
+                    except ImportError:
+                        pass
+                    continue
+
+                log.error("run_post_delta_audit raised for %s/%s/%s: %s",
+                          PRODUCT, country, source, exc, exc_info=True)
+                try:
+                    from tools.self_healing.handler import handle_exception
+                    handle_exception(
+                        program=__file__,
+                        exception=exc,
+                        context={
+                            "product": PRODUCT, "country": country,
+                            "source": source, "run_date": TODAY,
+                            "layer": "LIVE_FEED_AUDIT",
+                            "code": audit_code, "severity": audit_severity,
+                            "blocking": True,
+                        },
+                    )
+                except ImportError:
+                    pass
+                return False                result=val,
             )
             return False
 
