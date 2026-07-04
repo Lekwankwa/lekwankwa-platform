@@ -352,7 +352,7 @@ def transform_ces(items: list, extraction_ts: str) -> pd.DataFrame:
             "extraction_method":      "api",
             "data_quality_certified": False,
             "conversion_timestamp":   extraction_ts,
-            "as_of_date":             extraction_ts,
+            "as_of_date":             pd.Timestamp(released, tz="UTC").isoformat(),
             "revision_number":        0,
             "superseded_by":          None,
             # ── Raw metadata ──
@@ -416,7 +416,7 @@ def transform_cps(items: list, extraction_ts: str) -> pd.DataFrame:
             "extraction_method":      "api",
             "data_quality_certified": False,
             "conversion_timestamp":   extraction_ts,
-            "as_of_date":             extraction_ts,
+            "as_of_date":             pd.Timestamp(released, tz="UTC").isoformat(),
             "revision_number":        0,
             "superseded_by":          None,
             # ── Raw metadata ──

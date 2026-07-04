@@ -320,7 +320,7 @@ def transform_rows(
             "data_timestamp":         reporting_date,
             "official_release_date":  official_release,
             "published_date":         official_release,
-            "as_of_date":             extraction_ts,
+            "as_of_date":             official_release,
             "conversion_timestamp":   extraction_ts,
             "observed_value":         value_millions,
             "trade_value":            value_millions,
