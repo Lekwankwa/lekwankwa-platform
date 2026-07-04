@@ -178,10 +178,57 @@ def check_scraper_placeholder(
         return []
 
     mask = (
+        affected_rows=int(len(affected)), by_country_source=by_cs)]
+
+
+# ── Known DQC backfill scripts for confirmed scraper-placeholder patterns ────
+# (iso_alpha3, source) -> dotted module path exposing `backfill(df) -> df`.
+# Only add an entry once the backfill has been manually verified safe for
+# unattended re-application (i.e. it re-certifies rows that are already known
+# to be correct, it does not silently mask a real data-quality problem).
+_DQC_BACKFILL_REGISTRY: dict[tuple[str, str], str] = {
+    ("USA", "bls"): "tools.backfill_scripts.bls_dqc_backfill",
+}
+
+
+def _attempt_dqc_backfill(
+    df: pd.DataFrame, delta_path: Path
+) -> tuple[pd.DataFrame, bool]:
+    """
+    For rows that would trip C2 (PRIMARY/SECONDARY, dqc=False) whose
+    (iso_alpha3, source) matches a known, already-verified backfill script,
+    run that backfill in-place and persist the corrected delta back to disk.
+
+    This closes the loop on the recurring scraper-placeholder pattern
+    (food/USA, wages/USA, housing/USA, and now food_micropricing/USA/bls):
+    instead of halting delivery every time a known-safe backfill exists,
+    apply it automatically and let C2 re-evaluate the corrected data.
+    Unregistered (iso, source) pairs still fall straight through to C2
+    and halt delivery as before.
+    """
+    if "data_quality_certified" not in df.columns or "confidence_tier" not in df.columns:
+        return df, False
+    if "iso_alpha3" not in df.columns or "source" not in df.columns:
+        return df, False
+
+    mask = (
         df["data_quality_certified"].eq(False) &
         df["confidence_tier"].isin(["PRIMARY", "SECONDARY"])
     )
-    affected = df[mask]
+    if not mask.any():
+        return df, False
+
+    changed = False
+    for (iso, src), idx in df[mask].groupby(["iso_alpha3", "source"]).groups.items():
+        module_path = _DQC_BACKFILL_REGISTRY.get((iso, src))
+        if not module_path:
+            continue
+        try:
+            import importlib
+            mod = importlib.import_module(module_path)
+            df.loc[idx, :] = mod.backfill(df.loc[idx, :])
+            changed = True
+            log.info("C2    affected = df[mask]
     if affected.empty:
         return []
 
