@@ -82,12 +82,45 @@ def run_country(country: str, mode: str, since: str | None, dry_run: bool) -> bo
     cfg = COUNTRY_ROUTER.get(country)
     if cfg is None:
         log.error("No router entry for country=%s", country)
-        return False
+]
 
-    for source in cfg["sources"]:
-        if not is_release_due(product=PRODUCT, country=country,
-                              source=source, as_of=TODAY):
-            log.info("No release due today for %s/%s/%s — skipping.",
+
+def _normalize_reporting_date_column(product: str, country: str, source: str) -> None:
+    """
+    Defensive schema shim: some upstream scrapers (e.g. bls_cpi) emit the
+    observation date under a source-native column name (date, period,
+    obs_date, report_date) instead of the canonical 'reporting_date' that
+    tools/live_feed_audit.py's check_timestamp_contamination() requires.
+    Normalize the most recently written delta file in place before the
+    audit runs so it doesn't KeyError on a missing column.
+    """
+    import glob
+    import pandas as pd
+
+    vault_root_env = os.environ.get("VAULT_ROOT", "").strip().rstrip("/") or "lekwankwa-historical-vault"
+    delta_glob = (
+        f"{vault_root_env}/product={product}/country={country}"
+        f"/source={source}/**/*.parquet"
+    )
+    candidates = sorted(glob.glob(delta_glob, recursive=True))
+    if not candidates:
+        return
+
+    latest_file = candidates[-1]
+    df = pd.read_parquet(latest_file)
+    if "reporting_date" not in df.columns:
+        for alt in ("date", "period", "obs_date", "report_date"):
+            if alt in df.columns:
+                df = df.rename(columns={alt: "reporting_date"})
+                df.to_parquet(latest_file, index=False)
+                log.info("Normalized column '%s' -> 'reporting_date' in %s",
+                          alt, latest_file)
+                break
+
+
+def run_country(country: str, mode: str, since: str | None, dry_run: bool) -> bool:
+    cfg = COUNTRY_ROUTER.get(country)
+    if cfg is None:
                      PRODUCT, country, source)
             continue
 
@@ -193,13 +226,19 @@ def run_country(country: str, mode: str, since: str | None, dry_run: bool) -> bo
                     )
                 except ImportError:
                     pass
-                return False
-
-            if audit.severity in ("CRITICAL", "HIGH"):
-                from tools.self_healing.handler import handle_validation_finding
-                handle_validation_finding(
-                    program=__file__,
-                    context={
+        # Post-delta live feed audit (live products only)
+        if PRODUCT in ("food_micropricing", "wages_and_employment", "trade_flows"):
+            try:
+                _normalize_reporting_date_column(PRODUCT, country, source)
+            except Exception as exc:
+                log.warning(
+                    "Reporting-date normalization failed for %s/%s/%s: %s",
+                    PRODUCT, country, source, exc,
+                )
+            try:
+                audit = run_post_delta_audit(product=PRODUCT, country=country)
+            except Exception as exc:
+                log.error("run_post_delta_audit raised for %s/%s/%s: %s",                    context={
                         "product": PRODUCT, "country": country,
                         "source": source, "run_date": TODAY,
                         "layer": "LIVE_FEED_AUDIT",
