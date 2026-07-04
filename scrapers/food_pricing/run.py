@@ -113,6 +113,8 @@ def run_country(country: str, mode: str, since: str | None, dry_run: bool) -> bo
                         "product": PRODUCT, "country": country,
                         "source": source, "run_date": TODAY,
                         "layer": "SCRAPER",
+                        "module": cfg["module"], "fn": cfg["fn"],
+                        "mode": mode, "since": since,
                     },
                 )
             except ImportError:
