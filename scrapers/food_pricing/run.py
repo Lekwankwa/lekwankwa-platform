@@ -142,14 +142,20 @@ def run_country(country: str, mode: str, since: str | None, dry_run: bool) -> bo
         # Post-scrape: 9-stage + GX + Bitemporal Core validation
         try:
             val = run_9_stage_validation(product=PRODUCT, country=country)
-        except Exception as exc:
-            log.error("run_9_stage_validation raised for %s/%s/%s: %s",
-                      PRODUCT, country, source, exc, exc_info=True)
-            try:
-                from tools.self_healing.handler import handle_exception
-                handle_exception(
-                    program=__file__,
-                    exception=exc,
+                result=val,
+            )
+            return False
+
+        # The env var above only scopes the 9-stage validation window for
+        # incremental runs. The live feed audit below needs the full,
+        # unscoped history to compute its rate-of-change / revision
+        # baseline correctly — leaving the narrowed window set here
+        # causes false AUDIT_FLAG_RC1 failures.
+        os.environ.pop("VALIDATION_SINCE_YEAR", None)
+
+        # Post-delta live feed audit (live products only)
+        if PRODUCT in ("food_micropricing", "wages_and_employment", "trade_flows"):
+            try:                    exception=exc,
                     context={
                         "product": PRODUCT, "country": country,
                         "source": source, "run_date": TODAY,
