@@ -35,6 +35,7 @@ from __future__ import annotations
 import argparse
 import json
 import logging
+import os
 import re
 import sys
 from datetime import date, datetime, timezone
@@ -48,7 +49,8 @@ import yaml
 
 _ROOT = Path(__file__).resolve().parent.parent   # tools/ -> repo root
 _SCHEMA_PATH = _ROOT / "backtesting" / "backtest_engine" / "config" / "SCHEMA_STANDARD.yaml"
-_VAULT_DEFAULT = _ROOT / "lekwankwa-historical-vault"
+_VAULT_ROOT_ENV = os.environ.get("VAULT_ROOT", "").strip().rstrip("/")
+_VAULT_DEFAULT = Path(_VAULT_ROOT_ENV) if _VAULT_ROOT_ENV else _ROOT / "lekwankwa-historical-vault"
 
 # ── Vault product-folder names ─────────────────────────────────────────────────
 # extractor product key → vault folder name (product={name})
@@ -772,10 +774,19 @@ def run_post_delta_audit(
                     "returncode": self.returncode}
 
     if delta_path is None:
-        # Auto-discover most recent delta file for this product
+        # Auto-discover the delta file this run's scraper just wrote
+        # (a parquet snapshot of the newly-transformed rows, named
+        # exactly "{product}_{YYYYMMDD}_{HHMMSS}.parquet" — required by
+        # check_filename_content_match's C5a regex). This previously
+        # searched "audit_logs/live_feed_audit_log_{product}_*.json",
+        # which is this function's OWN output log naming (written to a
+        # different directory entirely, logs/live_feed_audit/, and in
+        # JSON while pd.read_parquet() needs a parquet file) — meaning
+        # it could never find anything, and the audit silently no-opped
+        # on every run since it was first wired in.
         candidate = _Path("audit_logs")
         import glob as _glob
-        pattern = str(candidate / f"live_feed_audit_log_{product}_*.json")
+        pattern = str(candidate / f"{product}_*.parquet")
         files   = sorted(_glob.glob(pattern))
         if not files:
             log.debug("run_post_delta_audit: no delta files found for %s — skipping", product)

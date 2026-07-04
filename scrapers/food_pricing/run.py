@@ -128,6 +128,8 @@ def run_country(country: str, mode: str, since: str | None, dry_run: bool) -> bo
             from tools.self_healing.handler import handle_validation_finding
             handle_validation_finding(                        "source": source, "run_date": TODAY,
                         "layer": "SCRAPER",
+                        "module": cfg["module"], "fn": cfg["fn"],
+                        "mode": mode, "since": since,
                     },
                 )
             except ImportError:

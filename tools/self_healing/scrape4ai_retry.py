@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import importlib
 import logging
-import subprocess
 import sys
 import time
 from pathlib import Path
@@ -35,16 +34,34 @@ def _is_transient(exc: Exception) -> bool:
 
 def _rerun_with_scrape4ai(program: str, context: dict[str, Any]) -> bool:
     """
-    Re-run the failed scraper with Scrape4AI crawl fallback enabled.
-    For transient network errors: simply re-import and re-call the scraper.
-    For schema-change errors: Scrape4AI re-crawls the source page to detect
-    structural changes before the scraper retries.
+    Re-run ONLY the failed scraper function, in-process — not the whole
+    run.py pipeline (scrape + validation) as a nested subprocess.
 
-    Returns True on success, raises on failure.
+    The original implementation re-ran the entire run.py via subprocess
+    with a 600s timeout. Once validation legitimately started taking up
+    to 30+ minutes (see run_9_stage_validation), that made retries
+    structurally broken: a retry whose scrape half succeeded would still
+    get killed by TimeoutExpired once it reached validation, reporting a
+    false failure, and 3 such retries could exhaust the job's entire
+    1-hour Cloud Run task timeout on retries alone before validation
+    ever got a chance to run in the (outer) calling process. Retrying
+    just the scraper call lets the caller's own run_country() loop
+    proceed to validation normally afterward, in the original process.
     """
     product = context.get("product", "")
     country = context.get("country", "")
     source  = context.get("source", "")
+    module_path = context.get("module")
+    fn_name     = context.get("fn")
+    mode        = context.get("mode", "incremental")
+    since       = context.get("since")
+
+    if not module_path or not fn_name:
+        raise RuntimeError(
+            "Layer 1 retry requires 'module' and 'fn' in context to "
+            "re-call the scraper directly — caller must pass these "
+            "through to handle_exception()."
+        )
 
     # Notify Scrape4AI to re-crawl this source endpoint if available
     try:
@@ -61,22 +78,12 @@ def _rerun_with_scrape4ai(program: str, context: dict[str, Any]) -> bool:
     except Exception as crawl_exc:
         log.warning("  [Scrape4AI] Crawler warmup failed (non-fatal): %s", crawl_exc)
 
-    # Re-run the scraper via subprocess to get a clean Python process
-    cmd = [sys.executable, program, "--mode", "incremental"]
-    if country:
-        cmd.extend(["--country", country])
-    log.info("  [Scrape4AI] Re-running: %s", " ".join(cmd))
-    result = subprocess.run(
-        cmd,
-        capture_output=True,
-        text=True,
-        timeout=600,   # 10-minute timeout per retry
-    )
-    if result.returncode == 0:
-        return True
-    raise RuntimeError(
-        f"Subprocess exit {result.returncode}: {result.stderr[-500:]}"
-    )
+    log.info("  [Scrape4AI] Re-calling %s.%s directly for %s/%s",
+             module_path, fn_name, product, country)
+    mod = importlib.import_module(module_path)
+    fn  = getattr(mod, fn_name)
+    fn(mode=mode, since=since)
+    return True
 
 
 def attempt_scrape4ai_retry(

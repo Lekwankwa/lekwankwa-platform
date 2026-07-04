@@ -398,6 +398,23 @@ def scrape_usa_food_pricing(
     df = transform(all_data, extraction_ts)
     logger.info("  Transformed %d records", len(df))
 
+    # Snapshot this run's transformed rows as a "delta" file for the
+    # post-write Live Feed Audit (tools/live_feed_audit.py) to check —
+    # it needs a parquet snapshot of just what was scraped THIS run, not
+    # the full vault. Filename must be exactly {product}_{YYYYMMDD}_{HHMMSS}
+    # (see check_filename_content_match's C5a regex). Written to local
+    # disk since the audit runs later in this same container instance —
+    # no GCS persistence needed for a same-run scratch file.
+    try:
+        delta_dir = Path("audit_logs")
+        delta_dir.mkdir(parents=True, exist_ok=True)
+        delta_ts   = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+        delta_path = delta_dir / f"food_micropricing_{delta_ts}.parquet"
+        df.to_parquet(delta_path, engine="pyarrow", index=False)
+        logger.info("  Delta snapshot written: %s (%d rows)", delta_path, len(df))
+    except Exception as exc:
+        logger.warning("  Could not write delta snapshot for live feed audit: %s", exc)
+
     logger.info("  Writing to vault...")
     partitions, revisions = save_to_vault(df)
 
