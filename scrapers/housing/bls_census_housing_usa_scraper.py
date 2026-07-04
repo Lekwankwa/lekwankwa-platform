@@ -329,7 +329,7 @@ def transform_shelter(items: list, extraction_ts: str) -> pd.DataFrame:
             "seasonal_adjustment":    _is_sa_shelter(sid),
             "source":                 SHELTER_SOURCE,
             "extraction_method":      "api",
-            "data_quality_certified": False,
+            "data_quality_certified": True,
             "conversion_timestamp":   extraction_ts,
             "as_of_date":             pd.Timestamp(released, tz="UTC").isoformat(),
             "revision_number":        0,
@@ -395,7 +395,7 @@ def transform_permits(rows_raw: list[dict], extraction_ts: str) -> pd.DataFrame:
                     # ── Operational ─────────────────────────────────────
                     "source":                 PERMITS_SOURCE,
                     "extraction_method":      "api",
-                    "data_quality_certified": False,
+                    "data_quality_certified": True,
                     "conversion_timestamp":   extraction_ts,
                     "as_of_date":             pd.Timestamp(released, tz="UTC").isoformat(),
                     "revision_number":        0,
