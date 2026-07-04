@@ -285,7 +285,7 @@ def transform(all_data: dict, extraction_ts: str) -> pd.DataFrame:
                 "data_timestamp":              data_ts,
                 "official_release_date":       release_ts,
                 "published_date":              release_ts,   # PIT validation compat
-                "as_of_date":                  extraction_ts,
+                "as_of_date":                  release_ts,
                 "conversion_timestamp":        extraction_ts,
                 "is_revised_figure":           False,
                 # ── Price ─────────────────────────────────────────────────

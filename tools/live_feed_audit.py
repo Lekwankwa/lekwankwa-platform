@@ -411,6 +411,17 @@ def check_timestamp_contamination(
     """
     violations: list[dict[str, Any]] = []
 
+    # Different products use different canonical date-field names
+    # (reporting_date vs data_timestamp) — pick whichever one this
+    # delta actually has instead of hardcoding one product's schema,
+    # which previously crashed with a KeyError for any product (e.g.
+    # food_micropricing, which uses data_timestamp) using the other
+    # convention.
+    date_field = "reporting_date" if "reporting_date" in df.columns else (
+        "data_timestamp" if "data_timestamp" in df.columns else None
+    )
+    id_cols = [c for c in ("iso_alpha3", "sovereign_series_id") if c in df.columns]
+
     # ── as_of_date ERROR check ────────────────────────────────────────────────
     if "as_of_date" in df.columns and "official_release_date" in df.columns:
         aod  = df["as_of_date"].astype(str).str[:10]
@@ -419,11 +430,10 @@ def check_timestamp_contamination(
         mask = (aod == run_date) & (ord_ != run_date)
         n = int(mask.sum())
         if n:
-            examples = (
-                df[mask][["iso_alpha3", "sovereign_series_id", "reporting_date",
-                           "as_of_date", "official_release_date"]]
-                .head(3).to_dict("records")
-            )
+            example_cols = id_cols + [c for c in (
+                date_field, "as_of_date", "official_release_date",
+            ) if c and c in df.columns]
+            examples = df[mask][example_cols].head(3).to_dict("records")
             violations.append(_v(
                 "C4_TIMESTAMP_CONTAMINATION", "ERROR", "as_of_date", filename,
                 f"{n} row(s) have as_of_date={run_date} (pipeline run date) but "
@@ -434,20 +444,17 @@ def check_timestamp_contamination(
             ))
 
     # ── conversion_timestamp WARN check ──────────────────────────────────────
-    if "conversion_timestamp" in df.columns and "reporting_date" in df.columns:
+    if "conversion_timestamp" in df.columns and date_field:
         ct = df["conversion_timestamp"].astype(str).str[:10]
-        rd = df["reporting_date"].astype(str).str[:10]
+        rd = df[date_field].astype(str).str[:10]
         try:
             # Suspicious: today's conversion_ts on an observation older than 60 days
             cutoff = (pd.Timestamp(run_date) - pd.Timedelta(days=60)).strftime("%Y-%m-%d")
             mask = (ct == run_date) & (rd < cutoff)
             n = int(mask.sum())
             if n:
-                examples = (
-                    df[mask][["iso_alpha3", "sovereign_series_id",
-                               "reporting_date", "conversion_timestamp"]]
-                    .head(3).to_dict("records")
-                )
+                example_cols = id_cols + [date_field, "conversion_timestamp"]
+                examples = df[mask][example_cols].head(3).to_dict("records")
                 violations.append(_v(
                     "C4_TIMESTAMP_CONTAMINATION", "WARN", "conversion_timestamp", filename,
                     f"{n} row(s) have conversion_timestamp={run_date} (today) on observations "

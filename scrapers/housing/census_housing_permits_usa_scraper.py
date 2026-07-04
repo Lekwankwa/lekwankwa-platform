@@ -189,7 +189,7 @@ def transform(series_id: str, metric_name: str, unit: str,
             "extraction_method":      "api",
             "data_quality_certified": False,
             "conversion_timestamp":   extraction_ts,
-            "as_of_date":             extraction_ts,
+            "as_of_date":             released,
             "revision_number":        0,
             "superseded_by":          None,
         })

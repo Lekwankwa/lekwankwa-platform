@@ -335,7 +335,7 @@ def transform(
                 # ERS 70-day lag — NEVER apply BLS 14-day offset to ERS rows
                 "official_release_date":       release_ts,
                 "published_date":              release_ts,
-                "as_of_date":                  extraction_ts,
+                "as_of_date":                  release_ts,
                 "conversion_timestamp":        extraction_ts,
                 "is_revised_figure":           False,
                 # ── Price (CPI index, not dollar price) ────────────────────
