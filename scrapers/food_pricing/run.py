@@ -1,13 +1,8 @@
-from __future__ import annotations
+"""
+scrapers/food_pricing/run.py — Lekwankwa Corporation
+Cloud Scheduler entry point for food_micropricing across all countries.
 
-# Live-feed audit flags that indicate a HIGH-severity, non-fatal condition.
-# These should be reported/alerted on but must not abort the whole run,
-# per the severity taxonomy (HIGH = pipeline disrupted, delivery not at risk).
-NON_FATAL_AUDIT_FLAGS = ("AUDIT_FLAG_RC1",)
-
-import argparse
-import logging
-import os
+Usage:
     python scrapers/food_pricing/run.py --country USA
     python scrapers/food_pricing/run.py --country EU27
     python scrapers/food_pricing/run.py --country ALL_EU
@@ -163,33 +158,24 @@ def run_country(country: str, mode: str, since: str | None, dry_run: bool) -> bo
                     program=__file__,
                     exception=exc,
                     context={
-            except Exception as exc:
-                log.error("run_post_delta_audit raised for %s/%s/%s: %s",
-                          PRODUCT, country, source, exc, exc_info=True)
-                exc_msg = str(exc)
-                is_non_fatal_flag = any(flag in exc_msg for flag in NON_FATAL_AUDIT_FLAGS)
-                try:
-                    from tools.self_healing.handler import handle_exception
-                    handle_exception(
-                        program=__file__,
-                        exception=exc,
-                        context={
-                            "product": PRODUCT, "country": country,
-                            "source": source, "run_date": TODAY,
-                            "layer": "LIVE_FEED_AUDIT",
-                            "severity_hint": "HIGH" if is_non_fatal_flag else "CRITICAL",
-                        },
-                    )
-                except ImportError:
-                    pass
-                if is_non_fatal_flag:
-                    log.warning(
-                        "LIVE_FEED_AUDIT raised a recoverable HIGH-severity flag for "
-                        "%s/%s/%s (%s) — treating as non-fatal, continuing run.",
-                        PRODUCT, country, source, exc_msg,
-                    )
-                    continue
-                return False                },
+                        "product": PRODUCT, "country": country,
+                        "source": source, "run_date": TODAY,
+                        "layer": "VALIDATION",
+                    },
+                )
+            except ImportError:
+                pass
+            return False
+
+        if val.severity in ("CRITICAL", "HIGH"):
+            from tools.self_healing.handler import handle_validation_finding
+            handle_validation_finding(
+                program=__file__,
+                context={
+                    "product": PRODUCT, "country": country,
+                    "source": source, "run_date": TODAY,
+                    "layer": "VALIDATION",
+                },
                 result=val,
             )
             return False

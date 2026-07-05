@@ -22,14 +22,13 @@ Usage
       --validation-summary validation_summary_food_eu27_20260620_115900.json \\
       [--vault-root lekwankwa-historical-vault] \\
       [--run-date 2026-06-20] \\
-import json
-import logging
-import os
-import re
-import subprocess
-import sys
-from datetime import date, datetime, timezone
-from pathlib import Path
+      [--log-dir audit_logs] \\
+      [--skip-vault-check]
+
+Exit codes
+----------
+  0  All checks PASS — safe to proceed with GCS write
+  1  One or more ERRORs flagged — GCS write HALTED
 """
 from __future__ import annotations
 
@@ -45,21 +44,12 @@ from typing import Any
 
 import pandas as pd
 import yaml
-    "global_macro":         "global_macro",
-}
 
-# ── Known C2 scraper-placeholder backfill scripts ──────────────────────────────
-# (iso_alpha3, source) -> path (relative to repo root) of the backfill script
-# that certifies dqc=True for that scraper's rows once the 9-stage suite has
-# already PASSed. Extend this map as new scraper/source combos are confirmed
-# to hardcode data_quality_certified=False at write time.
-_C2_BACKFILL_SCRIPTS: dict[tuple[str, str], str] = {
-    ("USA", "bls"): "scripts/backfill_bls_dqc.py",
-}
+# ── Paths ──────────────────────────────────────────────────────────────────────
 
-# ── Metric name keywords that must NEVER appear in a given product's delta ─────
-# Upper-case substring match against macro_metric_name values.
-_WRONG_METRICS_FOR_PRODUCT: dict[str, list[str]] = {
+_ROOT = Path(__file__).resolve().parent.parent   # tools/ -> repo root
+_SCHEMA_PATH = _ROOT / "backtesting" / "backtest_engine" / "config" / "SCHEMA_STANDARD.yaml"
+_VAULT_ROOT_ENV = os.environ.get("VAULT_ROOT", "").strip().rstrip("/")
 _VAULT_DEFAULT = Path(_VAULT_ROOT_ENV) if _VAULT_ROOT_ENV else _ROOT / "lekwankwa-historical-vault"
 
 # ── Vault product-folder names ─────────────────────────────────────────────────
@@ -224,10 +214,10 @@ def check_cross_pipeline_duplicates(
     C3b is skipped when --skip-vault-check is set.
 
     This is the Sweden permits pattern: two pipeline paths writing the same real-world
-            for k, v in affected.groupby(["iso_alpha3", "source"]).size().items()
-        }
-
-    backf    required = {"sovereign_series_id", "reporting_date", "observed_value"}
+    observation under different source conventions with diverging observed values.
+    """
+    violations: list[dict[str, Any]] = []
+    required = {"sovereign_series_id", "reporting_date", "observed_value"}
     if not required.issubset(df.columns):
         return violations
 

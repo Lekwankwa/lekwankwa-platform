@@ -287,11 +287,13 @@ schedule_job() {
 echo ""
 echo "  [Scraper schedules]"
 
-# USA — 3× daily: 09:00, 16:00, 21:00 UTC (checks for new BLS/Census releases)
-schedule_job "sched-food-usa"    "0 9,16,21 * * *"  "job-food-usa"
-schedule_job "sched-wages-usa"   "0 9,16,21 * * *"  "job-wages-usa"
-schedule_job "sched-trade-usa"   "0 9,16,21 * * *"  "job-trade-usa"
-schedule_job "sched-housing-usa" "0 9,16,21 * * *"  "job-housing-usa"
+# USA — 3× daily, evenly spaced every 8 hours: 00:00, 08:00, 16:00 UTC
+# (previously 09:00/16:00/21:00 — uneven gaps left a 12h overnight blind spot;
+# even spacing caps worst-case release-detection latency at 8h instead of 12h)
+schedule_job "sched-food-usa"    "0 0,8,16 * * *"  "job-food-usa"
+schedule_job "sched-wages-usa"   "0 0,8,16 * * *"  "job-wages-usa"
+schedule_job "sched-trade-usa"   "0 0,8,16 * * *"  "job-trade-usa"
+schedule_job "sched-housing-usa" "0 0,8,16 * * *"  "job-housing-usa"
 
 # IMF — quarterly only (API publishes 4 times/year; no new data between releases)
 schedule_job "sched-imf"         "0 8 1 1,4,7,10 *" "job-imf"
