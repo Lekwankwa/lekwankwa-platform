@@ -1,9 +1,10 @@
-"""
-scrapers/housing/run.py — Lekwankwa Corporation
-Cloud Scheduler entry point for Housing_Supply_and_Shelter_Inflation.
+from __future__ import annotations
 
-Usage:
-    python scrapers/housing/run.py --country USA --source bls_cpi_shelter
+import argparse
+import inspect
+import logging
+import sys
+from datetime import date
     python scrapers/housing/run.py --country USA --source census_bps
     python scrapers/housing/run.py --country GBR
     python scrapers/housing/run.py --country EU27
@@ -67,14 +68,21 @@ def run_source(country: str, cfg: dict, source_filter: str | None,
                           source=source, as_of=TODAY):
         log.info("No release due today for %s/%s/%s — skipping.",
                  PRODUCT, country, source)
-        return True
-
-    if dry_run:
-        log.info("[DRY-RUN] Would scrape %s/%s/%s", PRODUCT, country, source)
-        return True
-
-    try:
         import importlib
+        mod = importlib.import_module(cfg["module"])
+        fn  = getattr(mod, cfg["fn"])
+
+        sig = inspect.signature(fn)
+        call_kwargs = dict(cfg["kwargs"])
+        if "mode" in sig.parameters:
+            call_kwargs["mode"] = mode
+        if "since" in sig.parameters:
+            call_kwargs["since"] = since
+
+        fn(**call_kwargs)
+        log.info("Completed scrape %s/%s/%s", PRODUCT, country, source)
+    except Exception as exc:
+        log.error("Failed %s/%s/%s: %s", PRODUCT, country, source, exc, exc_info=True)        import importlib
         mod = importlib.import_module(cfg["module"])
         fn  = getattr(mod, cfg["fn"])
         fn(mode=mode, since=since, **cfg["kwargs"])
