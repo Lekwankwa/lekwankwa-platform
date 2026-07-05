@@ -201,13 +201,16 @@ def run_country(country: str, mode: str, since: str | None, dry_run: bool) -> bo
                         "LIVE_FEED_AUDIT raised a recoverable HIGH-severity flag for "
                         "%s/%s/%s (%s) — treating as non-fatal, continuing run.",
                         PRODUCT, country, source, exc_msg,
-                    )
-                    continue
-                return False                },
-                result=val,
-            )
-            return False
+    else:
+        countries = [args.country]
 
+    # Materialize results for every country before reducing to a single
+    # boolean — using all() directly over a generator short-circuits on
+    # the first failure, silently skipping every remaining country.
+    results = [run_country(c, args.mode, args.since, args.dry_run)
+               for c in countries]
+    ok = all(results)
+    sys.exit(0 if ok else 1)
         # Post-delta live feed audit (live products only)
         if PRODUCT in ("food_micropricing", "wages_and_employment", "trade_flows"):
             try:
