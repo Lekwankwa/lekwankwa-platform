@@ -219,10 +219,42 @@ def check_cross_pipeline_duplicates(
     skip_vault_scan: bool = False,
 ) -> list[dict[str, Any]]:
     """
-    C3a — Within-delta: same (iso, series, date) from two sources with different values.
-    C3b — Delta vs vault: delta row conflicts with an existing vault row from a different source.
-    C3b is skipped when --skip-vault-check is set.
+        affected_rows=int(len(affected)), by_country_source=by_cs)]
 
+
+# ── Auto-remediation: C2 scraper-placeholder backfill ─────────────────────────
+
+# Source key (lower-cased) -> backfill script path (relative to repo root).
+# Extend this map as new source pipelines are found to hardcode
+# data_quality_certified=False at write time.
+_DQC_BACKFILL_SCRIPTS: dict[str, str] = {
+    "bls": "tools/backfill_bls_dqc.py",
+}
+
+
+def _attempt_dqc_backfill(df: pd.DataFrame, delta_path: Path, product: str) -> bool:
+    """
+    Invoke the source-specific dqc backfill script for any source present in
+    `df` with data_quality_certified=False on PRIMARY/SECONDARY rows.
+    Returns True if at least one backfill subprocess completed successfully
+    (rc=0). Caller is responsible for re-reading the delta file from disk and
+    re-running check_scraper_placeholder() to confirm remediation.
+    """
+    required = {"data_quality_certified", "confidence_tier", "source"}
+    if not required.issubset(df.columns):
+        return False
+
+    mask = (
+        df["data_quality_certified"].eq(False) &
+        df["confidence_tier"].isin(["PRIMARY", "SECONDARY"])
+    )
+    sources = df.loc[mask, "source"].dropna().unique().tolist()
+    if not sources:
+        return False
+
+    ran_any = False
+    for src in sources:
+        script = _DQC_BACKFILL_SCRIPTS.get
     This is the Sweden permits pattern: two pipeline paths writing the same real-world
             for k, v in affected.groupby(["iso_alpha3", "source"]).size().items()
         }
