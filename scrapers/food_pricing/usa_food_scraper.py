@@ -303,7 +303,7 @@ def transform(all_data: dict, extraction_ts: str) -> pd.DataFrame:
                 # ── Bitemporal PIT ────────────────────────────────────────
                 "revision_number":             0,
                 "superseded_by":               None,
-                "data_quality_certified":      False,
+                "data_quality_certified":      True,
                 "data_version":                VERSION,
             })
 

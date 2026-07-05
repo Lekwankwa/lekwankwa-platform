@@ -133,6 +133,13 @@ def run_country(country: str, mode: str, since: str | None, dry_run: bool) -> bo
             from scrapers.utilities.incremental import get_vault_latest_month
             vault_root_env = os.environ.get("VAULT_ROOT", "").strip().rstrip("/") or "lekwankwa-historical-vault"
             scan_root = f"{vault_root_env}/product={PRODUCT}/country={country}/source={source}"
+            # Always clear first: if latest comes back falsy (empty vault,
+            # first-ever run for this country/source), neither branch below
+            # would otherwise touch the var, letting a stale scoping value
+            # from an earlier country/source in this same process (main()
+            # loops over multiple countries in one Python process) leak
+            # into this source's validation and live-feed-audit calls.
+            os.environ.pop("VALIDATION_SINCE_YEAR", None)
             latest = get_vault_latest_month(scan_root)
             if latest:
                 os.environ["VALIDATION_SINCE_YEAR"] = str(max(1, latest[0] - 2))

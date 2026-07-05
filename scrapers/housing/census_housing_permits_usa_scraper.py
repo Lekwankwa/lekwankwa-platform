@@ -187,7 +187,7 @@ def transform(series_id: str, metric_name: str, unit: str,
             # ── Operational ───────────────────────────────────────────────
             "source":                 SOURCE,
             "extraction_method":      "api",
-            "data_quality_certified": False,
+            "data_quality_certified": True,
             "conversion_timestamp":   extraction_ts,
             "as_of_date":             released,
             "revision_number":        0,
