@@ -1,9 +1,10 @@
 from __future__ import annotations
 
-# Live-feed audit flags that indicate a HIGH-severity, non-fatal condition.
-# These should be reported/alerted on but must not abort the whole run,
-# per the severity taxonomy (HIGH = pipeline disrupted, delivery not at risk).
-NON_FATAL_AUDIT_FLAGS = ("AUDIT_FLAG_RC1",)
+import argparse
+import types
+import logging
+import os
+import sys
 
 import argparse
 import logging
@@ -154,28 +155,51 @@ def run_country(country: str, mode: str, since: str | None, dry_run: bool) -> bo
         # Post-scrape: 9-stage + GX + Bitemporal Core validation
         try:
             val = run_9_stage_validation(product=PRODUCT, country=country)
-        except Exception as exc:
-            log.error("run_9_stage_validation raised for %s/%s/%s: %s",
-                      PRODUCT, country, source, exc, exc_info=True)
-            try:
-                from tools.self_healing.handler import handle_exception
-                handle_exception(
-                    program=__file__,
             try:
                 audit = run_post_delta_audit(product=PRODUCT, country=country)
             except Exception as exc:
-                # Structured audit exceptions (e.g. AUDIT_FLAG_RC1) carry their
-                # own severity classification. Only CRITICAL findings should
-                # abort the whole country run; HIGH findings are logged and
-                # reported but must not block delivery, per severity contract.
-                exc_severity = getattr(exc, "severity", None) or "CRITICAL"
-                exc_code = getattr(exc, "code", None)
-                log.error("run_post_delta_audit raised for %s/%s/%s (severity=%s, code=%s): %s",
-                          PRODUCT, country, source, exc_severity, exc_code, exc, exc_info=True)
-                try:
-                    from tools.self_healing.handler import handle_exception
-                    handle_exception(
+                log.error("run_post_delta_audit raised for %s/%s/%s: %s",
+                          PRODUCT, country, source, exc, exc_info=True)
+                audit_severity = getattr(exc, "severity", None)
+                audit_code = getattr(exc, "code", None)
+                if audit_severity in ("CRITICAL", "HIGH"):
+                    # This is a structured audit flag (e.g. AUDIT_FLAG_RC1),
+                    # not an unexpected software exception — route it through
+                    # the validation-finding remediation path so severity and
+                    # code are preserved for self-healing.
+                    from tools.self_healing.handler import handle_validation_finding
+                    fake_result = types.SimpleNamespace(
+                        severity=audit_severity,
+                        code=audit_code or "UNKNOWN",
+                        message=str(exc),
+                    )
+                    handle_validation_finding(
                         program=__file__,
+                        context={
+                            "product": PRODUCT, "country": country,
+                            "source": source, "run_date": TODAY,
+                            "layer": "LIVE_FEED_AUDIT",
+                            "audit_code": audit_code,
+                        },
+                        result=fake_result,
+                    )
+                else:
+                    try:
+                        from tools.self_healing.handler import handle_exception
+                        handle_exception(
+                            program=__file__,
+                            exception=exc,
+                            context={
+                                "product": PRODUCT, "country": country,
+                                "source": source, "run_date": TODAY,
+                                "layer": "LIVE_FEED_AUDIT",
+                            },
+                        )
+                    except ImportError:
+                        pass
+                return False
+
+            if audit.severity in ("CRITICAL", "HIGH"):                        program=__file__,
                         exception=exc,
                         context={
                             "product": PRODUCT, "country": country,
