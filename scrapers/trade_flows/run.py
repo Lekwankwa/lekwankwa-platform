@@ -1,9 +1,10 @@
-"""
-scrapers/trade_flows/run.py — Lekwankwa Corporation
-Cloud Scheduler entry point for trade_flows across all countries.
+from __future__ import annotations
 
-Usage:
-    python scrapers/trade_flows/run.py --country USA
+import argparse
+import inspect
+import logging
+import sys
+from datetime import date
     python scrapers/trade_flows/run.py --country GBR --mode full
 """
 from __future__ import annotations
@@ -75,15 +76,23 @@ def main():
         sys.exit(0)
 
     try:
+    try:
         import importlib
         mod = importlib.import_module(cfg["module"])
         fn  = getattr(mod, cfg["fn"])
-        fn(mode=args.mode, since=args.since)
+
+        # Not all country scrapers share the same call signature
+        # (e.g. census_ft900_usa_scraper.main() takes no kwargs).
+        # Only pass the kwargs the target function actually accepts.
+        supported_kwargs = {"mode": args.mode, "since": args.since}
+        sig = inspect.signature(fn)
+        call_kwargs = {
+            k: v for k, v in supported_kwargs.items() if k in sig.parameters
+        }
+        fn(**call_kwargs)
         log.info("Completed scrape %s/%s", PRODUCT, args.country)
     except Exception as exc:
-        log.error("Failed %s/%s: %s", PRODUCT, args.country, exc, exc_info=True)
-        try:
-            from tools.self_healing.handler import handle_exception
+        log.error("Failed %s/%s: %s", PRODUCT, args.country, exc, exc_info=True)            from tools.self_healing.handler import handle_exception
             handle_exception(
                 program=__file__, exception=exc,
                 context={"product": PRODUCT, "country": args.country,
