@@ -1,9 +1,10 @@
-"""
-scrapers/food_pricing/run.py — Lekwankwa Corporation
-Cloud Scheduler entry point for food_micropricing across all countries.
+from __future__ import annotations
 
-Usage:
-    python scrapers/food_pricing/run.py --country USA
+import argparse
+import dataclasses
+import logging
+import os
+import sys
     python scrapers/food_pricing/run.py --country EU27
     python scrapers/food_pricing/run.py --country ALL_EU
     python scrapers/food_pricing/run.py --country GBR --dry-run
@@ -19,14 +20,25 @@ from pathlib import Path
 
 # Add repo root to path when running directly
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+log = logging.getLogger(__name__)
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s %(levelname)s %(message)s",
-    handlers=[logging.StreamHandler(sys.stdout)],
-)
+PRODUCT = "food_micropricing"
+TODAY   = date.today().isoformat()
 
-from tools.secrets import load_all_secrets_to_env
+
+@dataclasses.dataclass
+class _AuditFindingResult:
+    """Lightweight stand-in for an audit result object, built from a
+    structured exception raised by run_post_delta_audit (e.g. AUDIT_FLAG_*
+    codes) so it can flow through the same handle_validation_finding path
+    as a normally-returned audit result."""
+    severity: str
+    code: str | None = None
+    returncode: int | None = None
+
+# Countries routed through each underlying scraper
+COUNTRY_ROUTER: dict[str, dict] = {
+    "USA": {
 load_all_secrets_to_env()
 
 from tools.release_calendar_extractor import is_release_due
@@ -172,12 +184,35 @@ def run_country(country: str, mode: str, since: str | None, dry_run: bool) -> bo
                 result=val,
             )
             return False
-
-        # Post-delta live feed audit (live products only)
         if PRODUCT in ("food_micropricing", "wages_and_employment", "trade_flows"):
             try:
                 audit = run_post_delta_audit(product=PRODUCT, country=country)
             except Exception as exc:
+                # run_post_delta_audit may raise a structured RuntimeError
+                # (severity/code/returncode attached) for known audit flag
+                # conditions (e.g. AUDIT_FLAG_RC1) rather than returning a
+                # result object. Treat that as a classifiable finding, not
+                # an unstructured crash, so it gets routed correctly.
+                severity = getattr(exc, "severity", None)
+                if severity in ("CRITICAL", "HIGH"):
+                    log.error("run_post_delta_audit flagged %s/%s/%s: %s",
+                              PRODUCT, country, source, exc, exc_info=True)
+                    from tools.self_healing.handler import handle_validation_finding
+                    handle_validation_finding(
+                        program=__file__,
+                        context={
+                            "product": PRODUCT, "country": country,
+                            "source": source, "run_date": TODAY,
+                            "layer": "LIVE_FEED_AUDIT",
+                        },
+                        result=_AuditFindingResult(
+                            severity=severity,
+                            code=getattr(exc, "code", None),
+                            returncode=getattr(exc, "returncode", None),
+                        ),
+                    )
+                    return False
+
                 log.error("run_post_delta_audit raised for %s/%s/%s: %s",
                           PRODUCT, country, source, exc, exc_info=True)
                 try:
@@ -193,6 +228,7 @@ def run_country(country: str, mode: str, since: str | None, dry_run: bool) -> bo
                     )
                 except ImportError:
                     pass
+                return False                    pass
                 return False
 
             if audit.severity in ("CRITICAL", "HIGH"):
