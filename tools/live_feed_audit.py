@@ -17,12 +17,13 @@ Checks
 Usage
 -----
   python live_feed_audit.py \\
-      --delta extracts/food_pricing_20260620_120000.parquet \\
-      --product food_pricing \\
-      --validation-summary validation_summary_food_eu27_20260620_115900.json \\
-      [--vault-root lekwankwa-historical-vault] \\
-      [--run-date 2026-06-20] \\
+import argparse
 import json
+import logging
+import subprocess
+import os
+import re
+import sys
 import logging
 import os
 import re
@@ -63,12 +64,22 @@ _WRONG_METRICS_FOR_PRODUCT: dict[str, list[str]] = {
 _VAULT_DEFAULT = Path(_VAULT_ROOT_ENV) if _VAULT_ROOT_ENV else _ROOT / "lekwankwa-historical-vault"
 
 # ── Vault product-folder names ─────────────────────────────────────────────────
-# extractor product key → vault folder name (product={name})
-_VAULT_PRODUCT_FOLDER: dict[str, str] = {
-    "food_pricing":         "food_micropricing",
-    "wages_and_employment": "wages_and_employment",
-    "housing":              "Housing_Supply_and_Shelter_Inflation",
-    "trade_flows":          "trade_flows",
+    ],
+}
+
+# ── Known scraper-placeholder dqc patterns with a working backfill script ─────
+# (iso_alpha3, source) -> backfill script path (relative to repo root).
+# Confirmed recurring pattern: BLS scraper hardcodes data_quality_certified=False
+# at write time; this script re-certifies rows once upstream values are verified.
+# Only add entries here once a backfill script has been confirmed safe to
+# run unattended from this audit.
+_KNOWN_DQC_BACKFILL_SCRIPTS: dict[tuple[str, str], str] = {
+    ("USA", "bls"): "tools/backfill_bls_dqc.py",
+}
+
+# Columns required from vault for C3 vault-scan
+_VAULT_SCAN_COLS = [
+    "sovereign_series_id", "reporting_date", "observed_value",
     "global_macro":         "global_macro",
 }
 
@@ -137,28 +148,36 @@ def _load_non_nullable_fields(schema_path: Path) -> set[str]:
 # ── Check C1: Non-null ─────────────────────────────────────────────────────────
 
 def check_non_null(
-    df: pd.DataFrame, non_nullable: set[str], filename: str
+# ── Check C2: Scraper-placeholder dqc ─────────────────────────────────────────
+
+def check_scraper_placeholder(
+    df: pd.DataFrame, filename: str, delta_path: Path | None = None
 ) -> list[dict[str, Any]]:
     """
-    For every non-nullable schema field, assert zero None/NaN in the delta.
-    is_interpolated is only checked when the column is present in the file
-    (the schema explicitly allows its absence for monthly-publisher partitions).
-    """
-    violations: list[dict[str, Any]] = []
+    Flag any PRIMARY/SECONDARY row with data_quality_certified=False.
+    Pattern confirmed in food/USA, wages/USA, housing/USA — scrapers hardcode
+    dqc=False at write time; the backfill corrects it after 9-stage PASS.
+    A 4th occurrence would be caught here before delivery.
 
-    for field in sorted(non_nullable):
-        # is_interpolated: only flag when column is present AND has at least one
-        # non-null value. vault_extractor materialises all canonical columns as
-        # None for products/countries that don't use interpolation — an all-null
+    For known (iso, source) patterns with a registered backfill script, this
+    now attempts automated remediation in-place before flagging, instead of
+    unconditionally halting delivery on a recurring, already-solved issue.
+    """
+    if "data_quality_certified" not in df.columns or "confidence_tier" not in df.columns:
+        return []
         # column means "not applicable here", which is not a violation.
         if field == "is_interpolated":
             if field in df.columns and df[field].notna().any():
                 n = int(df[field].isna().sum())
                 if n:
-                    violations.append(_v("C1_NON_NULL", "ERROR", field, filename,
-                        f"{n} null(s) in is_interpolated — must be True/False when column is present",
-                        null_count=n))
-            continue
+    if affected.empty:
+        return []
+
+    by_cs_pre: dict[str, int] = {}
+    if "iso_alpha3" in affected.columns and "source" in affected.columns:
+        by_cs_pre = {
+            f"{k[0]}/{k[1]}": int(v)
+            for k, v in affected.groupby(["iso_alpha3", "source"]            continue
 
         if field not in df.columns:
             violations.append(_v("C1_NON_NULL", "ERROR", field, filename,
