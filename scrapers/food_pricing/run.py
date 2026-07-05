@@ -161,13 +161,17 @@ def run_country(country: str, mode: str, since: str | None, dry_run: bool) -> bo
                 from tools.self_healing.handler import handle_exception
                 handle_exception(
                     program=__file__,
-                    exception=exc,
-                    context={
+            try:
+                audit = run_post_delta_audit(product=PRODUCT, country=country)
             except Exception as exc:
-                log.error("run_post_delta_audit raised for %s/%s/%s: %s",
-                          PRODUCT, country, source, exc, exc_info=True)
-                exc_msg = str(exc)
-                is_non_fatal_flag = any(flag in exc_msg for flag in NON_FATAL_AUDIT_FLAGS)
+                # Structured audit exceptions (e.g. AUDIT_FLAG_RC1) carry their
+                # own severity classification. Only CRITICAL findings should
+                # abort the whole country run; HIGH findings are logged and
+                # reported but must not block delivery, per severity contract.
+                exc_severity = getattr(exc, "severity", None) or "CRITICAL"
+                exc_code = getattr(exc, "code", None)
+                log.error("run_post_delta_audit raised for %s/%s/%s (severity=%s, code=%s): %s",
+                          PRODUCT, country, source, exc_severity, exc_code, exc, exc_info=True)
                 try:
                     from tools.self_healing.handler import handle_exception
                     handle_exception(
@@ -177,13 +181,23 @@ def run_country(country: str, mode: str, since: str | None, dry_run: bool) -> bo
                             "product": PRODUCT, "country": country,
                             "source": source, "run_date": TODAY,
                             "layer": "LIVE_FEED_AUDIT",
-                            "severity_hint": "HIGH" if is_non_fatal_flag else "CRITICAL",
+                            "audit_severity": exc_severity,
+                            "audit_code": exc_code,
                         },
                     )
                 except ImportError:
                     pass
-                if is_non_fatal_flag:
-                    log.warning(
+                if exc_severity == "CRITICAL":
+                    return False
+                log.warning(
+                    "Live feed audit flagged %s/%s/%s at severity=%s (code=%s); "
+                    "continuing pipeline without aborting delivery.",
+                    PRODUCT, country, source, exc_severity, exc_code,
+                )
+                continue
+
+            if audit.severity in ("CRITICAL", "HIGH"):
+                from tools.self_healing.handler import handle_validation_finding                    log.warning(
                         "LIVE_FEED_AUDIT raised a recoverable HIGH-severity flag for "
                         "%s/%s/%s (%s) — treating as non-fatal, continuing run.",
                         PRODUCT, country, source, exc_msg,
