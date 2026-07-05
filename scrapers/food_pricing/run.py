@@ -19,12 +19,13 @@ from pathlib import Path
 
 # Add repo root to path when running directly
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+from tools.release_calendar_extractor import is_release_due
+from tools.vault_audit import run_9_stage_validation
+from tools.live_feed_audit import run_post_delta_audit
+from tools.live_feed_audit import AuditFlagError
+log = logging.getLogger(__name__)
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s %(levelname)s %(message)s",
-    handlers=[logging.StreamHandler(sys.stdout)],
-)
+PRODUCT = "food_micropricing"
 
 from tools.secrets import load_all_secrets_to_env
 load_all_secrets_to_env()
@@ -143,13 +144,33 @@ def run_country(country: str, mode: str, since: str | None, dry_run: bool) -> bo
         try:
             val = run_9_stage_validation(product=PRODUCT, country=country)
         except Exception as exc:
-            log.error("run_9_stage_validation raised for %s/%s/%s: %s",
-                      PRODUCT, country, source, exc, exc_info=True)
+        if PRODUCT in ("food_micropricing", "wages_and_employment", "trade_flows"):
             try:
-                from tools.self_healing.handler import handle_exception
-                handle_exception(
-                    program=__file__,
-                    exception=exc,
+                audit = run_post_delta_audit(product=PRODUCT, country=country)
+            except AuditFlagError as exc:
+                log.error(
+                    "LIVE_FEED_AUDIT flagged %s/%s/%s: code=%s severity=%s",
+                    PRODUCT, country, source, exc.code, exc.severity,
+                    exc_info=True,
+                )
+                try:
+                    from tools.self_healing.handler import handle_validation_finding
+                    handle_validation_finding(
+                        program=__file__,
+                        context={
+                            "product": PRODUCT, "country": country,
+                            "source": source, "run_date": TODAY,
+                            "layer": "LIVE_FEED_AUDIT",
+                            "audit_code": exc.code,
+                        },
+                        result=exc,
+                    )
+                except ImportError:
+                    pass
+                return False
+            except Exception as exc:
+                log.error("run_post_delta_audit raised for %s/%s/%s: %s",
+                          PRODUCT, country, source, exc, exc_info=True)                    exception=exc,
                     context={
                         "product": PRODUCT, "country": country,
                         "source": source, "run_date": TODAY,
