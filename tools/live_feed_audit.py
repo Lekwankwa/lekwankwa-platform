@@ -254,10 +254,22 @@ def check_cross_pipeline_duplicates(
                 within_conflicts.append({
                     "iso_alpha3": iso, "sovereign_series_id": sid,
                     "reporting_date": rd, "values_by_source": by_src,
-                })
+        affected_rows=int(len(affected)), by_country_source=by_cs)]
 
-        if within_conflicts:
-            violations.append(_v(
+
+# ── Auto-remediation: C2 scraper-placeholder dqc ──────────────────────────────
+
+def _run_dqc_backfill(by_country_source: dict[str, int], delta_path: Path) -> bool:
+    """
+    Invoke the dqc-certification backfill for each affected (country, source)
+    pair flagged by C2_SCRAPER_PLACEHOLDER_DQC, then report success/failure.
+
+    Previously nothing in the pipeline ever *called* the backfill script that
+    the C2 error message tells the operator to run — the audit only detected
+    the placeholder dqc=False rows and halted indefinitely. This closes that
+    gap by auto-invoking certification once the 9-stage suite has PASSed.
+    """
+    if not by_country_source:            violations.append(_v(
                 "C3_CROSS_PIPELINE_DUPLICATE", "ERROR", "observed_value", filename,
                 f"{len(within_conflicts)} (series, date) pair(s) appear in this delta from "
                 f"two different sources with conflicting observed_value. "
