@@ -1,13 +1,8 @@
-from __future__ import annotations
+"""
+scrapers/food_pricing/run.py — Lekwankwa Corporation
+Cloud Scheduler entry point for food_micropricing across all countries.
 
-# Live-feed audit flags that indicate a HIGH-severity, non-fatal condition.
-# These should be reported/alerted on but must not abort the whole run,
-# per the severity taxonomy (HIGH = pipeline disrupted, delivery not at risk).
-NON_FATAL_AUDIT_FLAGS = ("AUDIT_FLAG_RC1",)
-
-import argparse
-import logging
-import os
+Usage:
     python scrapers/food_pricing/run.py --country USA
     python scrapers/food_pricing/run.py --country EU27
     python scrapers/food_pricing/run.py --country ALL_EU
@@ -161,49 +156,26 @@ def run_country(country: str, mode: str, since: str | None, dry_run: bool) -> bo
                 from tools.self_healing.handler import handle_exception
                 handle_exception(
                     program=__file__,
-            try:
-                audit = run_post_delta_audit(product=PRODUCT, country=country)
-            except Exception as exc:
-                # Structured audit exceptions (e.g. AUDIT_FLAG_RC1) carry their
-                # own severity classification. Only CRITICAL findings should
-                # abort the whole country run; HIGH findings are logged and
-                # reported but must not block delivery, per severity contract.
-                exc_severity = getattr(exc, "severity", None) or "CRITICAL"
-                exc_code = getattr(exc, "code", None)
-                log.error("run_post_delta_audit raised for %s/%s/%s (severity=%s, code=%s): %s",
-                          PRODUCT, country, source, exc_severity, exc_code, exc, exc_info=True)
-                try:
-                    from tools.self_healing.handler import handle_exception
-                    handle_exception(
-                        program=__file__,
-                        exception=exc,
-                        context={
-                            "product": PRODUCT, "country": country,
-                            "source": source, "run_date": TODAY,
-                            "layer": "LIVE_FEED_AUDIT",
-                            "audit_severity": exc_severity,
-                            "audit_code": exc_code,
-                        },
-                    )
-                except ImportError:
-                    pass
-                if exc_severity == "CRITICAL":
-                    return False
-                log.warning(
-                    "Live feed audit flagged %s/%s/%s at severity=%s (code=%s); "
-                    "continuing pipeline without aborting delivery.",
-                    PRODUCT, country, source, exc_severity, exc_code,
+                    exception=exc,
+                    context={
+                        "product": PRODUCT, "country": country,
+                        "source": source, "run_date": TODAY,
+                        "layer": "VALIDATION",
+                    },
                 )
-                continue
+            except ImportError:
+                pass
+            return False
 
-            if audit.severity in ("CRITICAL", "HIGH"):
-                from tools.self_healing.handler import handle_validation_finding                    log.warning(
-                        "LIVE_FEED_AUDIT raised a recoverable HIGH-severity flag for "
-                        "%s/%s/%s (%s) — treating as non-fatal, continuing run.",
-                        PRODUCT, country, source, exc_msg,
-                    )
-                    continue
-                return False                },
+        if val.severity in ("CRITICAL", "HIGH"):
+            from tools.self_healing.handler import handle_validation_finding
+            handle_validation_finding(
+                program=__file__,
+                context={
+                    "product": PRODUCT, "country": country,
+                    "source": source, "run_date": TODAY,
+                    "layer": "VALIDATION",
+                },
                 result=val,
             )
             return False
