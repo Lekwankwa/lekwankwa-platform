@@ -77,12 +77,21 @@ _VAULT_PRODUCT_FOLDER: dict[str, str] = {
 _WRONG_METRICS_FOR_PRODUCT: dict[str, list[str]] = {
     "food_pricing": [
         "PERMIT", "HPI", "HOUSE_PRICE_INDEX", "SHELTER_INFLATION",
-        "TOTAL_NONFARM", "NONFARM_PAYROLL", "GDP", "TRADE_BALANCE",
-        "EXPORT_VALUE", "IMPORT_VALUE", "UNEMPLOYMENT_RATE",
-    ],
-    "wages_and_employment": [
-        "PERMIT", "HPI", "HOUSE_PRICE", "SHELTER_INFLATION",
-        "FOOD_PRICE", "FOOD_INDEX", "GDP", "TRADE_BALANCE",
+    "global_macro":         "global_macro",
+}
+
+# ── Known C2 scraper-placeholder patterns → auto-backfill entry point ────────
+# Keyed by "{iso_alpha3}/{source}". Value is "module.path:function_name".
+# The function must accept (product: str, run_date: str) and certify the
+# affected rows (data_quality_certified=True) in place, in both the delta
+# file on disk and, if applicable, the vault.
+_C2_BACKFILL_REGISTRY: dict[str, str] = {
+    "USA/bls": "tools.backfill.bls_dqc_backfill:run_backfill",
+}
+
+# ── Metric name keywords that must NEVER appear in a given product's delta ─────
+# Upper-case substring match against macro_metric_name values.
+_WRONG_METRICS_FOR_PRODUCT: dict[str, list[str]] = {
         "EXPORT_VALUE", "IMPORT_VALUE",
     ],
     "housing": [
@@ -254,11 +263,45 @@ def _attempt_dqc_backfill(df: pd.DataFrame, delta_path: Path, product: str) -> b
 
     ran_any = False
     for src in sources:
-        script = _DQC_BACKFILL_SCRIPTS.get
-    This is the Sweden permits pattern: two pipeline paths writing the same real-world
-            for k, v in affected.groupby(["iso_alpha3", "source"]).size().items()
-        }
+        affected_rows=int(len(affected)), by_country_source=by_cs)]
 
+
+# ── Auto-remediation for known C2 patterns ────────────────────────────────────
+
+def _attempt_c2_backfill(
+    violation: dict[str, Any], product: str, run_date: str
+) -> bool:
+    """
+    For (country/source) combinations with a registered backfill routine,
+    run it automatically instead of forcing a manual re-run. Returns True
+    if at least one registered backfill executed without raising.
+    """
+    by_cs = violation.get("by_country_source", {}) or {}
+    ran_any = False
+
+    for cs_key in by_cs:
+        target = _C2_BACKFILL_REGISTRY.get(cs_key)
+        if not target:
+            log.warning(
+                "[C2 AUTO-BACKFILL] No registered backfill for %s — manual "
+                "backfill required before GCS delivery.", cs_key,
+            )
+            continue
+        module_path, _, func_name = target.partition(":")
+        try:
+            import importlib
+            mod = importlib.import_module(module_path)
+            fn = getattr(mod, func_name)
+            fn(product=product, run_date=run_date)
+            ran_any = True
+            log.info("[C2 AUTO-BACKFILL] Ran %s for %s", target, cs_key)
+        except Exception as exc:
+            log.error("[C2 AUTO-BACKFILL] Backfill %s failed for %s: %s", target, cs_key, exc)
+
+    return ran_any
+
+
+# ── Check C3:
     backf    required = {"sovereign_series_id", "reporting_date", "observed_value"}
     if not required.issubset(df.columns):
         return violations
