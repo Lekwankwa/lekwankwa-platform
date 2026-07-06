@@ -29,13 +29,13 @@ logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s %(levelname)s %(message)s",
     handlers=[logging.StreamHandler(sys.stdout)],
-)
-
-from tools.secrets import load_all_secrets_to_env
-load_all_secrets_to_env()
 
 from tools.release_calendar_extractor import is_release_due
 from tools.vault_audit import run_9_stage_validation
+from tools.live_feed_audit import run_post_delta_audit, AuditFlagError
+log = logging.getLogger(__name__)
+
+PRODUCT = "food_micropricing"
 from tools.live_feed_audit import run_post_delta_audit
 log = logging.getLogger(__name__)
 
@@ -187,13 +187,36 @@ def run_country(country: str, mode: str, since: str | None, dry_run: bool) -> bo
                     )
                 except ImportError:
                     pass
-                if exc_severity == "CRITICAL":
-                    return False
+        if PRODUCT in ("food_micropricing", "wages_and_employment", "trade_flows"):
+            try:
+                audit = run_post_delta_audit(product=PRODUCT, country=country)
+            except AuditFlagError as exc:
                 log.warning(
-                    "Live feed audit flagged %s/%s/%s at severity=%s (code=%s); "
-                    "continuing pipeline without aborting delivery.",
-                    PRODUCT, country, source, exc_severity, exc_code,
+                    "LIVE_FEED_AUDIT flagged %s/%s/%s: code=%s severity=%s returncode=%s",
+                    PRODUCT, country, source,
+                    getattr(exc, "code", "UNKNOWN"),
+                    getattr(exc, "severity", "HIGH"),
+                    getattr(exc, "returncode", None),
                 )
+                from tools.self_healing.handler import handle_validation_finding
+                handle_validation_finding(
+                    program=__file__,
+                    context={
+                        "product": PRODUCT, "country": country,
+                        "source": source, "run_date": TODAY,
+                        "layer": "LIVE_FEED_AUDIT",
+                    },
+                    result=exc,
+                )
+                if getattr(exc, "severity", "HIGH") == "CRITICAL":
+                    return False
+                # HIGH: pipeline disrupted but delivery not at risk for this
+                # source — skip to the next source instead of aborting the
+                # whole country run.
+                continue
+            except Exception as exc:
+                log.error("run_post_delta_audit raised for %s/%s/%s: %s",
+                          PRODUCT, country, source, exc, exc_info=True)                )
                 continue
 
             if audit.severity in ("CRITICAL", "HIGH"):
