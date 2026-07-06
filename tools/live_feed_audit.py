@@ -19,13 +19,14 @@ Usage
   python live_feed_audit.py \\
       --delta extracts/food_pricing_20260620_120000.parquet \\
       --product food_pricing \\
-      --validation-summary validation_summary_food_eu27_20260620_115900.json \\
-      [--vault-root lekwankwa-historical-vault] \\
-      [--run-date 2026-06-20] \\
 import json
 import logging
 import os
 import re
+import subprocess
+import sys
+from datetime import date, datetime, timezone
+from pathlib import Path
 import subprocess
 import sys
 from datetime import date, datetime, timezone
@@ -210,10 +211,33 @@ def check_scraper_placeholder(
 
 
 # ── Check C3: Cross-pipeline duplicate ────────────────────────────────────────
+        affected_rows=int(len(affected)), by_country_source=by_cs)]
 
-def check_cross_pipeline_duplicates(
-    df: pd.DataFrame,
-    product: str,
+
+# ── Auto-remediation: known C2 backfill pattern ───────────────────────────────
+
+def _trigger_dqc_backfill(errors: list[dict[str, Any]], product: str) -> None:
+    """
+    Auto-remediate the known C2_SCRAPER_PLACEHOLDER_DQC pattern by invoking the
+    standing dqc-backfill script for each affected (country, source) pair.
+    This exact pattern has now been confirmed four times (food/USA, wages/USA,
+    housing/USA, and this food_micropricing/USA-bls occurrence) — it is
+    mechanical and should not require a human to notice the audit log and run
+    the backfill by hand before every subsequent delivery attempt.
+    """
+    for v in errors:
+        if v.get("check") != "C2_SCRAPER_PLACEHOLDER_DQC":
+            continue
+        for country_source, row_count in v.get("by_country_source", {}).items():
+            try:
+                country, source = country_source.split("/", 1)
+            except ValueError:
+                continue
+            log.warning(
+                "[AUTO-BACKFILL] Invoking dqc backfill for product=%s country=%s "
+                "source=%s (%d row(s))", product, country, source, row_count,
+            )
+            try:    product: str,
     vault_root: Path,
     filename: str,
     skip_vault_scan: bool = False,
