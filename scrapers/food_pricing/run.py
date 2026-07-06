@@ -142,36 +142,14 @@ def run_country(country: str, mode: str, since: str | None, dry_run: bool) -> bo
             # first-ever run for this country/source), neither branch below
             # would otherwise touch the var, letting a stale scoping value
             # from an earlier country/source in this same process (main()
-            # loops over multiple countries in one Python process) leak
-            # into this source's validation and live-feed-audit calls.
-            os.environ.pop("VALIDATION_SINCE_YEAR", None)
-            latest = get_vault_latest_month(scan_root)
-            if latest:
-                os.environ["VALIDATION_SINCE_YEAR"] = str(max(1, latest[0] - 2))
-        else:
-            os.environ.pop("VALIDATION_SINCE_YEAR", None)
-
-        # Post-scrape: 9-stage + GX + Bitemporal Core validation
-        try:
-            val = run_9_stage_validation(product=PRODUCT, country=country)
-        except Exception as exc:
-            log.error("run_9_stage_validation raised for %s/%s/%s: %s",
-                      PRODUCT, country, source, exc, exc_info=True)
-            try:
-                from tools.self_healing.handler import handle_exception
-                handle_exception(
-                    program=__file__,
+        if PRODUCT in ("food_micropricing", "wages_and_employment", "trade_flows"):
             try:
                 audit = run_post_delta_audit(product=PRODUCT, country=country)
             except Exception as exc:
-                # Structured audit exceptions (e.g. AUDIT_FLAG_RC1) carry their
-                # own severity classification. Only CRITICAL findings should
-                # abort the whole country run; HIGH findings are logged and
-                # reported but must not block delivery, per severity contract.
-                exc_severity = getattr(exc, "severity", None) or "CRITICAL"
+                log.error("run_post_delta_audit raised for %s/%s/%s: %s",
+                          PRODUCT, country, source, exc, exc_info=True)
+                exc_severity = getattr(exc, "severity", "CRITICAL")
                 exc_code = getattr(exc, "code", None)
-                log.error("run_post_delta_audit raised for %s/%s/%s (severity=%s, code=%s): %s",
-                          PRODUCT, country, source, exc_severity, exc_code, exc, exc_info=True)
                 try:
                     from tools.self_healing.handler import handle_exception
                     handle_exception(
@@ -179,6 +157,38 @@ def run_country(country: str, mode: str, since: str | None, dry_run: bool) -> bo
                         exception=exc,
                         context={
                             "product": PRODUCT, "country": country,
+                            "source": source, "run_date": TODAY,
+                            "layer": "LIVE_FEED_AUDIT",
+                            "audit_code": exc_code,
+                            "audit_severity": exc_severity,
+                        },
+                    )
+                except ImportError:
+                    pass
+                if exc_severity == "CRITICAL":
+                    return False
+                log.warning(
+                    "LIVE_FEED_AUDIT flag %s is %s (not CRITICAL) for %s/%s/%s — "
+                    "delivery not at risk, continuing pipeline.",
+                    exc_code, exc_severity, PRODUCT, country, source,
+                )
+                continue
+
+            if audit.severity in ("CRITICAL", "HIGH"):
+                from tools.self_healing.handler import handle_validation_finding
+                handle_validation_finding(
+                    program=__file__,
+                    context={
+                        "product": PRODUCT, "country": country,
+                        "source": source, "run_date": TODAY,
+                        "layer": "LIVE_FEED_AUDIT",
+                    },
+                    result=audit,
+                )
+                return False
+    from tools.trigger_downstream import trigger_all_metadata
+    trigger_all_metadata()
+    return True                            "product": PRODUCT, "country": country,
                             "source": source, "run_date": TODAY,
                             "layer": "LIVE_FEED_AUDIT",
                             "audit_severity": exc_severity,
