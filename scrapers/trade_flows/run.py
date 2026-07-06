@@ -1,9 +1,10 @@
-"""
-scrapers/trade_flows/run.py — Lekwankwa Corporation
-Cloud Scheduler entry point for trade_flows across all countries.
+from __future__ import annotations
 
-Usage:
-    python scrapers/trade_flows/run.py --country USA
+import argparse
+import inspect
+import logging
+import sys
+from datetime import date
     python scrapers/trade_flows/run.py --country GBR --mode full
 """
 from __future__ import annotations
@@ -77,14 +78,22 @@ def main():
     try:
         import importlib
         mod = importlib.import_module(cfg["module"])
+        import importlib
+        mod = importlib.import_module(cfg["module"])
         fn  = getattr(mod, cfg["fn"])
-        fn(mode=args.mode, since=args.since)
+
+        # Not all country scraper entry points share an identical signature.
+        # Only pass the kwargs that the target function actually accepts.
+        sig = inspect.signature(fn)
+        call_kwargs = {}
+        if "mode" in sig.parameters:
+            call_kwargs["mode"] = args.mode
+        if "since" in sig.parameters:
+            call_kwargs["since"] = args.since
+        fn(**call_kwargs)
         log.info("Completed scrape %s/%s", PRODUCT, args.country)
     except Exception as exc:
-        log.error("Failed %s/%s: %s", PRODUCT, args.country, exc, exc_info=True)
-        try:
-            from tools.self_healing.handler import handle_exception
-            handle_exception(
+        log.error("Failed %s/%s: %s", PRODUCT, args.country, exc, exc_info=True)            handle_exception(
                 program=__file__, exception=exc,
                 context={"product": PRODUCT, "country": args.country,
                          "source": source, "run_date": TODAY, "layer": "SCRAPER"},
