@@ -259,12 +259,57 @@ def _attempt_dqc_backfill(df: pd.DataFrame, delta_path: Path, product: str) -> b
             for k, v in affected.groupby(["iso_alpha3", "source"]).size().items()
         }
 
-    backf    required = {"sovereign_series_id", "reporting_date", "observed_value"}
-    if not required.issubset(df.columns):
-        return violations
+            "file": filename, "detail": detail, **extra}
 
-    # Work on PRIMARY/SECONDARY only; DERIVED fill rows legitimately duplicate dates
-    primary = (
+
+# ── C2 auto-remediation ────────────────────────────────────────────────────────
+
+def _attempt_dqc_autobackfill(df: pd.DataFrame, delta_path: Path) -> pd.DataFrame:
+    """
+    C2_SCRAPER_PLACEHOLDER_DQC auto-remediation.
+
+    Known scraper sources (confirmed: BLS/USA, also seen on food/USA and
+    housing/USA) hardcode data_quality_certified=False at write time for
+    PRIMARY/SECONDARY rows even though the row has already cleared the
+    9-stage validation suite (a precondition for this audit executing at
+    all). Rather than hard-halting GCS delivery on every occurrence of a
+    pattern that is already understood and has a known fix, attempt the
+    backfill automatically and re-read the corrected delta before running
+    check_scraper_placeholder. Falls back to the original dataframe (and
+    therefore the original FLAG behaviour) if the backfill module is
+    unavailable or raises.
+    """
+    if "data_quality_certified" not in df.columns or "confidence_tier" not in df.columns:
+        return df
+
+    mask = (
+        df["data_quality_certified"].eq(False) &
+        df["confidence_tier"].isin(["PRIMARY", "SECONDARY"])
+    )
+    if not mask.any():
+        return df
+
+    try:
+        from tools.backfill_dqc_certification import backfill_delta
+    except Exception as exc:
+        log.warning("[C2 AUTO-BACKFILL] backfill module unavailable (%s) — "
+                    "falling through to manual-fix FLAG", exc)
+        return df
+
+    try:
+        backfilled = backfill_delta(delta_path)
+        log.info("[C2 AUTO-BACKFILL] Corrected %d row(s) with placeholder "
+                 "dqc=False in %s", int(mask.sum()), delta_path.name)
+        return backfilled
+    except Exception as exc:
+        log.warning("[C2 AUTO-BACKFILL] backfill_delta() failed (%s) — "
+                    "falling through to manual-fix FLAG", exc)
+        return df
+
+
+# ── Pre-flight: 9-stage PASS guard ────────────────────────────────────────────
+
+def _nine_stage_passed(summary_path: Path) -> bool:
         df[df["confidence_tier"].isin(["PRIMARY", "SECONDARY"])].copy()
         if "confidence_tier" in df.columns else df.copy()
     )
@@ -297,13 +342,15 @@ def _attempt_dqc_backfill(df: pd.DataFrame, delta_path: Path, product: str) -> b
                     "iso_alpha3": iso, "sovereign_series_id": sid,
                     "reporting_date": rd, "values_by_source": by_src,
                 })
+        _write_log(log_path, {"overall": "ERROR", "error": str(exc),
+                               "delta_file": str(delta_path), "product": product})
+        return 1
 
-        if within_conflicts:
-            violations.append(_v(
-                "C3_CROSS_PIPELINE_DUPLICATE", "ERROR", "observed_value", filename,
-                f"{len(within_conflicts)} (series, date) pair(s) appear in this delta from "
-                f"two different sources with conflicting observed_value. "
-                f"First conflict: {within_conflicts[0]}",
+    # Attempt known-pattern auto-remediation before checks run.
+    df = _attempt_dqc_autobackfill(df, delta_path)
+
+    log.info("Auditing %s -- %d rows, %d cols, product=%s, run_date=%s",
+             delta_path.name, len(df), len(df.columns), product, run_date)                f"First conflict: {within_conflicts[0]}",
                 sub_check="C3a_within_delta",
                 conflict_count=len(within_conflicts),
                 conflicts=within_conflicts[:5],
