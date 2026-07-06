@@ -9,12 +9,13 @@ during the vault/extractor build.
 Checks
 ------
   C1  Non-null           — non-nullable schema fields must have zero None/NaN
-  C2  Scraper-placeholder — PRIMARY/SECONDARY rows with data_quality_certified=False
-  C3  Cross-pipeline dup  — same (series, date) with conflicting value from different source
-  C4  Timestamp contam.   — as_of_date or conversion_timestamp equals pipeline run date
-  C5  Filename/content    — macro_metric_name values consistent with declared product
+from __future__ import annotations
 
-Usage
+import argparse
+import subprocess
+import json
+import logging
+import os
 -----
   python live_feed_audit.py \\
       --delta extracts/food_pricing_20260620_120000.parquet \\
@@ -32,12 +33,21 @@ Exit codes
 """
 from __future__ import annotations
 
-import argparse
-import json
-import logging
-import os
-import re
-import sys
+    "global_macro":         "global_macro",
+}
+
+# ── Known dqc-backfill scripts by source ───────────────────────────────────────
+# When check_scraper_placeholder (C2) flags PRIMARY/SECONDARY rows with
+# data_quality_certified=False, this maps the offending `source` value to the
+# backfill script that flips dqc=True once the 9-stage suite has PASSed.
+# Extend this mapping as new scrapers are found to hardcode the placeholder.
+_C2_BACKFILL_SCRIPTS: dict[str, str] = {
+    "bls": "backfill/bls_dqc_backfill.py",
+}
+
+# ── Metric name keywords that must NEVER appear in a given product's delta ─────
+# Upper-case substring match against macro_metric_name values.
+_WRONG_METRICS_FOR_PRODUCT: dict[str, list[str]] = {
 from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -280,12 +290,69 @@ def check_cross_pipeline_duplicates(
     product_dir = vault_root / f"product={vault_folder}"
     if not product_dir.exists():
         log.debug("C3b: vault product dir missing (%s) — skipping vault scan", product_dir)
-        return violations
+            "file": filename, "detail": detail, **extra}
 
-    delta_countries = (
-        primary["iso_alpha3"].dropna().unique().tolist()
-        if "iso_alpha3" in primary.columns else []
-    )
+
+# ── C2 auto-remediation ────────────────────────────────────────────────────────
+
+def _attempt_c2_backfill(
+    c2_violations: list[dict[str, Any]],
+    delta_path: Path,
+) -> tuple[pd.DataFrame | None, list[dict[str, Any]]]:
+    """
+    Given C2_SCRAPER_PLACEHOLDER_DQC violations, look up and run the matching
+    backfill script for each affected source, then reload the delta and
+    re-run check_scraper_placeholder to confirm the fix.
+
+    Returns (reloaded_df_or_None, remaining_violations). If no backfill script
+    is known for a source, or the backfill subprocess fails, the original
+    violation(s) for that source are preserved so the audit still halts.
+    """
+    if not c2_violations:
+        return None, []
+
+    by_cs: dict[str, int] = {}
+    for v in c2_violations:
+        by_cs.update(v.get("by_country_source", {}))
+
+    sources = {cs.split("/", 1)[1] for cs in by_cs if "/" in cs}
+    ran_any = False
+
+    for src in sources:
+        script = _C2_BACKFILL_SCRIPTS.get(src)
+        if not script:
+            log.error("[C2 AUTO-HEAL] No known backfill script for source=%s — cannot auto-remediate", src)
+            continue
+        script_path = _ROOT / script
+        if not script_path.exists():
+            log.error("[C2 AUTO-HEAL] Backfill script missing: %s", script_path)
+            continue
+        log.info("[C2 AUTO-HEAL] Running backfill for source=%s: %s", src, script_path)
+        try:
+            subprocess.run(
+                [sys.executable, str(script_path), "--delta", str(delta_path)],
+                check=True, capture_output=True, text=True, timeout=600,
+            )
+            ran_any = True
+        except Exception as exc:
+            log.error("[C2 AUTO-HEAL] Backfill failed for source=%s: %s", src, exc)
+
+    if not ran_any:
+        return None, c2_violations
+
+    try:
+        reloaded = pd.read_parquet(delta_path)
+    except Exception as exc:
+        log.error("[C2 AUTO-HEAL] Could not reload delta after backfill: %s", exc)
+        return None, c2_violations
+
+    remaining = check_scraper_placeholder(reloaded, delta_path.name)
+    return reloaded, remaining
+
+
+# ── Pre-flight: 9-stage PASS guard ────────────────────────────────────────────
+
+def _nine_stage_passed(summary_path: Path) -> bool:
     if not delta_countries:
         return violations
 
@@ -361,10 +428,16 @@ def check_cross_pipeline_duplicates(
                 if d_src == v_src:
                     continue   # Same source → legitimate revision, not a cross-pipeline conflict
                 if d_val is None or v_val is None:
-                    continue
-                try:
-                    if abs(float(d_val) - float(v_val)) > 1e-6:
-                        vault_conflicts.append({
+    all_violations += _run("C2_SCRAPER_PLACEHOLDER_DQC",
+        check_scraper_placeholder, df, delta_path.name)
+
+    # ── C2 auto-heal: attempt backfill before halting on placeholder dqc ─────
+    c2_current = [v for v in all_violations if v["check"] == "C2_SCRAPER_PLACEHOLDER_DQC"]
+    if c2_current:
+        reloaded_df, remaining_c2 = _attempt_c2_backfill(c2_current, delta_path)
+        if reloaded_df is not None:
+            df = reloaded_df
+            all_viol                        vault_conflicts.append({
                             "iso_alpha3": v_iso_val, "sovereign_series_id": v_sid_val,
                             "reporting_date": v_rd,
                             "delta_source": d_src, "delta_value": float(d_val),
