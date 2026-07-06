@@ -1530,19 +1530,27 @@ def is_release_due(
         logger.warning("is_release_due: failed to load calendar: %s — defaulting to True", exc)
         return True
 
-    # Navigate: master → products → [product] → sources → [source] → next_release_date
+    # Navigate: master → products → [product] → sources (list of country-group
+    # entries) → matching entry → next_release_date. "sources" is a LIST here
+    # (see build_master()/_enrich_source(), which is what actually generates
+    # this file), each entry keyed by country_group/countries — not a dict
+    # keyed by source name. This previously assumed a dict shape that never
+    # matched the real generated structure, crashing with AttributeError on
+    # every call.
     products = master.get("products", master)   # handle both wrapping styles
     prod_data = products.get(product)
     if prod_data is None:
         logger.debug("is_release_due: product %r not in calendar — defaulting to True", product)
         return True
 
-    # Look for country-specific entry or fall back to global
-    sources = (
-        prod_data.get("countries", {}).get(country, {}).get("sources", {})
-        or prod_data.get("sources", {})
-    )
-    src_data = sources.get(source)
+    sources_list = prod_data.get("sources") or []
+    src_data = None
+    for entry in sources_list:
+        if not isinstance(entry, dict):
+            continue
+        if entry.get("country_group") == country or country in (entry.get("countries") or []):
+            src_data = entry
+            break
     if src_data is None:
         logger.debug(
             "is_release_due: source %r/%r/%r not in calendar — defaulting to True",
