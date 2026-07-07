@@ -9,6 +9,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import inspect
 import logging
 import sys
 from datetime import date
@@ -81,14 +82,23 @@ def main():
         fn(mode=args.mode, since=args.since)
         log.info("Completed scrape %s/%s", PRODUCT, args.country)
     except Exception as exc:
-        log.error("Failed %s/%s: %s", PRODUCT, args.country, exc, exc_info=True)
-        try:
-            from tools.self_healing.handler import handle_exception
-            handle_exception(
-                program=__file__, exception=exc,
-                context={"product": PRODUCT, "country": args.country,
-                         "source": source, "run_date": TODAY, "layer": "SCRAPER"},
-            )
+        import importlib
+        mod = importlib.import_module(cfg["module"])
+        fn  = getattr(mod, cfg["fn"])
+
+        # Not all country scrapers share the same call signature.
+        # Only pass kwargs that the target function actually accepts.
+        sig = inspect.signature(fn)
+        accepted = sig.parameters.keys()
+        call_kwargs = {}
+        if "mode" in accepted:
+            call_kwargs["mode"] = args.mode
+        if "since" in accepted:
+            call_kwargs["since"] = args.since
+        fn(**call_kwargs)
+        log.info("Completed scrape %s/%s", PRODUCT, args.country)
+    except Exception as exc:
+        log.error("Failed %s/%s: %s", PRODUCT, args.country, exc, exc_info=True)            )
         except ImportError:
             pass
         sys.exit(1)
