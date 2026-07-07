@@ -220,18 +220,25 @@ create_job "job-pit-disclosure" \
 --gcs-bucket,${METADATA}"
 
 # Quality reports — dual gcsfuse mount: vault at /vault (read), metadata at /metadata (write)
+# Invoked via -m (not a direct script path) so `import tools.self_healing...`
+# resolves correctly — direct-path invocation puts tools/ itself on sys.path[0]
+# instead of the repo root, breaking every "tools.*" package import inside
+# the script (this is why its self-healing escalation always failed with
+# "No module named 'tools'"). --series-manifest also moved from backtesting/
+# (local-only test scaffolding, never deployed) to configs/ (actually
+# deployed), same fix as SCHEMA_STANDARD.yaml.
 create_quality_job "job-quality-live" \
-    "python,tools/quality_report_generator.py,\
+    "python,-m,tools.quality_report_generator,\
 --vault-root,/vault,\
 --out-dir,/metadata/quality_reports,\
---series-manifest,backtesting/backtest_engine/config/catalog_expected_series.yaml,\
+--series-manifest,configs/catalog_expected_series.yaml,\
 --mode,live"
 
 create_quality_job "job-quality-archive" \
-    "python,tools/quality_report_generator.py,\
+    "python,-m,tools.quality_report_generator,\
 --vault-root,/vault,\
 --out-dir,/metadata/quality_reports,\
---series-manifest,backtesting/backtest_engine/config/catalog_expected_series.yaml,\
+--series-manifest,configs/catalog_expected_series.yaml,\
 --mode,archive"
 
 # Health check — polls Cloud Run + Scheduler + GCS; writes health/health_status.json
