@@ -2293,7 +2293,9 @@ def _parse_args() -> argparse.Namespace:
 
 
 if __name__ == "__main__":
-    sys.stdout = __import__("io").TextIOWrapper(sys.stdout.buffer, encoding="utf-8")
+    sys.stdout = __import__("io").TextIOWrapper(
+        sys.stdout.buffer, encoding="utf-8", line_buffering=True, write_through=True
+    )
     args = _parse_args()
 
     # Auto-detect series manifest if not explicitly given
