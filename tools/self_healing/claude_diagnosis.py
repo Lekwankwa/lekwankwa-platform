@@ -9,6 +9,7 @@ For COMPLEX fixes: escalates to the approval email flow.
 """
 from __future__ import annotations
 
+import ast
 import base64
 import json
 import logging
@@ -327,6 +328,25 @@ def apply_simple_fix(diff_text: str, program: str, context: dict[str, Any]) -> s
         if new_text == current_text:
             log.warning("[GITHUB] Diff produced no change — already applied?")
             return None
+
+        # ── Validate the patched file is still valid Python ───────────────────
+        # A hunk can be internally self-consistent (line counts match) while
+        # still being semantically destructive — e.g. Claude's generated diff
+        # deletes a dict's opening brace or duplicates entries. Applying such a
+        # diff succeeds mechanically but produces a file that won't even
+        # import. Refuse to push/PR anything that doesn't parse; the caller
+        # falls back to the approval-email path instead of auto-merging
+        # broken code.
+        if target_file.endswith(".py"):
+            try:
+                ast.parse(new_text)
+            except SyntaxError as syn_exc:
+                log.error(
+                    "[GITHUB] Patched %s does not parse (%s) — refusing to "
+                    "auto-apply, falling back to approval email",
+                    target_file, syn_exc,
+                )
+                return None
 
         # ── Commit to branch ─────────────────────────────────────────────────
         commit_msg = (
