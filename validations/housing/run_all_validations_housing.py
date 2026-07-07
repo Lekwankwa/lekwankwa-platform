@@ -31,7 +31,7 @@ STAGES = [
     {"id": 5,    "name": "Referential Integrity",    "script": f"{BASE}/referential_integrity_housing.py",  "args": [], "required": False},
     {"id": 6,    "name": "Lineage",                  "script": f"{BASE}/lineage_housing.py",                "args": [], "required": False},
     {"id": 7,    "name": "GX Universal Validation",  "script": "validations/gx_universal/universal_gx_validator.py",
-                                                      "args": ["gx_config_housing_rent.json"],              "required": True},
+                                                      "args": ["configs/gx_config_housing_vault.json"],     "required": True},
     {"id": 8,    "name": "Outlier Extraction",       "script": f"{BASE}/outlier_extractor_housing.py",     "args": [], "required": False},
     {"id": 9,    "name": "Changelog Generation",     "script": f"{BASE}/changelog_generator_housing.py",   "args": [], "required": False},
 ]

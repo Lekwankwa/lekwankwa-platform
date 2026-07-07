@@ -1,0 +1,89 @@
+{
+  "product_name": "Lekwankwa USA Housing Supply & Shelter Inflation",
+  "product_code": "housing_usa",
+  "vault_path": "gs://lekwankwa-vault/product=Housing_Supply_and_Shelter_Inflation/country=USA",
+  "description": "Universal validation for US housing data — BLS CPI Shelter (rent of primary residence) and Census Building Permits Survey (BPS), monthly with Point-in-Time (PIT) capability",
+  "sources": ["bls_cpi_shelter", "census_bps"],
+  "schema_version": "1.0",
+  "file_patterns": ["**/*_data.parquet"],
+
+  "critical_checks": {
+    "row_count": {
+      "min": 50,
+      "max": 100000,
+      "description": "BLS CPI shelter (monthly, 1959-present) + Census BPS permits (monthly, 1960-present)"
+    },
+
+    "required_columns": [
+      "record_id",
+      "iso_alpha3",
+      "country_name",
+      "country_code",
+      "market_tier",
+      "source",
+      "source_agency",
+      "source_sub_category",
+      "portal_url",
+      "extraction_method",
+      "data_quality_certified",
+      "sovereign_series_id",
+      "macro_metric_name",
+      "unit_of_measure",
+      "data_vintage_id",
+      "reporting_date",
+      "data_timestamp",
+      "official_release_date",
+      "as_of_date",
+      "published_date",
+      "observed_value",
+      "is_revised_figure",
+      "confidence_tier",
+      "revision_number",
+      "seasonal_adjustment"
+    ],
+
+    "non_null_fields": [
+      "record_id",
+      "iso_alpha3",
+      "source",
+      "sovereign_series_id",
+      "macro_metric_name",
+      "observed_value",
+      "unit_of_measure",
+      "reporting_date",
+      "data_timestamp",
+      "as_of_date",
+      "data_quality_certified"
+    ],
+
+    "value_constraints": {
+      "observed_value": {
+        "min": 0.0,
+        "max": 5000000.0,
+        "description": "Covers CPI shelter INDEX (~20-400) and BPS permit variables in COUNT/UNITS_SAAR/THOUSANDS_USD"
+      }
+    },
+
+    "categorical_constraints": {
+      "iso_alpha3":             ["USA"],
+      "country_code":           ["US"],
+      "market_tier":            ["Developed"],
+      "source_agency":          ["BLS", "CENSUS"],
+      "source_sub_category":    ["CPI_URBAN", "HOUSING"],
+      "source":                 ["bls_cpi_shelter", "census_bps"],
+      "unit_of_measure":        ["INDEX", "THOUSANDS_USD", "COUNT", "UNITS_SAAR"],
+      "extraction_method":      ["api", "scraper", "manual"],
+      "data_quality_certified": [true, false],
+      "confidence_tier":        ["PRIMARY", "SECONDARY", "ESTIMATED"]
+    },
+
+    "timestamp_checks": {
+      "data_timestamp": {
+        "min_year": 1959,
+        "max_year": 2030,
+        "format": "datetime64",
+        "description": "Monthly reference date, BLS shelter series starts 1959, BPS starts 1960"
+      }
+    }
+  }
+}
