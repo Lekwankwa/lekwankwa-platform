@@ -81,7 +81,7 @@ def diagnose_with_claude(
     import anthropic
 
     api_key = get_secret("anthropic-api-key")
-    client  = anthropic.Anthropic(api_key=api_key)
+    client  = anthropic.Anthropic(api_key=api_key, timeout=60.0)
 
     rel_path, file_content = _read_source_file(program)
     file_section = (
