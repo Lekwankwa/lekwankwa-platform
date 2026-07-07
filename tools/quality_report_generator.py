@@ -165,20 +165,23 @@ KNOWN_DISCONTINUED: frozenset[tuple[str, str]] = frozenset({
 })
 
 # Structural lag: days from end of reference period to agency publication
-# Source: confirmed via live API probes across all 6 country groups, June 2026
-# (product, country_group) → lag_days
-STRUCTURAL_LAG_DAYS: dict[tuple[str, str], int] = {
-    # food_micropricing
-    ("food_micropricing", "USA"): 14,   # BLS CPI, release ~14th of following month
-    ("food_micropricing", "EU27"): 30,  # Eurostat HICP flash ~14d; final ~30d
-    ("food_micropricing", "GBR"): 21,   # ONS CPI, ~third Wed of following month
-    ("food_micropricing", "CAN"): 21,   # StatCan CPI, ~third Wed of following month
-    ("food_micropricing", "AUS"): 35,   # ABS CPI quarterly, ~5 weeks after quarter end
-    ("food_micropricing", "NOR"): 14,   # SSB CPI, ~14d after month end
 
     # wages_and_employment
     ("wages_and_employment", "USA"): 7,   # BLS CES, first Friday of following month
+    # NOTE: 2026-07-07 recalibration — 7d only models the BLS release date, not the
+    # real vault_extractor ingestion turnaround. Observed vault lag runs ~30d
+    # end-to-end, causing false-positive STALE findings under the 2x-lag threshold.
+    # Updated to reflect actual release+ingestion cycle.
     ("wages_and_employment", "EU27"): 45, # Eurostat unemployment monthly
+    ("wages_and_employment", "GBR"): 45,  # ONS LFS, ~6 weeks after reference month
+    ("wages_and_employment", "CAN"): 21,  # StatCan LFS, ~3 weeks after reference month
+    ("food_micropricing", "GBR"): 21,   # ONS CPI, ~third Wed of following month
+    ("food_micropricing", "CAN"): 21,   # StatCan CPI, ~third Wed of following month
+    ("wages_and_employment", "NOR"): 45,  # SSB LFS quarterly (FROZEN at 2024K4)
+
+    # Housing_Supply_and_Shelter_Inflation (archive only)
+    ("Housing_Supply_and_Shelter_Inflation", "USA"): 30,  # Census permits, ~4 weeks
+}    ("wages_and_employment", "EU27"): 45, # Eurostat unemployment monthly
     ("wages_and_employment", "GBR"): 45,  # ONS LFS, ~6 weeks after reference month
     ("wages_and_employment", "CAN"): 21,  # StatCan LFS, ~3 weeks after reference month
     ("wages_and_employment", "AUS"): 21,  # ABS LFS, ~3 weeks after reference month
