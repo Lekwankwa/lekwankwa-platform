@@ -2058,12 +2058,20 @@ def run(
     print(f"  → history appended: {history_file}")
 
     # --- Step 6: Monitor failure check ---
+    # Only a genuine execution problem (the report itself couldn't be
+    # generated) is a job failure. Finding CRITICAL/HIGH data-quality issues
+    # is the normal, expected output of a working quality report — it's
+    # already captured in the ALERT file and escalated to self-healing above.
+    # Exiting non-zero for that would tell Cloud Run the *job* failed, which
+    # triggers a full retry of the entire (multi-hour) scan and re-fires the
+    # same self-healing escalation a second time, producing duplicate PRs.
     has_generation_errors = any(gr.generation_errors for gr in granular_reports)
     if has_generation_errors:
         print("MONITOR_FAILURE: One or more products had generation errors.", file=sys.stderr)
         return 2
     if needs_alert:
-        return 1  # DATA_QUALITY_FAILURE
+        print(f"  → data-quality findings present (see {run_month} ALERT file) — "
+              f"already alerted/escalated, exiting 0 (not a job failure)")
     return 0
 
 
