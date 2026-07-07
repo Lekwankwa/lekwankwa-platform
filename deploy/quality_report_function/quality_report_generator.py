@@ -1703,7 +1703,7 @@ def send_alert_email(
         msg["To"] = ALERT_EMAIL_TO
         msg.attach(MIMEText(plain_body, "plain"))
         msg.attach(MIMEText(html_body, "html"))
-        with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as server:
+        with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=30) as server:
             server.starttls()
             server.login(ALERT_EMAIL_FROM, password)
             server.sendmail(ALERT_EMAIL_FROM, ALERT_EMAIL_TO, msg.as_string())

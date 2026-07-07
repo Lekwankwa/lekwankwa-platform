@@ -160,7 +160,7 @@ the fix is rejected and logged for manual review.
     msg.attach(MIMEText(body_html,  "html"))
 
     log.info("[EMAIL] Sending approval email to %s", RECIPIENT)
-    with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
+    with smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=30) as server:
         server.login(sender, password)
         server.send_message(msg)
     log.info("[EMAIL] Approval email sent — token %s", approval_token[:8] + "...")
@@ -266,7 +266,7 @@ Review the PR, confirm the change looks correct, and merge to apply.
     msg.attach(MIMEText(body_html,  "html"))
 
     log.info("[EMAIL] Sending auto-fix notification to %s", RECIPIENT)
-    with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
+    with smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=30) as server:
         server.login(sender, password)
         server.send_message(msg)
     log.info("[EMAIL] Auto-fix notification sent for PR: %s", pr_url)
