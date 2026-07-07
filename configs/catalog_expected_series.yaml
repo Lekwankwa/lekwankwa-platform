@@ -1,0 +1,706 @@
+# catalog_expected_series.yaml — Lekwankwa Corporation
+# =====================================================
+# Authoritative list of series that MUST exist in the vault.
+#
+# On every quality report run, this manifest is diffed against the live vault.
+# Any entry with fewer distinct months than min_months surfaces as a
+# CRITICAL DATA_GAP finding, separate from FRESHNESS/VALIDATION findings.
+#
+# This check exists because freshness monitoring cannot detect a series that
+# was never ingested — it only flags staleness on series that were once present.
+# DATA_GAP catches the complementary failure mode: a series that is required
+# by a strategy but has never been loaded.
+#
+# Canonical example that prompted this file (June 2026):
+#   wages_and_employment/USA/CES0500000003  — avg hourly earnings
+#   Housing_Supply_and_Shelter_Inflation/USA/CUSR0000SAH1 — shelter CPI
+#   Both were listed in catalog_manifest.yaml but were absent from the vault.
+#   Strategies 10 and 12 could not run as a result.
+#
+# Schema
+# ------
+# product        : vault product key (matches hive partition product=)
+# country        : ISO-3166-1 alpha-3 (matches hive partition country=)
+# series_id      : sovereign_series_id value to check, OR null to check partition
+#                  presence only (used for Eurostat SDMX whole-product checks)
+# source         : vault source name (hive partition source=); null = any source
+# value_col      : expected value column (observed_value | observed_price_local)
+# min_months     : minimum distinct observation months required in the vault
+# backtest_start : earliest month the strategy needs; used to anchor gap severity
+# required_by    : list of strategy numbers that depend on this series
+# notes          : human-readable context
+#
+# Severity rules (applied by quality_report_generator.py):
+#   months_found == 0            → CRITICAL (series completely absent)
+#   months_found < min_months    → HIGH     (series present but sparse)
+#   months_found >= min_months   → OK (no finding emitted)
+#
+# Maintenance
+# -----------
+# Update this file when new series are ingested (increase min_months to reflect
+# expected coverage depth), or when a new strategy requires a series that was
+# not previously checked.
+#
+# version: "1.0"
+# generated: "2026-06-24"
+
+version: "1.0"
+generated: "2026-06-24"
+
+expected_series:
+
+  # ===========================================================================
+  # DS1 — food_micropricing / USA
+  # BLS retail food price survey. Series IDs are APU codes (avg price per unit).
+  # Stored as observed_price_local. Vault source: bls (usa_food_scraper.py).
+  # Note: APU0000712111 and APU0000717111 are older series with fewer months
+  # in the vault (~74-79 months); min_months lowered to 60 accordingly.
+  # ===========================================================================
+
+  - product: food_micropricing
+    country: USA
+    series_id: APU0000701111
+    source: bls
+    value_col: observed_price_local
+    min_months: 120
+    backtest_start: "1980-01-01"
+    required_by: [1, 2, 5, 9]
+    notes: "BLS retail price — white bread per lb"
+
+  - product: food_micropricing
+    country: USA
+    series_id: APU0000702111
+    source: bls
+    value_col: observed_price_local
+    min_months: 120
+    backtest_start: "1980-01-01"
+    required_by: [1, 2, 5, 9]
+    notes: "BLS retail price — milk per gallon"
+
+  - product: food_micropricing
+    country: USA
+    series_id: APU0000702421
+    source: bls
+    value_col: observed_price_local
+    min_months: 120
+    backtest_start: "1980-01-01"
+    required_by: [1, 2, 5, 9]
+    notes: "BLS retail price — butter per lb"
+
+  - product: food_micropricing
+    country: USA
+    series_id: APU0000706111
+    source: bls
+    value_col: observed_price_local
+    min_months: 120
+    backtest_start: "1980-01-01"
+    required_by: [1, 2, 5, 9]
+    notes: "BLS retail price — eggs per dozen"
+
+  - product: food_micropricing
+    country: USA
+    series_id: APU0000706211
+    source: bls
+    value_col: observed_price_local
+    min_months: 120
+    backtest_start: "1980-01-01"
+    required_by: [1, 2, 5, 9]
+    notes: "BLS retail price — chicken per lb"
+
+  - product: food_micropricing
+    country: USA
+    series_id: APU0000708111
+    source: bls
+    value_col: observed_price_local
+    min_months: 120
+    backtest_start: "1980-01-01"
+    required_by: [1, 2, 5, 9]
+    notes: "BLS retail price — ground beef per lb"
+
+  - product: food_micropricing
+    country: USA
+    series_id: APU0000711111
+    source: bls
+    value_col: observed_price_local
+    min_months: 120
+    backtest_start: "1980-01-01"
+    required_by: [1, 2, 5, 9]
+    notes: "BLS retail price — tomatoes per lb"
+
+  - product: food_micropricing
+    country: USA
+    series_id: APU0000711412
+    source: bls
+    value_col: observed_price_local
+    min_months: 120
+    backtest_start: "1980-01-01"
+    required_by: [1, 2, 5, 9]
+    notes: "BLS retail price — potatoes per lb"
+
+  - product: food_micropricing
+    country: USA
+    series_id: APU0000712111
+    source: bls
+    value_col: observed_price_local
+    min_months: 60
+    backtest_start: "1980-01-01"
+    required_by: [1, 2, 5, 9]
+    notes: "BLS retail price — ~74 months in vault; older series with reduced BLS coverage"
+
+  - product: food_micropricing
+    country: USA
+    series_id: APU0000717111
+    source: bls
+    value_col: observed_price_local
+    min_months: 60
+    backtest_start: "1980-01-01"
+    required_by: [1, 2, 5, 9]
+    notes: "BLS retail price — ~79 months in vault; older series with reduced BLS coverage"
+
+  - product: food_micropricing
+    country: USA
+    series_id: APU0000717311
+    source: bls
+    value_col: observed_price_local
+    min_months: 120
+    backtest_start: "1980-01-01"
+    required_by: [1, 2, 5, 9]
+    notes: "BLS retail price — sugar per lb"
+
+  # DS1 — food_micropricing / GBR (ONS mm23)
+  - product: food_micropricing
+    country: GBR
+    series_id: FOOD_ALL_GBR_D7BU
+    source: ons_api
+    value_col: observed_value
+    min_months: 60
+    backtest_start: "1988-01-01"
+    required_by: [1, 2]
+    notes: "ONS CPI food index (D7BU) from mm23 dataset"
+
+  # DS1 — food_micropricing / CAN (StatCan)
+  - product: food_micropricing
+    country: CAN
+    series_id: CPI_FOOD_ALL_CAN_v41690974
+    source: statcan_csv
+    value_col: observed_value
+    min_months: 60
+    backtest_start: "1949-01-01"
+    required_by: [1, 2]
+    notes: "StatCan CPI food purchased from stores (v41690974)"
+
+  # DS1 — food_micropricing / NOR (SSB)
+  - product: food_micropricing
+    country: NOR
+    series_id: CPI_FOOD_ALL_NOR
+    source: ssb_statbank
+    value_col: observed_value
+    min_months: 60
+    backtest_start: "2000-01-01"
+    required_by: [1]
+    notes: "SSB CPI food sub-index (table 14700)"
+
+  # ===========================================================================
+  # DS2 — wages_and_employment / USA
+  # LNS14000000 in bls_cps (confirmed). PAYEMS in global_macro/alfred_vintage.
+  # CES0500000003 absent — bls_ces exists but CES data not yet ingested.
+  # ===========================================================================
+
+  - product: wages_and_employment
+    country: USA
+    series_id: LNS14000000
+    source: bls_cps
+    value_col: observed_value
+    min_months: 120
+    backtest_start: "1948-01-01"
+    required_by: [7]
+    notes: "BLS CPS U3 unemployment rate SA — Sahm Rule signal for Strategy 7; stored in bls_cps source (confirmed present)"
+
+  - product: global_macro
+    country: USA
+    series_id: PAYEMS
+    source: alfred_vintage
+    value_col: observed_value
+    min_months: 120
+    backtest_start: "1990-01-01"
+    required_by: [2, 5]
+    notes: "BLS CES total nonfarm payrolls — stored in global_macro/alfred_vintage (not wages_and_employment)"
+
+  - product: wages_and_employment
+    country: USA
+    series_id: CES0500000003
+    source: bls_ces
+    value_col: observed_value
+    min_months: 60
+    backtest_start: "1990-01-01"
+    required_by: [10, 12]
+    notes: "BLS CES avg hourly earnings (total private) — NOT INGESTED as of 2026-06-24; bls_ces source exists but uses different schema (series_id not sovereign_series_id); required by Strategies 10 and 12"
+
+  # DS2 — wages_and_employment / GBR
+  - product: wages_and_employment
+    country: GBR
+    series_id: EMP_LVL_GBR_MGRZ
+    source: ons_api
+    value_col: observed_value
+    min_months: 60
+    backtest_start: "1990-01-01"
+    required_by: [2]
+    notes: "ONS LFS employment level (MGRZ)"
+
+  # DS2 — wages_and_employment / CAN
+  - product: wages_and_employment
+    country: CAN
+    series_id: LFS_UNEMP_RATE_CAN_v2091177
+    source: statcan_csv
+    value_col: observed_value
+    min_months: 60
+    backtest_start: "1976-01-01"
+    required_by: [2]
+    notes: "StatCan LFS unemployment rate SA (v2091177)"
+
+  # ===========================================================================
+  # DS3 — Housing_Supply_and_Shelter_Inflation / USA
+  # census_bps: PERMIT/PERMIT1 confirmed (500+ months).
+  # bls_cpi_shelter: CUSR0000SAH1 / CUUR0000SAH1 confirmed (461 months each).
+  # ===========================================================================
+
+  - product: Housing_Supply_and_Shelter_Inflation
+    country: USA
+    series_id: PERMIT
+    source: census_bps
+    value_col: observed_value
+    min_months: 120
+    backtest_start: "1960-01-01"
+    required_by: [8]
+    notes: "Census BPS total housing permits (SAAR) — confirmed present (796 months)"
+
+  - product: Housing_Supply_and_Shelter_Inflation
+    country: USA
+    series_id: PERMIT1
+    source: census_bps
+    value_col: observed_value
+    min_months: 60
+    backtest_start: "1960-01-01"
+    required_by: [8]
+    notes: "Census BPS single-unit permits"
+
+  - product: Housing_Supply_and_Shelter_Inflation
+    country: USA
+    series_id: CUSR0000SAH1
+    source: bls_cpi_shelter
+    value_col: observed_value
+    min_months: 120
+    backtest_start: "1983-01-01"
+    required_by: [4, 12]
+    notes: "BLS CPI Shelter SA (rent + OER) — 461 months in bls_cpi_shelter; written by bls_census_housing_usa_scraper.py"
+
+  - product: Housing_Supply_and_Shelter_Inflation
+    country: USA
+    series_id: CUUR0000SAH1
+    source: bls_cpi_shelter
+    value_col: observed_value
+    min_months: 120
+    backtest_start: "1940-01-01"
+    required_by: [4, 12]
+    notes: "BLS CPI Shelter NSA — 461 months in bls_cpi_shelter; companion to CUSR0000SAH1"
+
+  # DS3 — Housing / GBR
+  - product: Housing_Supply_and_Shelter_Inflation
+    country: GBR
+    series_id: CPI_HOUSING_GBR_D7BX
+    source: ons_api
+    value_col: observed_value
+    min_months: 60
+    backtest_start: "1988-01-01"
+    required_by: [4]
+    notes: "ONS CPI housing water fuels (D7BX)"
+
+  # DS3 — Housing / CAN
+  - product: Housing_Supply_and_Shelter_Inflation
+    country: CAN
+    series_id: NHPI_TOTAL_CAN_v111955442
+    source: statcan_csv
+    value_col: observed_value
+    min_months: 60
+    backtest_start: "1981-01-01"
+    required_by: [4]
+    notes: "StatCan New Housing Price Index total (v111955442)"
+
+  # ===========================================================================
+  # DS4 — trade_flows
+  # USA BOPGSTB has only ~1 month in vault as of 2026-06-24 (data gap).
+  # GBR/CAN/AUS/NOR confirmed working.
+  # ===========================================================================
+
+  - product: trade_flows
+    country: USA
+    series_id: BOPGSTB
+    source: alfred_vintage
+    value_col: observed_value
+    min_months: 60
+    backtest_start: "1997-01-01"
+    required_by: [11]
+    notes: "BEA balance of payments goods & services trade balance — sparse in vault (confirmed June 2026); Strategy 11 uses non-USA composite as fallback"
+
+  - product: trade_flows
+    country: GBR
+    series_id: TRADE_BAL_GBR_IKBJ
+    source: ons_api
+    value_col: observed_value
+    min_months: 60
+    backtest_start: "1988-01-01"
+    required_by: [3, 9, 11]
+    notes: "ONS BOP trade balance (IKBJ)"
+
+  - product: trade_flows
+    country: CAN
+    series_id: TRADE_BAL_CAN_v87008984
+    source: statcan_csv
+    value_col: observed_value
+    min_months: 60
+    backtest_start: "1992-01-01"
+    required_by: [3, 9, 11]
+    notes: "StatCan merch trade balance SA (v87008984)"
+
+  - product: trade_flows
+    country: AUS
+    series_id: null
+    source: abs_sdmx
+    value_col: observed_value
+    min_months: 60
+    backtest_start: "2000-01-01"
+    required_by: [3, 9, 11]
+    notes: "ABS international trade in goods and services — partition-level check (no single sovereign_series_id)"
+
+  - product: trade_flows
+    country: NOR
+    series_id: null
+    source: ssb_statbank
+    value_col: observed_value
+    min_months: 60
+    backtest_start: "2000-01-01"
+    required_by: [3, 9, 11]
+    notes: "SSB external trade monthly — partition-level check"
+
+  # ===========================================================================
+  # DS5 — global_macro / USA (ALFRED)
+  # All confirmed present from backtest runs.
+  # ===========================================================================
+
+  - product: global_macro
+    country: USA
+    series_id: CPIAUCNS
+    source: alfred_vintage
+    value_col: observed_value
+    min_months: 120
+    backtest_start: "1991-01-01"
+    required_by: [1, 2, 4, 5]
+    notes: "ALFRED CPI all items not seasonally adjusted — used as food/macro fallback proxy"
+
+  - product: global_macro
+    country: USA
+    series_id: INDPRO
+    source: alfred_vintage
+    value_col: observed_value
+    min_months: 120
+    backtest_start: "1991-01-01"
+    required_by: [1, 5, 11]
+    notes: "ALFRED industrial production index — GDP proxy for Strategies 1 and 5"
+
+  - product: global_macro
+    country: USA
+    series_id: GDPC1
+    source: alfred_vintage
+    value_col: observed_value
+    min_months: 60
+    backtest_start: "1991-01-01"
+    required_by: [5]
+    notes: "ALFRED real GDP chained 2017 dollars (quarterly)"
+
+  - product: global_macro
+    country: USA
+    series_id: FEDFUNDS
+    source: alfred_vintage
+    value_col: observed_value
+    min_months: 120
+    backtest_start: "1991-01-01"
+    required_by: [12]
+    notes: "ALFRED federal funds rate — required by Strategy 12 (Fed policy signal)"
+
+  - product: global_macro
+    country: GBR
+    series_id: GDP_Q_SA_GBR_ABMI
+    source: ons_api
+    value_col: observed_value
+    min_months: 60
+    backtest_start: "1988-01-01"
+    required_by: [1]
+    notes: "ONS quarterly GDP SA (ABMI) — GDP filter for Strategy 1 GBR leg"
+
+  - product: global_macro
+    country: CAN
+    series_id: CPI_ALL_CAN_v41690973
+    source: statcan_csv
+    value_col: observed_value
+    min_months: 60
+    backtest_start: "1961-01-01"
+    required_by: [1]
+    notes: "StatCan CPI all items (v41690973)"
+
+  - product: global_macro
+    country: NOR
+    series_id: null
+    source: ssb_statbank
+    value_col: observed_value
+    min_months: 60
+    backtest_start: "2000-01-01"
+    required_by: [1]
+    notes: "SSB CPI monthly — partition-level check (source table 14710 after June 2026 fix)"
+
+  # ===========================================================================
+  # EU27 — partition-level checks (Eurostat SDMX, no individual series_ids)
+  # Spot-check DEU (largest economy) for all 5 products as a canary.
+  # Full 27-country checks are covered by FRESHNESS monitoring.
+  # ===========================================================================
+
+  - product: food_micropricing
+    country: DEU
+    series_id: null
+    source: eurostat_sdmx
+    value_col: observed_price_local
+    min_months: 60
+    backtest_start: "2000-01-01"
+    required_by: [1]
+    notes: "EU27 canary — Eurostat HICP food for Germany; if missing, check all EU27"
+
+  - product: wages_and_employment
+    country: DEU
+    series_id: null
+    source: eurostat_sdmx
+    value_col: observed_value
+    min_months: 60
+    backtest_start: "2000-01-01"
+    required_by: [2]
+    notes: "EU27 canary — Eurostat unemployment rate Germany"
+
+  - product: Housing_Supply_and_Shelter_Inflation
+    country: DEU
+    series_id: null
+    source: eurostat_sdmx
+    value_col: observed_value
+    min_months: 60
+    backtest_start: "2000-01-01"
+    required_by: [4, 8]
+    notes: "EU27 canary — Eurostat housing permits Germany"
+
+  - product: trade_flows
+    country: DEU
+    series_id: null
+    source: eurostat_sdmx
+    value_col: observed_value
+    min_months: 60
+    backtest_start: "2000-01-01"
+    required_by: [3, 9]
+    notes: "EU27 canary — Eurostat trade flows Germany"
+
+  - product: global_macro
+    country: DEU
+    series_id: null
+    source: eurostat_sdmx
+    value_col: observed_value
+    min_months: 60
+    backtest_start: "1995-01-01"
+    required_by: [5]
+    notes: "EU27 canary — Eurostat macro Germany"
+
+# ===========================================================================
+# KNOWN GAPS
+# ---------------------------------------------------------------------------
+# Documented gaps that are PERMANENT and must not surface as DATA_GAP or
+# FRESHNESS findings. Each entry records the BLS API evidence so the absence
+# can be explained to clients and auditors without re-querying the BLS API.
+#
+# How quality_report_generator.py uses this block:
+#   Any period listed here is excluded from COVERAGE and FRESHNESS checks
+#   for the named series. Gaps not covered by this block are still flagged.
+#
+# Maintenance: add an entry whenever a series misses a scheduled release
+# for a documented, permanent reason (government lapse, series discontinuation,
+# agency-declared data unavailability). Do NOT use for routine lateness.
+# ===========================================================================
+
+known_gaps:
+
+  # ---------------------------------------------------------------------------
+  # 2025 US Government Lapse in Appropriations — October 2025
+  # ---------------------------------------------------------------------------
+  # The US federal government operated without appropriations in late October
+  # 2025.  BLS was unable to collect or publish data for the October reference
+  # month.  All affected series returned value "-" from the BLS public API with
+  # footnote codes 9 (Employment Situation series) or X (CPI / price series).
+  #
+  # BLS confirmation queries run 2026-06-25:
+  #   LNS14000000  → M10 value="-"  footnote code 9
+  #   APU0000701111 → M10 value="-"  footnote code X
+  #   CUUR0000SEHA  → M10 value="-"  footnote code X
+  #   CUSR0000SEHA  → M10 value="-"  footnote code X
+  #   CES0500000003 → M10 value="36.85"  NO footnote (NOT affected — published normally)
+  #
+  # November 2025 values confirm all affected series resumed normally.
+  # BLS does not retroactively publish data for lapse periods.
+  # ---------------------------------------------------------------------------
+
+  - gap_id: "BLS_2025_APPROPRIATIONS_LAPSE"
+    period: "2025-10"
+    permanent: true
+    backfill_expected: false
+    confirmed_date: "2026-06-25"
+    reason: "Data unavailable due to 2025 lapse in appropriations"
+    bls_footnote_codes: ["9", "X"]
+    bls_api_value: "-"
+    note: >
+      BLS does not retroactively publish data for lapse periods.
+      November 2025 values confirm all series resumed normally after the
+      lapse ended.  CES0500000003 (avg hourly earnings) was NOT affected
+      and has a real October 2025 value (36.85).
+    vault_actions_taken:
+      - "DELETED: wages_and_employment/USA/bls_cps/year=2025/month=10 (empty folder)"
+      - "DELETED: Housing_Supply_and_Shelter_Inflation/USA/bls_cpi_shelter/year=2025/month=10 (NaN parquet, all 7 observed_values null)"
+      - "ABSENT (never created): food_micropricing/USA/bls/year=2025/month=10 (scraper correctly wrote nothing for '-' values)"
+    affected_series:
+
+      # wages_and_employment / USA / bls_cps
+      - series_id: LNS14000000
+        product: wages_and_employment
+        country: USA
+        source: bls_cps
+        bls_footnote_code: "9"
+        vault_status: folder_deleted
+
+      # food_micropricing / USA / bls  (BLS Average Retail Food Prices)
+      - series_id: APU0000701111
+        product: food_micropricing
+        country: USA
+        source: bls
+        bls_footnote_code: "X"
+        vault_status: folder_never_created
+
+      - series_id: APU0000702111
+        product: food_micropricing
+        country: USA
+        source: bls
+        bls_footnote_code: "X"
+        vault_status: folder_never_created
+
+      - series_id: APU0000702421
+        product: food_micropricing
+        country: USA
+        source: bls
+        bls_footnote_code: "X"
+        vault_status: folder_never_created
+
+      - series_id: APU0000703112
+        product: food_micropricing
+        country: USA
+        source: bls
+        bls_footnote_code: "X"
+        vault_status: folder_never_created
+
+      - series_id: APU0000706111
+        product: food_micropricing
+        country: USA
+        source: bls
+        bls_footnote_code: "X"
+        vault_status: folder_never_created
+
+      - series_id: APU0000708111
+        product: food_micropricing
+        country: USA
+        source: bls
+        bls_footnote_code: "X"
+        vault_status: folder_never_created
+
+      - series_id: APU0000709112
+        product: food_micropricing
+        country: USA
+        source: bls
+        bls_footnote_code: "X"
+        vault_status: folder_never_created
+
+      - series_id: APU0000711412
+        product: food_micropricing
+        country: USA
+        source: bls
+        bls_footnote_code: "X"
+        vault_status: folder_never_created
+
+      - series_id: APU0000717311
+        product: food_micropricing
+        country: USA
+        source: bls
+        bls_footnote_code: "X"
+        vault_status: folder_never_created
+
+      - series_id: APU0000720111
+        product: food_micropricing
+        country: USA
+        source: bls
+        bls_footnote_code: "X"
+        vault_status: folder_never_created
+
+      - series_id: APU0000720311
+        product: food_micropricing
+        country: USA
+        source: bls
+        bls_footnote_code: "X"
+        vault_status: folder_never_created
+
+      # Housing_Supply_and_Shelter_Inflation / USA / bls_cpi_shelter
+      - series_id: CUUR0000SEHA
+        product: Housing_Supply_and_Shelter_Inflation
+        country: USA
+        source: bls_cpi_shelter
+        bls_footnote_code: "X"
+        vault_status: nan_parquet_deleted
+
+      - series_id: CUUR0000SEHB
+        product: Housing_Supply_and_Shelter_Inflation
+        country: USA
+        source: bls_cpi_shelter
+        bls_footnote_code: "X"
+        vault_status: nan_parquet_deleted
+
+      - series_id: CUUR0000SAH1
+        product: Housing_Supply_and_Shelter_Inflation
+        country: USA
+        source: bls_cpi_shelter
+        bls_footnote_code: "X"
+        vault_status: nan_parquet_deleted
+
+      - series_id: CUUR0000SEHC
+        product: Housing_Supply_and_Shelter_Inflation
+        country: USA
+        source: bls_cpi_shelter
+        bls_footnote_code: "X"
+        vault_status: nan_parquet_deleted
+
+      - series_id: CUSR0000SEHA
+        product: Housing_Supply_and_Shelter_Inflation
+        country: USA
+        source: bls_cpi_shelter
+        bls_footnote_code: "X"
+        vault_status: nan_parquet_deleted
+
+      - series_id: CUSR0000SEHB
+        product: Housing_Supply_and_Shelter_Inflation
+        country: USA
+        source: bls_cpi_shelter
+        bls_footnote_code: "X"
+        vault_status: nan_parquet_deleted
+
+      - series_id: CUSR0000SAH1
+        product: Housing_Supply_and_Shelter_Inflation
+        country: USA
+        source: bls_cpi_shelter
+        bls_footnote_code: "X"
+        vault_status: nan_parquet_deleted
