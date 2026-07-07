@@ -156,7 +156,7 @@ create_quality_job() {
         --service-account="${SA}" \
         --region="${REGION}" \
         --max-retries=1 \
-        --task-timeout=3600 \
+        --task-timeout=10800 \
         --execution-environment=gen2 \
         --project="${PROJECT}" \
         2>/dev/null || \
@@ -171,7 +171,7 @@ create_quality_job() {
         --service-account="${SA}" \
         --region="${REGION}" \
         --max-retries=1 \
-        --task-timeout=3600 \
+        --task-timeout=10800 \
         --execution-environment=gen2 \
         --project="${PROJECT}"
     echo "  ✓ ${NAME}"
