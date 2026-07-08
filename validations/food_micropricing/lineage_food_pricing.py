@@ -51,7 +51,7 @@ logger = logging.getLogger(__name__)
 # CONFIGURATION
 # =============================================================================
 
-VAULT_DIR   = VAULT_ROOT
+VAULT_DIR   = Path(VAULT_ROOT)
 PRODUCT     = "food_micropricing"
 COUNTRY     = "USA"
 SOURCES     = ["bls", "usda_ers"]
