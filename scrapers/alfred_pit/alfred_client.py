@@ -17,6 +17,7 @@ Date: 2026-06-16
 import logging
 import os
 import time
+import uuid
 from typing import Optional
 
 import pandas as pd
@@ -126,6 +127,7 @@ def build_vintage_rows(
 
             row = {
                 **schema_fields,
+                "record_id":            str(uuid.uuid4()),
                 "sovereign_series_id":  series_id,
                 "data_vintage_id":      vid,
                 "reporting_date":       date.strftime("%Y-%m-%d"),

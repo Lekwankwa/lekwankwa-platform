@@ -111,6 +111,7 @@ def retrofit_alfred_aggregate() -> int:
         if vintage_rows.empty:
             continue
 
+        vintage_rows["trade_value"] = vintage_rows["observed_value"]
         vintage_rows["data_timestamp"] = pd.to_datetime(vintage_rows["data_timestamp"])
         for (year, month), grp in vintage_rows.groupby([
             vintage_rows["data_timestamp"].dt.year,
