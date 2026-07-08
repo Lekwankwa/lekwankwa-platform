@@ -8,6 +8,13 @@ from pathlib import Path
 import pandas as pd
 
 _VAULT_ROOT = os.environ.get("VAULT_ROOT", "").strip() or "lekwankwa-historical-vault"
+# NOTE: unlike load()/_find_files() above, changelog_generator_non_eu.py,
+# lineage_non_eu.py, outlier_extractor_non_eu.py and schema_compliance_non_eu.py
+# use VAULT with real pathlib.Path methods (.exists(), .rglob(), .relative_to())
+# and have no gs:// branch — they only work against a local path. This fixes the
+# ImportError (VAULT never existed); it does not add cloud-storage support to
+# those four scripts.
+VAULT = Path(_VAULT_ROOT)
 
 # ISO3 → (country_name, vault_source, source_agency)
 COUNTRIES: dict[str, tuple[str, str, str]] = {
