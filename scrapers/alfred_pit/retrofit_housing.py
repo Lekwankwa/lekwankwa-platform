@@ -43,13 +43,13 @@ SHELTER_SERIES = {"CUUR0000SEHA", "CUUR0000SEHB", "CUUR0000SAH1",
 PERMITS_CONSTANTS = {
     "iso_alpha3":          "USA",
     "country_name":        "United States",
-    "country_code":        "USA",
+    "country_code":        "US",
     "market_tier":         "Developed",
     "source":              "alfred_vintage",
     "source_agency":       "CENSUS",
     "source_sub_category": "HOUSING",
     "portal_url":          "https://alfred.stlouisfed.org/",
-    "extraction_method":   "ALFRED_API",
+    "extraction_method":   "api",
     "seasonal_adjustment": "SAAR",
     "data_quality_certified": True,
 }
@@ -57,13 +57,13 @@ PERMITS_CONSTANTS = {
 SHELTER_CONSTANTS = {
     "iso_alpha3":          "USA",
     "country_name":        "United States",
-    "country_code":        "USA",
+    "country_code":        "US",
     "market_tier":         "Developed",
     "source":              "alfred_vintage",
     "source_agency":       "BLS",
     "source_sub_category": "CPI_URBAN",
     "portal_url":          "https://alfred.stlouisfed.org/",
-    "extraction_method":   "ALFRED_API",
+    "extraction_method":   "api",
     "data_quality_certified": True,
 }
 

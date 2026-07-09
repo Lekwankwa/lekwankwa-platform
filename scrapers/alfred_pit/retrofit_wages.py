@@ -44,13 +44,13 @@ FILE_NAME  = "wages_data.parquet"
 SCHEMA_CONSTANTS = {
     "iso_alpha3":         "USA",
     "country_name":       "United States",
-    "country_code":       "USA",
+    "country_code":       "US",
     "market_tier":        "Developed",
     "source":             "alfred_vintage",
     "source_agency":      "BLS",
     "source_sub_category": "CES_CPS",
     "portal_url":         "https://alfred.stlouisfed.org/",
-    "extraction_method":  "ALFRED_API",
+    "extraction_method":  "api",
     "data_quality_certified": True,
 }
 

@@ -75,14 +75,14 @@
 
     "value_constraints": {
       "observed_value": {
-        "min": 0.0,
+        "min": -500000.0,
         "max": 1000000.0,
-        "description": "Trade value in USD_MILLIONS (max ~$1 trillion)"
+        "description": "Trade value in USD_MILLIONS (max ~$1 trillion). Negative range covers the alfred_vintage BOPGSTB net trade balance series (US goods trade deficit), observed range -132,983 to -831 USD_MILLIONS."
       },
       "trade_value": {
-        "min": 0.0,
+        "min": -500000.0,
         "max": 1000000.0,
-        "description": "Trade value in USD_MILLIONS (alias)"
+        "description": "Trade value in USD_MILLIONS (alias). See observed_value note on negative range."
       }
     },
 
@@ -92,10 +92,10 @@
       "market_tier":            ["Developed"],
       "source_agency":          ["CENSUS"],
       "source_sub_category":    ["TRADE"],
-      "trade_flow":             ["Export", "Import"],
+      "trade_flow":             ["Export", "Import", "NET"],
       "unit_of_measure":        ["USD_MILLIONS"],
       "currency":               ["USD"],
-      "source":                 ["census_ft900"],
+      "source":                 ["census_ft900", "alfred_vintage"],
       "extraction_method":      ["api"],
       "data_quality_certified": [true, false],
       "confidence_tier":        ["PRIMARY", "SECONDARY"]
@@ -103,10 +103,10 @@
 
     "timestamp_checks": {
       "data_timestamp": {
-        "min_year": 2010,
+        "min_year": 1992,
         "max_year": 2030,
         "format": "datetime64",
-        "description": "Monthly reference date (YYYY-MM-01T00:00:00+00:00)"
+        "description": "Monthly reference date (YYYY-MM-01T00:00:00+00:00). Primary census_ft900 HS-chapter data starts 2010; the alfred_vintage BOPGSTB net trade balance series has real history back to 1992 (observed range confirmed 1992-01 to present)."
       }
     }
   }
