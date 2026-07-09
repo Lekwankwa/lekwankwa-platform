@@ -44,13 +44,13 @@ FILE_NAME  = "food_pricing_data.parquet"
 
 SCHEMA_CONSTANTS = {
     "iso_alpha3":              "USA",
-    "country_code":            "USA",
+    "country_code":            "US",
     "market_tier":             "Developed",
     "source":                  "alfred_vintage",
     "source_agency":           "BLS",
     "source_sub_category":     "CPI",
     "portal_url":              "https://alfred.stlouisfed.org/",
-    "extraction_method":       "ALFRED_API",
+    "extraction_method":       "api",
     "currency":                "USD",
     "fx_rate_applied":         1.0,
     "price_usd_equivalent":    None,   # will be set per row

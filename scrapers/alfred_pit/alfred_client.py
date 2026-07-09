@@ -80,9 +80,9 @@ def fetch_all_vintages(series_id: str) -> pd.DataFrame:
     if df.empty:
         return df
 
-    df["date"]           = pd.to_datetime(df["date"], errors="coerce")
-    df["realtime_start"] = pd.to_datetime(df["realtime_start"], errors="coerce")
-    df["realtime_end"]   = pd.to_datetime(df["realtime_end"],   errors="coerce")
+    df["date"]           = pd.to_datetime(df["date"], errors="coerce", utc=True)
+    df["realtime_start"] = pd.to_datetime(df["realtime_start"], errors="coerce", utc=True)
+    df["realtime_end"]   = pd.to_datetime(df["realtime_end"],   errors="coerce", utc=True)
     df["value"]          = pd.to_numeric(df["value"], errors="coerce")
 
     # Drop rows with missing date or missing value (marked "." by FRED for missing)
