@@ -367,12 +367,63 @@ def compute_expected_latest(
     structural publication lag.  Walks backward until period_end + lag <= today.
     """
     if freq == "M":
-        candidate = today.replace(day=1)
-        for _ in range(36):  # safety stop
-            period_end = _month_end(candidate)
-            if period_end + datetime.timedelta(days=lag_days) <= today:
-                return candidate
-            candidate = _prev_month_start(candidate)
+    return total
+
+
+# ---------------------------------------------------------------------------
+# Self-healing: automated single-retry re-ingestion for STALE live-feed data
+# ---------------------------------------------------------------------------
+
+def _self_heal_refresh_stale_country(
+    vault_root: Path,
+    product: str,
+    country_iso3: str,
+) -> bool:
+    """
+    Attempt one automated re-ingestion pass for a STALE live-feed
+    product/country before it is finalized as a hard finding.
+
+    Invokes vault_extractor.py in single-country mode against the live
+    vault root. Returns True if the extractor process completed without
+    error (freshness is re-checked separately by the caller — this
+    function only performs the re-ingestion attempt, it does not itself
+    decide FRESH vs STALE).
+    """
+    import subprocess
+    extractor_path = Path(__file__).resolve().parent.parent / "vault_extractor.py"
+    if not extractor_path.exists():
+        return False
+    try:
+        result = subprocess.run(
+            [
+                sys.executable, str(extractor_path),
+                "--mode", "live",
+                "--product", product,
+                "--country", country_iso3,
+                "--vault-root", str(vault_root),
+            ],
+            capture_output=True,
+            text=True,
+            timeout=300,
+        )
+        if result.returncode != 0:
+            print(
+                f"[SELF-HEAL] extractor re-run for {product}/{country_iso3} "
+                f"exited {result.returncode}: {result.stderr[-500:]}",
+                file=sys.stderr,
+            )
+        return result.returncode == 0
+    except Exception as e:
+        print(
+            f"[SELF-HEAL] extractor re-run failed for {product}/{country_iso3}: {e}",
+            file=sys.stderr,
+        )
+        return False
+
+
+# ---------------------------------------------------------------------------
+# Series manifest check (DATA_GAP detection)
+# ---------------------------------------------------------------------------
         return candidate  # fallback
     elif freq == "Q":
         candidate = _quarter_start(today)
@@ -633,12 +684,34 @@ def check_series_vault_presence(
             severity = "LOW"
             is_gap   = False
 
-        results.append(SeriesGapResult(
-            product=product,
-            country=country,
-            series_id=series_id,
-            source=source,
-            months_found=months_found,
+                freshness_status, days_behind = classify_freshness(
+                    vault_latest, expected_latest, lag, freq, consecutive_frozen_runs
+                )
+                # Self-heal: one automated retry for STALE live-feed, non-excluded
+                # products before we finalize the finding. Transient upstream API
+                # hiccups (rate limits, timeouts) are the most common cause of a
+                # single missed monthly release and are frequently resolved by an
+                # immediate re-run.
+                if (
+                    freshness_status == "STALE"
+                    and product in LIVE_FEED_PRODUCTS
+                    and (product, country_group) not in LIVE_FEED_EXCLUDED
+                ):
+                    healed = _self_heal_refresh_stale_country(
+                        vault_root, product, country_iso3
+                    )
+                    if healed:
+                        vault_latest = read_vault_latest(vault_root, product, country_iso3)
+                        freshness_status, days_behind = classify_freshness(
+                            vault_latest, expected_latest, lag, freq,
+                            consecutive_frozen_runs,
+                        )
+                        print(
+                            f"     [SELF-HEAL] re-ingested {product}/{country_iso3}; "
+                            f"new freshness_status={freshness_status}"
+                        )
+                if freshness_status == "FROZEN" and (product, country_group) in KNOWN_DISCONTINUED:
+                    freshness_status = "DISCONTINUED"            months_found=months_found,
             min_months=min_months,
             severity=severity,
             required_by=required,
