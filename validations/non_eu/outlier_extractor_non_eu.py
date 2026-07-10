@@ -1,5 +1,5 @@
 """
-Stage 6 — Outlier Extraction: GBR / CAN / AUS / NOR.
+Stage 6 — Outlier Extraction: GBR / CAN.
 
 Flags PRIMARY rows where observed_value deviates > 3σ from the
 per-series rolling mean (window=12). Writes outliers.parquet per year partition.
@@ -113,7 +113,7 @@ def run(product: str, dry_run: bool = False) -> bool:
 
     report = {
         "timestamp": datetime.utcnow().isoformat() + "Z",
-        "product": product, "scope": "non_eu GBR/CAN/AUS/NOR",
+        "product": product, "scope": "non_eu GBR/CAN",
         "z_threshold": Z_THRESHOLD, "total_flagged": total_flagged,
         "dry_run": dry_run, "files_written": year_reports, "overall": "PASS",
     }

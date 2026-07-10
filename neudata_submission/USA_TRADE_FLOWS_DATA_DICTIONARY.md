@@ -11,7 +11,7 @@
 **Sample File**: `sample_parquet_trade_flows/trade_flows_v1.0_sample.parquet`
 **Update Frequency**: Monthly
 **Last Updated**: June 2026
-**Vault Coverage (Global)**: USA + 27 EU Member States + GBR, CAN, AUS, NOR = 32 countries
+**Vault Coverage (Global)**: USA + 27 EU Member States + GBR, CAN = 30 countries
 
 ---
 

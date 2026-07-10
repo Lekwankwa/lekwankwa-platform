@@ -37,8 +37,6 @@ COUNTRY_ROUTER: dict[str, dict] = {
     "USA":  {"source": "census_ft900", "module": "scrapers.trade_flows.census_ft900_usa_scraper",   "fn": "main"},
     "GBR":  {"source": "ons",          "module": "scrapers.trade_flows.ons_trade_scraper",           "fn": "scrape_gbr_trade"},
     "CAN":  {"source": "statcan",      "module": "scrapers.trade_flows.statcan_trade_scraper",       "fn": "scrape_can_trade"},
-    "AUS":  {"source": "abs",          "module": "scrapers.trade_flows.abs_trade_scraper",           "fn": "scrape_aus_trade"},
-    "NOR":  {"source": "ssb",          "module": "scrapers.trade_flows.ssb_trade_scraper",           "fn": "scrape_nor_trade"},
     "EU27": {"source": "eurostat",     "module": "scrapers.trade_flows.eurostat_trade_scraper",      "fn": "scrape_eu27_trade"},
 }
 

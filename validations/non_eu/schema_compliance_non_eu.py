@@ -1,5 +1,5 @@
 """
-Stage 2 — Schema Compliance: GBR / CAN / AUS / NOR.
+Stage 2 — Schema Compliance: GBR / CAN.
 
 Usage:
   python validations/non_eu/schema_compliance_non_eu.py --product wages_and_employment
@@ -31,7 +31,7 @@ NON_NULL_FIELDS = [
 ]
 
 VALID_CONFIDENCE_TIERS = {"PRIMARY", "SECONDARY", "DERIVED"}
-VALID_ISO3 = {"GBR", "CAN", "AUS", "NOR"}
+VALID_ISO3 = {"GBR", "CAN"}
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s",
                     handlers=[logging.StreamHandler()])
@@ -112,7 +112,7 @@ def run(product: str) -> bool:
 
     report = {
         "timestamp": datetime.utcnow().isoformat() + "Z",
-        "product": product, "scope": "non_eu GBR/CAN/AUS/NOR",
+        "product": product, "scope": "non_eu GBR/CAN",
         "total_files": total, "clean_files": clean, "violation_files": violations,
         "overall": overall, "violations": violation_log[:50],
     }

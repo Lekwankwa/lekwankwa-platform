@@ -54,16 +54,6 @@ COUNTRY_ROUTER: dict[str, dict] = {
         "fn":      "scrape_can_food_pricing",
         "sources": ["statcan"],
     },
-    "AUS": {
-        "module":  "scrapers.food_pricing.abs_food_scraper",
-        "fn":      "scrape_aus_food_pricing",
-        "sources": ["abs"],
-    },
-    "NOR": {
-        "module":  "scrapers.food_pricing.ssb_food_scraper",
-        "fn":      "scrape_nor_food_pricing",
-        "sources": ["ssb"],
-    },
     "EU27": {
         "module":  "scrapers.food_pricing.eurostat_food_scraper",
         "fn":      "scrape_eu27_food_pricing",

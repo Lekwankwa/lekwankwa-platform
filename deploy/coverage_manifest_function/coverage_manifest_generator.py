@@ -116,8 +116,6 @@ _SOURCE_AGENCIES: dict[str, str] = {
     "USA":  "BLS / ALFRED / Census / BEA",
     "GBR":  "ONS",
     "CAN":  "Statistics Canada",
-    "AUS":  "Australian Bureau of Statistics (ABS)",
-    "NOR":  "Statistics Norway (SSB)",
     "EU27": "Eurostat",
 }
 
@@ -130,13 +128,13 @@ EU27_MEMBERS = [
     "HUN","IRL","ITA","LVA","LTU","LUX","MLT","NLD","POL","PRT","ROU","SVK",
     "SVN","ESP","SWE",
 ]
-NON_EU_COUNTRIES = ["GBR", "CAN", "AUS", "NOR"]
+NON_EU_COUNTRIES = ["GBR", "CAN"]
 
 GEO_BUNDLES: list[tuple[str, str, list[str]]] = [
     ("usa_only",        "USA Only",                      ["USA"]),
     ("eu27_only",       "EU27 Only",                     EU27_MEMBERS),
-    ("non_eu_block",    "Non-EU Block (GBR / CAN / AUS / NOR)", NON_EU_COUNTRIES),
-    ("full_32_country", "Full 32-Country Coverage",
+    ("non_eu_block",    "Non-EU Block (GBR / CAN)", NON_EU_COUNTRIES),
+    ("full_32_country", "Full 30-Country Coverage",
      ["USA"] + EU27_MEMBERS + NON_EU_COUNTRIES),
 ]
 

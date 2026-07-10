@@ -51,8 +51,6 @@ COUNTRY_ROUTER: dict[str, list[dict]] = {
         },
     ],
     "GBR": [{"source": "ons",      "module": "scrapers.housing.ons_housing_scraper",      "fn": "scrape_gbr_housing", "kwargs": {}}],
-    "AUS": [{"source": "abs",      "module": "scrapers.housing.abs_housing_scraper",      "fn": "scrape_aus_housing", "kwargs": {}}],
-    "NOR": [{"source": "ssb",      "module": "scrapers.housing.ssb_housing_scraper",      "fn": "scrape_nor_housing", "kwargs": {}}],
     "EU27": [{"source": "eurostat", "module": "scrapers.housing.eurostat_housing_scraper", "fn": "scrape_eu27_housing", "kwargs": {}}],
 }
 

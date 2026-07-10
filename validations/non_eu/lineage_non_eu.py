@@ -1,5 +1,5 @@
 """
-Stage 8 — Lineage & Provenance: GBR / CAN / AUS / NOR.
+Stage 8 — Lineage & Provenance: GBR / CAN.
 
 Checks:
   1. Source Traceability    — sovereign_series_id non-null for all records
@@ -183,7 +183,7 @@ def run(product: str) -> bool:
 
     report = {
         "timestamp": datetime.utcnow().isoformat() + "Z",
-        "product": product, "scope": "non_eu GBR/CAN/AUS/NOR",
+        "product": product, "scope": "non_eu GBR/CAN",
         "total_records": len(df),
         "checks_passed": passed, "checks_warned": warned, "checks_failed": failed,
         "overall": overall, "results": results,

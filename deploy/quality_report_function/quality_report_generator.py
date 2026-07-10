@@ -48,11 +48,6 @@ OUTPUTS (metadata/quality_reports/)
     quality_report_dataset_5_global_macro_<geo>_YYYY-MM-DD.json   (×4)
   quality_report_history.json                     ← append-only run index
 
-LIVE-FEED EXCLUSIONS (applied to live/ only, never archive/)
--------------------------------------------------------------
-  food_micropricing    — AUS excluded (quarterly, not monthly)
-  wages_and_employment — NOR excluded (SSB Table 07458 frozen at 2024-Q4)
-
 LOCAL TESTING
 -------------
   python tools/quality_report_generator.py --vault-root ./lekwankwa-historical-vault \\
@@ -74,6 +69,7 @@ import re as _re_module
 import re
 import smtplib
 import sys
+import time
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from pathlib import Path
@@ -96,15 +92,13 @@ EU27 = [
     "SVN","ESP","SWE",
 ]
 
-NON_EU_COUNTRIES = ["GBR", "CAN", "AUS", "NOR"]
+NON_EU_COUNTRIES = ["GBR", "CAN"]
 
 ALL_COUNTRIES: dict[str, list[str]] = {
     "USA": ["USA"],
     "EU27": EU27,
     "GBR": ["GBR"],
     "CAN": ["CAN"],
-    "AUS": ["AUS"],
-    "NOR": ["NOR"],
 }
 
 PRODUCTS = [
@@ -144,25 +138,18 @@ _DATASET_FOLDER: dict[str, str] = {
 GEO_BUNDLES: list[tuple[str, str]] = [
     ("usa_only",        "USA Only"),
     ("eu27_only",       "EU27 Only"),
-    ("non_eu_block",    "Non-EU Block (GBR / CAN / AUS / NOR)"),
-    ("full_32_country", "Full 32-Country Coverage"),
+    ("non_eu_block",    "Non-EU Block (GBR / CAN)"),
+    ("full_32_country", "Full 30-Country Coverage"),
 ]
 
 EU27_SET: frozenset[str] = frozenset(EU27)
-NON_EU_SET: frozenset[str] = frozenset(["GBR", "CAN", "AUS", "NOR"])
+NON_EU_SET: frozenset[str] = frozenset(["GBR", "CAN"])
 
 # Countries/products excluded from live feed — frozen, pending, or non-monthly cadence
-LIVE_FEED_EXCLUDED: frozenset[tuple[str, str]] = frozenset({
-    ("food_micropricing", "AUS"),         # ABS CPI is quarterly — excluded from monthly live feed
-    ("wages_and_employment", "NOR"),      # SSB Table 07458 FROZEN at 2024-Q4
-    ("Housing_Supply_and_Shelter_Inflation", "NOR"),  # PENDING_INGESTION
-})
+LIVE_FEED_EXCLUDED: frozenset[tuple[str, str]] = frozenset()
 
 # Sources confirmed discontinued — no further releases expected from the source agency
-KNOWN_DISCONTINUED: frozenset[tuple[str, str]] = frozenset({
-    ("wages_and_employment", "NOR"),            # SSB Table 07458: last release 2024-Q4, confirmed stopped
-    ("Housing_Supply_and_Shelter_Inflation", "AUS"),  # ABS last data 2021, no new releases observed
-})
+KNOWN_DISCONTINUED: frozenset[tuple[str, str]] = frozenset()
 
 # Structural lag: days from end of reference period to agency publication
 # Source: confirmed via live API probes across all 6 country groups, June 2026
@@ -173,40 +160,30 @@ STRUCTURAL_LAG_DAYS: dict[tuple[str, str], int] = {
     ("food_micropricing", "EU27"): 30,  # Eurostat HICP flash ~14d; final ~30d
     ("food_micropricing", "GBR"): 21,   # ONS CPI, ~third Wed of following month
     ("food_micropricing", "CAN"): 21,   # StatCan CPI, ~third Wed of following month
-    ("food_micropricing", "AUS"): 35,   # ABS CPI quarterly, ~5 weeks after quarter end
-    ("food_micropricing", "NOR"): 14,   # SSB CPI, ~14d after month end
 
     # wages_and_employment
     ("wages_and_employment", "USA"): 7,   # BLS CES, first Friday of following month
     ("wages_and_employment", "EU27"): 45, # Eurostat unemployment monthly
     ("wages_and_employment", "GBR"): 45,  # ONS LFS, ~6 weeks after reference month
     ("wages_and_employment", "CAN"): 21,  # StatCan LFS, ~3 weeks after reference month
-    ("wages_and_employment", "AUS"): 21,  # ABS LFS, ~3 weeks after reference month
-    ("wages_and_employment", "NOR"): 45,  # SSB LFS quarterly (FROZEN at 2024K4)
 
     # Housing_Supply_and_Shelter_Inflation (archive only)
     ("Housing_Supply_and_Shelter_Inflation", "USA"): 30,  # Census permits, ~4 weeks
     ("Housing_Supply_and_Shelter_Inflation", "EU27"): 90, # Eurostat permits, ~3 months
     ("Housing_Supply_and_Shelter_Inflation", "GBR"): 45,  # ONS
     ("Housing_Supply_and_Shelter_Inflation", "CAN"): 21,  # CMHC monthly
-    ("Housing_Supply_and_Shelter_Inflation", "AUS"): 90,  # ABS quarterly
-    ("Housing_Supply_and_Shelter_Inflation", "NOR"): 30,  # PENDING (placeholder)
 
     # trade_flows
     ("trade_flows", "USA"): 45,   # BFT monthly
     ("trade_flows", "EU27"): 90,  # Eurostat trade, long lag
     ("trade_flows", "GBR"): 90,   # ONS trade
     ("trade_flows", "CAN"): 45,   # StatCan trade
-    ("trade_flows", "AUS"): 33,   # ABS ITGS monthly
-    ("trade_flows", "NOR"): 35,   # SSB external trade monthly
 
     # global_macro
     ("global_macro", "USA"): 14,  # ALFRED CPI monthly (dominant series frequency)
     ("global_macro", "EU27"): 30, # Eurostat GDP flash ~30d; use monthly frequency
     ("global_macro", "GBR"): 30,  # ONS monthly GDP estimate
     ("global_macro", "CAN"): 60,  # StatCan GDP-by-expenditure quarterly
-    ("global_macro", "AUS"): 60,  # ABS national accounts quarterly
-    ("global_macro", "NOR"): 14,  # SSB CPI monthly (monthly series dominates vault count)
 }
 
 # Frequency for expected-period calculation: 'M' monthly, 'Q' quarterly
@@ -216,36 +193,26 @@ FREQUENCY: dict[tuple[str, str], str] = {
     ("food_micropricing", "EU27"): "M",
     ("food_micropricing", "GBR"): "M",
     ("food_micropricing", "CAN"): "M",
-    ("food_micropricing", "AUS"): "Q",  # ABS CPI is quarterly
-    ("food_micropricing", "NOR"): "M",
     # wages
     ("wages_and_employment", "USA"): "M",
     ("wages_and_employment", "EU27"): "M",
     ("wages_and_employment", "GBR"): "M",
     ("wages_and_employment", "CAN"): "M",
-    ("wages_and_employment", "AUS"): "M",
-    ("wages_and_employment", "NOR"): "Q",  # SSB LFS quarterly (frozen)
     # housing
     ("Housing_Supply_and_Shelter_Inflation", "USA"): "M",
     ("Housing_Supply_and_Shelter_Inflation", "EU27"): "Q",
     ("Housing_Supply_and_Shelter_Inflation", "GBR"): "M",
     ("Housing_Supply_and_Shelter_Inflation", "CAN"): "M",
-    ("Housing_Supply_and_Shelter_Inflation", "AUS"): "Q",
-    ("Housing_Supply_and_Shelter_Inflation", "NOR"): "M",
     # trade
     ("trade_flows", "USA"): "M",
     ("trade_flows", "EU27"): "M",
     ("trade_flows", "GBR"): "M",
     ("trade_flows", "CAN"): "M",
-    ("trade_flows", "AUS"): "M",
-    ("trade_flows", "NOR"): "M",
     # global_macro
     ("global_macro", "USA"): "M",
     ("global_macro", "EU27"): "M",
     ("global_macro", "GBR"): "M",
     ("global_macro", "CAN"): "Q",
-    ("global_macro", "AUS"): "Q",
-    ("global_macro", "NOR"): "M",
 }
 
 # ---------------------------------------------------------------------------
@@ -529,11 +496,31 @@ def _count_months_in_vault(
 
     Returns 0 if the partition has no data files, or if series_id is specified
     but not found in any sampled file.
+
+    Raises RuntimeError if pandas cannot be imported after retries — this is
+    deliberately NOT swallowed into a return-0 (which upstream treats as a
+    CRITICAL "series has zero data" finding).  A transient/environmental
+    import failure is not the same fact as "this series is missing from the
+    vault"; conflating the two manufactures false CRITICAL alerts in the
+    client-facing quality report. Callers should let this propagate so the
+    series-manifest check is skipped with a visible WARNING instead of
+    silently reporting incorrect data-gap findings.
     """
-    try:
-        import pandas as pd
-    except ImportError:
-        return 0
+    pandas_import_error: Optional[BaseException] = None
+    pd = None
+    for _attempt in range(3):
+        try:
+            import pandas as pd  # noqa: F401 (re-imported per retry attempt)
+            break
+        except ImportError as exc:
+            pandas_import_error = exc
+            pd = None
+            time.sleep(0.5)
+    if pd is None:
+        raise RuntimeError(
+            f"pandas import failed after 3 attempts (transient environment "
+            f"issue, not a real data gap): {pandas_import_error}"
+        ) from pandas_import_error
 
     if source:
         pattern = str(
@@ -1010,7 +997,7 @@ def freshness_severity(
 ) -> str:
     """
     FROZEN + live-feed product → CRITICAL
-    FROZEN + live-feed product but explicitly excluded (NOR wages) → MEDIUM
+    FROZEN + live-feed product but explicitly excluded → MEDIUM
     FROZEN + archive-only → MEDIUM
     STALE  + live-feed → HIGH
     STALE  + archive  → MEDIUM
@@ -1147,9 +1134,7 @@ def generate_granular_report(
     for country_group, iso3_list in ALL_COUNTRIES.items():
         for country_iso3 in iso3_list:
             # Check PENDING skip
-            is_pending = (product, country_group) in {
-                ("Housing_Supply_and_Shelter_Inflation", "NOR"),
-            }
+            is_pending = (product, country_group) in set()
 
             # Read vault
             try:
@@ -2169,11 +2154,6 @@ def _write_geo_split_reports(
     report_mode = granular_json.get("report_mode", "LIVE_FEED_MONTHLY" if is_live else "ARCHIVE_DELIVERY")
 
     excl_note: list[str] = []
-    if is_live:
-        if ("food_micropricing", "AUS") in LIVE_FEED_EXCLUDED and product == "food_micropricing":
-            excl_note.append("AUS excluded — quarterly releases only")
-        if ("wages_and_employment", "NOR") in LIVE_FEED_EXCLUDED and product == "wages_and_employment":
-            excl_note.append("NOR excluded — SSB Table 07458 frozen at 2024-Q4")
 
     for geo_key, geo_label in GEO_BUNDLES:
         geo_countries = _filter_by_geo(all_countries, geo_key)

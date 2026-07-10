@@ -1,5 +1,5 @@
 """
-Master Validation Runner — Non-EU Trade Flows (GBR/CAN/AUS/NOR).
+Master Validation Runner — Non-EU Trade Flows (GBR/CAN).
 
   Stage 1   PIT Validation
   Stage 2   Schema Compliance
@@ -45,4 +45,4 @@ STAGES = [
 ]
 
 if __name__ == "__main__":
-    sys.exit(run_pipeline(PRODUCT, STAGES, scope="non_eu_GBR_CAN_AUS_NOR", timeout=900))
+    sys.exit(run_pipeline(PRODUCT, STAGES, scope="non_eu_GBR_CAN", timeout=900))

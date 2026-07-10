@@ -15,7 +15,7 @@
 **Update Frequency**: Monthly
 **Last Updated**: June 2026
 **CPS Vault File**: `unemployment_u3_data.parquet`
-**Vault Coverage (Global)**: USA + 27 EU Member States + GBR, CAN, AUS, NOR = 32 countries
+**Vault Coverage (Global)**: USA + 27 EU Member States + GBR, CAN = 30 countries
 
 ---
 
