@@ -69,6 +69,7 @@ import re as _re_module
 import re
 import smtplib
 import sys
+import time
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from pathlib import Path
@@ -495,11 +496,31 @@ def _count_months_in_vault(
 
     Returns 0 if the partition has no data files, or if series_id is specified
     but not found in any sampled file.
+
+    Raises RuntimeError if pandas cannot be imported after retries — this is
+    deliberately NOT swallowed into a return-0 (which upstream treats as a
+    CRITICAL "series has zero data" finding).  A transient/environmental
+    import failure is not the same fact as "this series is missing from the
+    vault"; conflating the two manufactures false CRITICAL alerts in the
+    client-facing quality report. Callers should let this propagate so the
+    series-manifest check is skipped with a visible WARNING instead of
+    silently reporting incorrect data-gap findings.
     """
-    try:
-        import pandas as pd
-    except ImportError:
-        return 0
+    pandas_import_error: Optional[BaseException] = None
+    pd = None
+    for _attempt in range(3):
+        try:
+            import pandas as pd  # noqa: F401 (re-imported per retry attempt)
+            break
+        except ImportError as exc:
+            pandas_import_error = exc
+            pd = None
+            time.sleep(0.5)
+    if pd is None:
+        raise RuntimeError(
+            f"pandas import failed after 3 attempts (transient environment "
+            f"issue, not a real data gap): {pandas_import_error}"
+        ) from pandas_import_error
 
     if source:
         pattern = str(
