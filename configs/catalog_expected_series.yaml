@@ -189,17 +189,6 @@ expected_series:
     required_by: [1, 2]
     notes: "StatCan CPI food purchased from stores (v41690974)"
 
-  # DS1 — food_micropricing / NOR (SSB)
-  - product: food_micropricing
-    country: NOR
-    series_id: CPI_FOOD_ALL_NOR
-    source: ssb_statbank
-    value_col: observed_value
-    min_months: 60
-    backtest_start: "2000-01-01"
-    required_by: [1]
-    notes: "SSB CPI food sub-index (table 14700)"
-
   # ===========================================================================
   # DS2 — wages_and_employment / USA
   # LNS14000000 in bls_cps (confirmed). PAYEMS in global_macro/alfred_vintage.
@@ -329,7 +318,7 @@ expected_series:
   # ===========================================================================
   # DS4 — trade_flows
   # USA BOPGSTB has only ~1 month in vault as of 2026-06-24 (data gap).
-  # GBR/CAN/AUS/NOR confirmed working.
+  # GBR/CAN confirmed working.
   # ===========================================================================
 
   - product: trade_flows
@@ -361,26 +350,6 @@ expected_series:
     backtest_start: "1992-01-01"
     required_by: [3, 9, 11]
     notes: "StatCan merch trade balance SA (v87008984)"
-
-  - product: trade_flows
-    country: AUS
-    series_id: null
-    source: abs_sdmx
-    value_col: observed_value
-    min_months: 60
-    backtest_start: "2000-01-01"
-    required_by: [3, 9, 11]
-    notes: "ABS international trade in goods and services — partition-level check (no single sovereign_series_id)"
-
-  - product: trade_flows
-    country: NOR
-    series_id: null
-    source: ssb_statbank
-    value_col: observed_value
-    min_months: 60
-    backtest_start: "2000-01-01"
-    required_by: [3, 9, 11]
-    notes: "SSB external trade monthly — partition-level check"
 
   # ===========================================================================
   # DS5 — global_macro / USA (ALFRED)
@@ -446,16 +415,6 @@ expected_series:
     backtest_start: "1961-01-01"
     required_by: [1]
     notes: "StatCan CPI all items (v41690973)"
-
-  - product: global_macro
-    country: NOR
-    series_id: null
-    source: ssb_statbank
-    value_col: observed_value
-    min_months: 60
-    backtest_start: "2000-01-01"
-    required_by: [1]
-    notes: "SSB CPI monthly — partition-level check (source table 14710 after June 2026 fix)"
 
   # ===========================================================================
   # EU27 — partition-level checks (Eurostat SDMX, no individual series_ids)

@@ -6,7 +6,6 @@ Usage:
     python scrapers/wages_employment/run.py --country USA --source bls_ces
     python scrapers/wages_employment/run.py --country USA --source bls_cps
     python scrapers/wages_employment/run.py --country GBR
-    python scrapers/wages_employment/run.py --country NOR  # exits cleanly (SSB frozen)
 """
 from __future__ import annotations
 
@@ -52,8 +51,6 @@ COUNTRY_ROUTER: dict[str, list[dict]] = {
     ],
     "GBR": [{"source": "ons",     "module": "scrapers.wages_employment.ons_wages_scraper",    "fn": "scrape_gbr_wages", "kwargs": {}}],
     "CAN": [{"source": "statcan", "module": "scrapers.wages_employment.statcan_wages_scraper", "fn": "scrape_can_wages", "kwargs": {}}],
-    "AUS": [{"source": "abs",     "module": "scrapers.wages_employment.abs_wages_scraper",     "fn": "scrape_aus_wages", "kwargs": {}}],
-    "NOR": [{"source": "ssb",     "module": "scrapers.wages_employment.ssb_wages_scraper",     "fn": "scrape_nor_wages", "kwargs": {}}],
     "EU27": [{"source": "eurostat", "module": "scrapers.wages_employment.eurostat_wages_scraper", "fn": "scrape_eu27_wages", "kwargs": {}}],
 }
 

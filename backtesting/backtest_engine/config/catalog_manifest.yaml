@@ -1452,120 +1452,6 @@ catalog:
   value_col: observed_value
   backtest_start: '1995-01-01'
   backtest_end: '2025-12-31'
-- country: Norway
-  iso_alpha3: NOR
-  dataset: food_pricing
-  status: READY
-  vault_product: food_micropricing
-  vault_source: ssb_statbank
-  value_col: observed_value
-  series: [CPI_FOOD_ALL, CPI_FOOD_01, CPI_FOOD_REST]
-  backtest_start: '1979-01-01'
-  backtest_end: '2026-05-31'
-  pit_coverage_type: RELEASE_DATE_ONLY/accumulating
-  notes: "SSB Statbank table 14700 (2025=100, VareTjenesteGrp dim). Replaces 03013 (2015=100, Konsumgrp, frozen 2025M12). Root cause confirmed 2026-06-21: SSB rebase + table rename + dimension rename. Table 14700 latest: 2026M05 (confirmed live 2026-06-22)."
-- country: Norway
-  iso_alpha3: NOR
-  dataset: wages_and_employment
-  status: READY
-  vault_product: wages_and_employment
-  vault_source: ssb_statbank
-  value_col: observed_value
-  series: [LFS_EMP, LFS_UNEMP_RATE]
-  backtest_start: '1997-01-01'
-  backtest_end: '2024-12-31'
-  live_feed_eligible: false
-  pit_coverage_type: RELEASE_DATE_ONLY/accumulating
-  notes: "SSB Statbank table 07458; LFS quarterly SA, ages 15-74. Source frozen at 2024K4 as of 2026-06-21 (re-confirmed). Live feed disabled until SSB resumes publication beyond 2024-Q4."
-- country: Norway
-  iso_alpha3: NOR
-  dataset: housing
-  status: PENDING_INGESTION
-  notes: No confirmed SSB Statbank table for residential property price index found; table 05189 is board-member data, not housing.
-- country: Norway
-  iso_alpha3: NOR
-  dataset: trade_flows
-  status: READY
-  vault_product: trade_flows
-  vault_source: ssb_statbank
-  value_col: observed_value
-  series: [TRADE_EXPORTS, TRADE_IMPORTS]
-  backtest_start: '2016-01-01'
-  backtest_end: '2026-05-31'
-  pit_coverage_type: RELEASE_DATE_ONLY/accumulating
-  notes: "SSB Statbank table 12308; monthly external trade in goods (ImpEks 1=imports, 2=exports); PubliseringMnd dedup applied. Latest: 2026M05 (confirmed live 2026-06-22)."
-- country: Norway
-  iso_alpha3: NOR
-  dataset: global_macro
-  status: READY
-  vault_product: global_macro
-  vault_source: ssb_statbank
-  value_col: observed_value
-  series: [GDP_Q_CONST, CPI_ALL]
-  backtest_start: '1978-01-01'
-  backtest_end: '2026-03-31'
-  pit_coverage_type: RELEASE_DATE_ONLY/accumulating
-  notes: "SSB Statbank tables 09190 (GDP quarterly constant prices, latest 2026K1 confirmed live 2026-06-22) and 14710 (CPI all items monthly, 2025=100; replaces discontinued 08183/14700-all-items)."
-- country: Australia
-  iso_alpha3: AUS
-  dataset: food_pricing
-  status: READY
-  vault_product: food_micropricing
-  vault_source: abs_sdmx
-  value_col: observed_value
-  series: [CPI_FOOD_PREP, CPI_FOOD_ITEM2, CPI_FOOD_ITEM3, CPI_FOOD_BASE]
-  backtest_start: '1999-01-01'
-  backtest_end: '2025-12-31'
-  pit_coverage_type: RELEASE_DATE_ONLY/structural_ceiling
-  notes: ABS SDMX CPI_Q dataflow; food sub-components quarterly; ceiling obs_date estimated from series start.
-- country: Australia
-  iso_alpha3: AUS
-  dataset: wages_and_employment
-  status: READY
-  vault_product: wages_and_employment
-  vault_source: abs_sdmx
-  value_col: observed_value
-  series: [LF_UNEMP_RATE, LF_EMP]
-  backtest_start: '1978-01-01'
-  backtest_end: '2025-12-31'
-  pit_coverage_type: RELEASE_DATE_ONLY/structural_ceiling
-  notes: ABS SDMX LF dataflow; monthly SA total persons 15+; unemployment rate and employment level.
-- country: Australia
-  iso_alpha3: AUS
-  dataset: housing
-  status: READY
-  vault_product: Housing_Supply_and_Shelter_Inflation
-  vault_source: abs_sdmx
-  value_col: observed_value
-  series: [RPPI_HOUSES]
-  backtest_start: '2003-01-01'
-  backtest_end: '2025-12-31'
-  pit_coverage_type: RELEASE_DATE_ONLY/structural_ceiling
-  notes: ABS SDMX RPPI dataflow (ceased); established houses, SA, quarterly; key 0:0:8:0 (MEASURE=1,PROPERTY_TYPE=1,REGION=100,FREQ=Q).
-- country: Australia
-  iso_alpha3: AUS
-  dataset: trade_flows
-  status: READY
-  vault_product: trade_flows
-  vault_source: abs_sdmx
-  value_col: observed_value
-  series: [BOP_GOODS_EXP, BOP_GS_IMP]
-  backtest_start: '1998-01-01'
-  backtest_end: '2025-12-31'
-  pit_coverage_type: RELEASE_DATE_ONLY/structural_ceiling
-  notes: ABS SDMX BOP dataflow; goods exports and goods+services imports, quarterly.
-- country: Australia
-  iso_alpha3: AUS
-  dataset: global_macro
-  status: READY
-  vault_product: global_macro
-  vault_source: abs_sdmx
-  value_col: observed_value
-  series: [GDP_Q_SA, CPI_ALL]
-  backtest_start: '1998-01-01'
-  backtest_end: '2025-12-31'
-  pit_coverage_type: RELEASE_DATE_ONLY/structural_ceiling
-  notes: ABS SDMX ANA_AGG (GDP quarterly SA) and CPI_Q (CPI all groups) dataflows.
 - country: Switzerland
   iso_alpha3: CHE
   dataset: global_macro
@@ -1639,20 +1525,20 @@ catalog:
     all revision_number=1 (single-snapshot vault); expect 0 look-ahead bias delta
 
 # ---------------------------------------------------------------------------
-# Non-EU Panel (GBR/CAN/AUS/NOR) -- 5 aggregate entries via NonEUPanelLoader
+# Non-EU Panel (GBR/CAN) -- 5 aggregate entries via NonEUPanelLoader
 # ---------------------------------------------------------------------------
 - country: Non-EU Panel
   iso_alpha3: NON_EU
   dataset: non_eu_food_pricing
   status: READY
   vault_product: food_micropricing
-  vault_source: ons_api,statcan_csv,abs_sdmx,ssb_statbank
+  vault_source: ons_api,statcan_csv
   value_col: observed_value
   backtest_start: '1990-01-01'
   backtest_end: '2025-12-31'
   notes: >
-    4-country panel (GBR/CAN/AUS/NOR) via NonEUPanelLoader; food CPI acceleration
-    signal; GBR starts 1988, CAN 1949, AUS 1999, NOR 1979;
+    2-country panel (GBR/CAN) via NonEUPanelLoader; food CPI acceleration
+    signal; GBR starts 1988, CAN 1949;
     RELEASE_DATE_ONLY/accumulating; all revision_number=1
 
 - country: Non-EU Panel
@@ -1660,13 +1546,13 @@ catalog:
   dataset: non_eu_wages_and_employment
   status: READY
   vault_product: wages_and_employment
-  vault_source: ons_api,statcan_csv,abs_sdmx,ssb_statbank
+  vault_source: ons_api,statcan_csv
   value_col: observed_value
   backtest_start: '1990-01-01'
   backtest_end: '2025-12-31'
   notes: >
-    4-country panel (GBR/CAN/AUS/NOR) via NonEUPanelLoader; real wage growth
-    signal; GBR uses AWE_TOTAL YoY, CAN/AUS/NOR use employment growth proxy;
+    2-country panel (GBR/CAN) via NonEUPanelLoader; real wage growth
+    signal; GBR uses AWE_TOTAL YoY, CAN uses employment growth proxy;
     cross-dep on non_eu_food_pricing for food CPI deflator
 
 - country: Non-EU Panel
@@ -1674,28 +1560,26 @@ catalog:
   dataset: non_eu_housing
   status: READY
   vault_product: Housing_Supply_and_Shelter_Inflation
-  vault_source: ons_api,statcan_csv,abs_sdmx
+  vault_source: ons_api,statcan_csv
   value_col: observed_value
   backtest_start: '1990-01-01'
   backtest_end: '2025-12-31'
   notes: >
-    3-country panel (GBR/CAN/AUS) via NonEUPanelLoader; NOR excluded
-    (no confirmed SSB housing price index ingested); AUS has ~74 rows
-    (quarterly RPPI from ~2005) -- thin coverage flagged in meta
+    2-country panel (GBR/CAN) via NonEUPanelLoader
 
 - country: Non-EU Panel
   iso_alpha3: NON_EU
   dataset: non_eu_trade_flows
   status: READY
   vault_product: trade_flows
-  vault_source: ons_api,statcan_csv,abs_sdmx,ssb_statbank
+  vault_source: ons_api,statcan_csv
   value_col: observed_value
   backtest_start: '1992-01-01'
   backtest_end: '2025-12-31'
   notes: >
-    4-country panel (GBR/CAN/AUS/NOR) via NonEUPanelLoader; trade balance
-    seasonal deviation signal for FX pairs (GBP/USD, CAD/USD, AUD/USD,
-    NOK/USD); GBR and AUS carry 90-day publication lags encoded in
+    2-country panel (GBR/CAN) via NonEUPanelLoader; trade balance
+    seasonal deviation signal for FX pairs (GBP/USD, CAD/USD);
+    GBR carries 90-day publication lag encoded in
     official_release_date; all revision_number=1
 
 - country: Non-EU Panel
@@ -1703,11 +1587,11 @@ catalog:
   dataset: non_eu_global_macro
   status: READY
   vault_product: global_macro
-  vault_source: ons_api,statcan_csv,abs_sdmx,ssb_statbank
+  vault_source: ons_api,statcan_csv
   value_col: observed_value
   backtest_start: '1990-01-01'
   backtest_end: '2025-12-31'
   notes: >
-    4-country panel (GBR/CAN/AUS/NOR) via NonEUPanelLoader; GDP QoQ surprise
-    signal for equity indices (FTSE 100, TSX, ASX 200, OBX); quarterly GDP
+    2-country panel (GBR/CAN) via NonEUPanelLoader; GDP QoQ surprise
+    signal for equity indices (FTSE 100, TSX); quarterly GDP
     series; RELEASE_DATE_ONLY so AvgRevs=1.00, bias delta near zero

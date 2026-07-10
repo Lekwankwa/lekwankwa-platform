@@ -1,5 +1,5 @@
 """
-Stage 7 — Changelog Generation: GBR / CAN / AUS / NOR.
+Stage 7 — Changelog Generation: GBR / CAN.
 
 Writes a changelog.parquet entry per year-country partition documenting
 the ingestion event, row count, and data quality status.
@@ -113,7 +113,7 @@ def run(product: str) -> bool:
 
     report = {
         "timestamp": datetime.utcnow().isoformat() + "Z",
-        "product": product, "scope": "non_eu GBR/CAN/AUS/NOR",
+        "product": product, "scope": "non_eu GBR/CAN",
         "partitions_written": ok, "overall": "PASS",
     }
     out_json = Path(f"{product}_non_eu_changelog.json")

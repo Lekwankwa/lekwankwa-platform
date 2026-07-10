@@ -1,6 +1,6 @@
 """
 Non-EU Country Vault Validation Scorecard
-Covers: GBR (ONS), CAN (StatCan CSV), AUS (ABS SDMX), NOR (SSB PX-Web)
+Covers: GBR (ONS), CAN (StatCan CSV)
 
 Checks per country × dataset:
   1. Schema compliance  — PIT mandatory fields present?
@@ -38,8 +38,6 @@ log = logging.getLogger(__name__)
 COUNTRIES = [
     ("GBR", "United Kingdom",  "ons_api"),
     ("CAN", "Canada",          "statcan_csv"),
-    ("AUS", "Australia",       "abs_sdmx"),
-    ("NOR", "Norway",          "ssb_statbank"),
 ]
 
 # vault_product → (friendly name, parquet filename, value_col, skip_if_missing)
@@ -143,7 +141,7 @@ def run() -> bool:
 
     print()
     print("=" * 80)
-    print("  NON-EU VAULT VALIDATION SCORECARD  (GBR / CAN / AUS / NOR)")
+    print("  NON-EU VAULT VALIDATION SCORECARD  (GBR / CAN)")
     print("=" * 80)
 
     for product, (friendly, filename, vcol, skip_missing) in DATASETS.items():
@@ -196,7 +194,7 @@ def run() -> bool:
 
     print()
     print("=" * 80)
-    print("  PIT COVERAGE SUMMARY  (4 new countries × 5 datasets)")
+    print("  PIT COVERAGE SUMMARY  (2 countries × 5 datasets)")
     print("=" * 80)
     print(f"  {'Country':<6}  {'Dataset':<8}  {'Rows':>8}  {'PIT':>5}  {'Lag(d)':>7}  {'Schema':>7}")
     print("  " + "-" * 55)

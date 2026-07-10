@@ -182,15 +182,15 @@ GEO_BUNDLES: dict[str, dict[str, Any]] = {
         "pit_coverage_type":      "RELEASE_DATE_ONLY / structural_ceiling",
     },
     "non_eu_block": {
-        "geo_label":              "Non-EU Block — GBR + CAN + AUS + NOR (all 5 datasets)",
-        "countries":              ["GBR", "CAN", "AUS", "NOR"],
+        "geo_label":              "Non-EU Block — GBR + CAN (all 5 datasets)",
+        "countries":              ["GBR", "CAN"],
         "archive_price_usd":      68_000,
         "live_feed_price_usd_yr": 36_000,
-        "pit_coverage_type":      "RELEASE_DATE_ONLY / accumulating or structural_ceiling",
+        "pit_coverage_type":      "RELEASE_DATE_ONLY / accumulating",
     },
     "full_32_country": {
-        "geo_label":              "Full 32-Country (USA + EU27 + GBR + CAN + AUS + NOR)",
-        "countries":              "32 countries",
+        "geo_label":              "Full 30-Country (USA + EU27 + GBR + CAN)",
+        "countries":              "30 countries",
         "archive_price_usd":      254_000,
         "live_feed_price_usd_yr": 164_000,
         "pit_coverage_type":      "Mixed — see per-country PIT coverage",
@@ -207,32 +207,22 @@ READY_STATUS: dict[tuple[str, str], str] = {
     ("food_micropricing",                  "EU27"):           "READY",
     ("food_micropricing",                  "GBR"):            "READY",
     ("food_micropricing",                  "CAN"):            "READY",
-    ("food_micropricing",                  "AUS"):            "READY",
-    ("food_micropricing",                  "NOR"):            "READY",
     ("wages_and_employment",               "USA"):            "READY",
     ("wages_and_employment",               "EU27"):           "READY",
     ("wages_and_employment",               "GBR"):            "READY",
     ("wages_and_employment",               "CAN"):            "READY",
-    ("wages_and_employment",               "AUS"):            "READY",
-    ("wages_and_employment",               "NOR"):            "READY",
     ("Housing_Supply_and_Shelter_Inflation","USA"):           "READY",
     ("Housing_Supply_and_Shelter_Inflation","EU27"):          "READY",
     ("Housing_Supply_and_Shelter_Inflation","GBR"):           "READY",
     ("Housing_Supply_and_Shelter_Inflation","CAN"):           "READY",
-    ("Housing_Supply_and_Shelter_Inflation","AUS"):           "READY",
-    ("Housing_Supply_and_Shelter_Inflation","NOR"):           "PENDING_INGESTION",
     ("trade_flows",                        "USA"):            "READY",
     ("trade_flows",                        "EU27"):           "READY",
     ("trade_flows",                        "GBR"):            "READY",
     ("trade_flows",                        "CAN"):            "READY",
-    ("trade_flows",                        "AUS"):            "READY",
-    ("trade_flows",                        "NOR"):            "READY",
     ("global_macro",                       "USA"):            "READY",
     ("global_macro",                       "EU27"):           "READY",
     ("global_macro",                       "GBR"):            "READY",
     ("global_macro",                       "CAN"):            "READY",
-    ("global_macro",                       "AUS"):            "READY",
-    ("global_macro",                       "NOR"):            "READY",
 }
 
 EU27 = [
@@ -301,27 +291,6 @@ PRODUCTS: dict[str, dict[str, Any]] = {
                 "series":          ["StatCan CPI Food vector"],
                 "frequency":        "Monthly",
             },
-            {
-                "country_group":    "AUS",
-                "countries":        ["AUS"],
-                "source_agency":    "ABS",
-                "source_detail":    "ABS CPI (SDMX api.data.abs.gov.au)",
-                "pit_coverage_type":"RELEASE_DATE_ONLY/structural_ceiling",
-                "series":          ["ABS CPI Food sub-index"],
-                "frequency":        "Quarterly",
-            },
-            {
-                "country_group":    "NOR",
-                "countries":        ["NOR"],
-                "source_agency":    "SSB",
-                "source_detail":    "SSB Consumer Price Index Table 14700 (PX-Web JSON-stat2, 2025=100) — replaces discontinued Table 03013 (2015=100, frozen 2025M12)",
-                "pit_coverage_type":"RELEASE_DATE_ONLY/accumulating",
-                "series":          [
-                    "14700 VareTjenesteGrp=00 (all-items CPI, KpiIndMnd, 2025=100)",
-                    "14700 VareTjenesteGrp=01 (Food group, KpiIndMnd, 2025=100)",
-                ],
-                "frequency":        "Monthly",
-            },
         ],
     },
 
@@ -345,7 +314,7 @@ PRODUCTS: dict[str, dict[str, Any]] = {
             "UNEMPLOYMENT_RATE_U6 (broad unemployment)",
             "LABOR_FORCE_PARTICIPATION_RATE",
         ],
-        "notes": "CAN/AUS/NOR use employment count as wage proxy -- no wage level series ingested",
+        "notes": "CAN uses employment count as wage proxy -- no wage level series ingested",
         "sources": [
             {
                 "country_group":    "USA",
@@ -389,24 +358,6 @@ PRODUCTS: dict[str, dict[str, Any]] = {
                 "series":          ["StatCan LFS employment count"],
                 "frequency":        "Monthly",
             },
-            {
-                "country_group":    "AUS",
-                "countries":        ["AUS"],
-                "source_agency":    "ABS",
-                "source_detail":    "ABS LFS (employment proxy)",
-                "pit_coverage_type":"RELEASE_DATE_ONLY/structural_ceiling",
-                "series":          ["ABS Labour Force Survey employment"],
-                "frequency":        "Monthly",
-            },
-            {
-                "country_group":    "NOR",
-                "countries":        ["NOR"],
-                "source_agency":    "SSB",
-                "source_detail":    "SSB LFS Table 07458 (quarterly 1997-2024)",
-                "pit_coverage_type":"RELEASE_DATE_ONLY/accumulating",
-                "series":          ["SSB Table 07458 (LFS)"],
-                "frequency":        "Quarterly",
-            },
         ],
     },
 
@@ -428,7 +379,7 @@ PRODUCTS: dict[str, dict[str, Any]] = {
             "CPI_RENT_OF_PRIMARY_RESIDENCE (INDEX -- BLS CUUR0000SEHA / Eurostat HICP CP041)",
             "HOUSE_PRICE_INDEX_PURCHASE_ONLY (INDEX_2015_100, quarterly all markets)",
         ],
-        "notes": "Archive only -- mixed monthly/quarterly frequency. NOR housing PENDING (no confirmed SSB residential property table).",
+        "notes": "Archive only -- mixed monthly/quarterly frequency.",
         "sources": [
             {
                 "country_group":    "USA",
@@ -474,25 +425,6 @@ PRODUCTS: dict[str, dict[str, Any]] = {
                 "series":          ["CMHC Housing Starts", "StatCan New Housing Price Index"],
                 "frequency":        "Monthly",
             },
-            {
-                "country_group":    "AUS",
-                "countries":        ["AUS"],
-                "source_agency":    "ABS",
-                "source_detail":    "ABS RPPI (series_key_filter 0:0:8:0 -- confirmed after dataflow fix)",
-                "pit_coverage_type":"RELEASE_DATE_ONLY/structural_ceiling",
-                "series":          ["ABS RPPI (Residential Property Price Index)"],
-                "frequency":        "Quarterly",
-            },
-            {
-                "country_group":    "NOR",
-                "countries":        ["NOR"],
-                "source_agency":    "SSB",
-                "source_detail":    "PENDING -- no confirmed SSB residential property table",
-                "pit_coverage_type":"PENDING_INGESTION",
-                "series":          [],
-                "frequency":        "N/A",
-                "status":           "PENDING_INGESTION",
-            },
         ],
     },
 
@@ -514,7 +446,7 @@ PRODUCTS: dict[str, dict[str, Any]] = {
             "IMPORTS_CIF_{COMMODITY} (USD_MILLIONS, HS2-chapter)",
             "TRADE_BALANCE_GOODS (aggregate goods balance)",
         ],
-        "notes": "GBR and AUS carry 90-day publication lag -- signals structurally 2 months behind USA/EU27",
+        "notes": "GBR carries 90-day publication lag -- signals structurally 2 months behind USA/EU27",
         "sources": [
             {
                 "country_group":    "USA",
@@ -555,25 +487,6 @@ PRODUCTS: dict[str, dict[str, Any]] = {
                 "source_detail":    "StatCan International Trade (NDM CSV)",
                 "pit_coverage_type":"RELEASE_DATE_ONLY/accumulating",
                 "series":          ["StatCan International Merchandise Trade"],
-                "frequency":        "Monthly",
-            },
-            {
-                "country_group":    "AUS",
-                "countries":        ["AUS"],
-                "source_agency":    "ABS",
-                "source_detail":    "ABS International Trade (SDMX) -- 90-day publication lag confirmed",
-                "pit_coverage_type":"RELEASE_DATE_ONLY/structural_ceiling",
-                "series":          ["ABS International Trade in Goods and Services"],
-                "frequency":        "Monthly",
-                "publication_lag":  "~90 days",
-            },
-            {
-                "country_group":    "NOR",
-                "countries":        ["NOR"],
-                "source_agency":    "SSB",
-                "source_detail":    "SSB Table 12308 (monthly merchandise trade, stride-based PubliseringMnd dedup)",
-                "pit_coverage_type":"RELEASE_DATE_ONLY/accumulating",
-                "series":          ["SSB Table 12308 (merchandise trade)"],
                 "frequency":        "Monthly",
             },
         ],
@@ -647,24 +560,6 @@ PRODUCTS: dict[str, dict[str, Any]] = {
                 "pit_coverage_type":"RELEASE_DATE_ONLY/accumulating",
                 "series":          ["StatCan GDP by industry", "StatCan National Accounts"],
                 "frequency":        "Monthly + Quarterly",
-            },
-            {
-                "country_group":    "AUS",
-                "countries":        ["AUS"],
-                "source_agency":    "ABS",
-                "source_detail":    "ABS National Accounts (SDMX ANA_AGG)",
-                "pit_coverage_type":"RELEASE_DATE_ONLY/structural_ceiling",
-                "series":          ["ABS ANA_AGG (National Accounts Aggregates)"],
-                "frequency":        "Quarterly",
-            },
-            {
-                "country_group":    "NOR",
-                "countries":        ["NOR"],
-                "source_agency":    "SSB",
-                "source_detail":    "SSB National Accounts Table 09190 (quarterly back to 1978)",
-                "pit_coverage_type":"RELEASE_DATE_ONLY/accumulating",
-                "series":          ["SSB Table 09190 (National Accounts)"],
-                "frequency":        "Quarterly",
             },
         ],
     },
@@ -1207,145 +1102,6 @@ def _fetch_statcan_next(product_key: str) -> str | None:
         return None
 
 
-def _fetch_abs_next(product_key: str) -> str | None:
-    """
-    ABS SDMX API has no release date metadata. Estimate from the most
-    recent TIME_PERIOD in the data + publication lag.
-    Frequency is detected from the TIME_PERIOD id format:
-      "2025"     -> annual  (~90-day lag after year-end)
-      "2025-Q4"  -> quarterly (~30-day lag after quarter-end)
-      "2025-12"  -> monthly (~45-day lag after month-end)
-    """
-    try:
-        import requests, urllib3
-        from datetime import datetime, timedelta, timezone
-        urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-        # (dataflow_id, lag_days)
-        # trade_flows: ITGS = "International Trade in Goods" (monthly, Cat 5368.0)
-        #   Confirmed ~33-day lag from ABS release calendar (May→Jul2=32d, Jun→Aug6=37d avg 33).
-        # wages: LF confirmed ~23-day lag (May→Jun25=25d, Jun→Jul23=23d, Jul→Aug20=20d avg 23).
-        # macro: ANA_AGG confirmed ~64-day lag (June Q→Sep2=64d, Sep Q→Dec2=63d).
-        DATAFLOW_MAP = {
-            "food_micropricing":                    ("CPI_Q",   30),
-            "wages_and_employment":                 ("LF",      23),
-            "Housing_Supply_and_Shelter_Inflation": ("RPPI",    30),
-            "trade_flows":                          ("ITGS",    33),
-            "global_macro":                         ("ANA_AGG", 64),
-        }
-        entry = DATAFLOW_MAP.get(product_key)
-        if not entry:
-            return None
-        df, lag_days = entry
-        resp = requests.get(
-            f"https://api.data.abs.gov.au/data/{df}/all?lastNObservations=1",
-            timeout=30,
-            headers={
-                "Accept": "application/vnd.sdmx.data+json;version=1.0",
-                "User-Agent": "lekwankwa-vault/1.0",
-            },
-            verify=False,
-        )
-        body = resp.json()
-        obs_dims = (
-            body.get("data", {})
-            .get("structure", {})
-            .get("dimensions", {})
-            .get("observation", [])
-        )
-        time_dim = next((d for d in obs_dims if d.get("id") == "TIME_PERIOD"), None)
-        if not time_dim:
-            return None
-        vals = time_dim.get("values", [])
-        if not vals:
-            return None
-        latest = vals[-1]
-        # Detect frequency from TIME_PERIOD id format
-        period_id = latest.get("id", "")
-        if len(period_id) == 4 and period_id.isdigit():
-            advance = timedelta(days=365)   # annual: "2025"
-        elif "-Q" in period_id:
-            advance = timedelta(days=92)    # quarterly: "2025-Q4"
-        else:
-            advance = timedelta(days=31)    # monthly: "2025-12"
-        # Use "end" date of the latest period
-        period_end_str = latest.get("end") or latest.get("start")
-        if not period_end_str:
-            return None
-        period_end = datetime.fromisoformat(period_end_str.replace("Z", "+00:00"))
-        if period_end.tzinfo is None:
-            period_end = period_end.replace(tzinfo=timezone.utc)
-        next_period_end = period_end + advance
-        next_release = next_period_end + timedelta(days=lag_days)
-        now = datetime.now(timezone.utc)
-        while next_release <= now:
-            next_release += advance
-        return next_release.strftime("%Y-%m-%d") + " (estimated)"
-    except Exception as exc:
-        logger.debug(f"[ABS] {product_key}: {exc}")
-        return None
-
-
-def _fetch_ssb_next(table_id: str) -> str | None:
-    """
-    SSB PX-Web API metadata for these tables does not include nextUpdate.
-    Fall back to scraping the SSB release calendar page and matching by topic.
-    """
-    try:
-        import requests
-        import re
-        from bs4 import BeautifulSoup
-        # First try: PX-Web metadata (works for some tables)
-        resp = requests.get(
-            f"https://data.ssb.no/api/v0/en/table/{table_id}",
-            timeout=20,
-        )
-        resp.raise_for_status()
-        nxt = resp.json().get("nextUpdate")
-        if nxt:
-            return nxt
-        # Second try: SSB release calendar page
-        TABLE_KEYWORDS = {
-            "14700": "Consumer price",     # replaces 03013 (2015=100 → 2025=100 rebase)
-            "07458": "Labour force survey",
-            "12308": "External trade",
-            "09190": "National accounts",
-        }
-        keyword = TABLE_KEYWORDS.get(table_id)
-        if not keyword:
-            return None
-        cal_resp = requests.get(
-            "https://www.ssb.no/en/kalender",
-            timeout=25,
-            headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"},
-        )
-        cal_resp.raise_for_status()
-        soup = BeautifulSoup(cal_resp.text, "html.parser")
-        # SSB calendar lists upcoming releases; find the row matching our topic
-        for el in soup.find_all(["tr", "li", "article", "div"]):
-            text = el.get_text(" ", strip=True)
-            if keyword.lower() in text.lower():
-                m = re.search(
-                    r"\d{1,2}\.\s*\w+\s+\d{4}"          # Norwegian: "20. juni 2026"
-                    r"|\d{4}-\d{2}-\d{2}"                # ISO: 2026-06-20
-                    r"|(?:January|February|March|April|May|June|July|August|"
-                    r"September|October|November|December)\s+\d{1,2},?\s+\d{4}",
-                    text,
-                )
-                if m:
-                    return m.group()
-        return None
-    except Exception as exc:
-        logger.debug(f"[SSB] table {table_id}: {exc}")
-        return None
-
-
-_SSB_TABLES = {
-    "food_micropricing":   "14700",   # replaces 03013 (2015=100 frozen 2025M12 → 2025=100 via 14700)
-    "wages_and_employment":"07458",
-    "trade_flows":         "12308",
-    "global_macro":        "09190",
-}
-
 _EUROSTAT_DATAFLOWS = {
     "food_micropricing":   "prc_hicp_minr",
     "wages_and_employment":"une_rt_m",
@@ -1447,12 +1203,6 @@ def _enrich_source(source: dict, product_key: str, dry_run: bool) -> dict:
             nrd_raw = _fetch_ons_next(product_key)
     elif cg == "CAN":
         nrd_raw = _fetch_statcan_next(product_key)
-    elif cg == "AUS":
-        nrd_raw = _fetch_abs_next(product_key)
-    elif cg == "NOR":
-        tbl = _SSB_TABLES.get(product_key)
-        if tbl:
-            nrd_raw = _fetch_ssb_next(tbl)
 
     # Normalise raw string → ISO + delta
     iso_date, days = _parse_to_iso(nrd_raw)
@@ -1530,19 +1280,27 @@ def is_release_due(
         logger.warning("is_release_due: failed to load calendar: %s — defaulting to True", exc)
         return True
 
-    # Navigate: master → products → [product] → sources → [source] → next_release_date
+    # Navigate: master → products → [product] → sources (list of country-group
+    # entries) → matching entry → next_release_date. "sources" is a LIST here
+    # (see build_master()/_enrich_source(), which is what actually generates
+    # this file), each entry keyed by country_group/countries — not a dict
+    # keyed by source name. This previously assumed a dict shape that never
+    # matched the real generated structure, crashing with AttributeError on
+    # every call.
     products = master.get("products", master)   # handle both wrapping styles
     prod_data = products.get(product)
     if prod_data is None:
         logger.debug("is_release_due: product %r not in calendar — defaulting to True", product)
         return True
 
-    # Look for country-specific entry or fall back to global
-    sources = (
-        prod_data.get("countries", {}).get(country, {}).get("sources", {})
-        or prod_data.get("sources", {})
-    )
-    src_data = sources.get(source)
+    sources_list = prod_data.get("sources") or []
+    src_data = None
+    for entry in sources_list:
+        if not isinstance(entry, dict):
+            continue
+        if entry.get("country_group") == country or country in (entry.get("countries") or []):
+            src_data = entry
+            break
     if src_data is None:
         logger.debug(
             "is_release_due: source %r/%r/%r not in calendar — defaulting to True",
@@ -1619,8 +1377,8 @@ def build_master(dry_run: bool = False) -> dict[str, Any]:
         "generated_at":    datetime.now(timezone.utc).isoformat(),
         "schema_standard": SCHEMA_STANDARD,
         "scope": {
-            "total_countries":     32,
-            "country_groups":      ["USA", "EU27 (27 states)", "GBR", "CAN", "AUS", "NOR"],
+            "total_countries":     30,
+            "country_groups":      ["USA", "EU27 (27 states)", "GBR", "CAN"],
             "total_products":      len(PRODUCTS),
             "live_feed_products":  [k for k, v in PRODUCTS.items() if v["live_feed"]],
             "archive_only_products": [k for k, v in PRODUCTS.items() if not v["live_feed"]],
@@ -1724,8 +1482,8 @@ def main() -> int:
     GEO_BUNDLES_SLICES = [
         ("usa_only",        "USA Only",              lambda cg: cg == "USA"),
         ("eu27_only",       "Eurostat 27 Only",       lambda cg: cg == "EU27"),
-        ("non_eu_block",    "GBR + CAN + AUS + NOR", lambda cg: cg in ("GBR", "CAN", "AUS", "NOR")),
-        ("full_32_country", "Full 32-Country",        lambda cg: True),
+        ("non_eu_block",    "GBR + CAN",             lambda cg: cg in ("GBR", "CAN")),
+        ("full_32_country", "Full 30-Country",        lambda cg: True),
     ]
 
     def _build_schedule(sources: list, geo_filter) -> list:

@@ -1,5 +1,5 @@
 """
-Stage 4 — Temporal Consistency: GBR / CAN / AUS / NOR.
+Stage 4 — Temporal Consistency: GBR / CAN.
 
 Usage:
   python validations/non_eu/temporal_consistency_non_eu.py --product wages_and_employment
@@ -143,7 +143,7 @@ def run(product: str) -> bool:
 
     report = {
         "timestamp": datetime.utcnow().isoformat() + "Z",
-        "product": product, "scope": "non_eu GBR/CAN/AUS/NOR",
+        "product": product, "scope": "non_eu GBR/CAN",
         "total_records": len(df),
         "checks_passed": passed, "checks_warned": warned, "checks_failed": failed,
         "overall": overall, "results": results,

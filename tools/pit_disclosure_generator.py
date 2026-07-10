@@ -77,8 +77,6 @@ EU27_MEMBERS: list[tuple[str, str]] = [
 NON_EU_SOURCES: dict[str, tuple[str, str]] = {
     "GBR": ("United Kingdom", "ONS (Office for National Statistics)"),
     "CAN": ("Canada", "Statistics Canada"),
-    "AUS": ("Australia", "Australian Bureau of Statistics (ABS)"),
-    "NOR": ("Norway", "Statistics Norway (SSB)"),
 }
 
 # ---------------------------------------------------------------------------
@@ -223,8 +221,8 @@ PRODUCTS: dict[str, dict[str, Any]] = {
 GEO_BUNDLES: list[tuple[str, str, Any]] = [
     ("usa_only",        "USA Only",               lambda cg: cg == "USA"),
     ("eu27_only",       "Eurostat 27 Only",        lambda cg: cg == "EU27"),
-    ("non_eu_block",    "GBR + CAN + AUS + NOR",  lambda cg: cg in ("GBR", "CAN", "AUS", "NOR")),
-    ("full_32_country", "Full 32-Country",         lambda cg: True),
+    ("non_eu_block",    "GBR + CAN",              lambda cg: cg in ("GBR", "CAN")),
+    ("full_32_country", "Full 30-Country",         lambda cg: True),
 ]
 
 # ---------------------------------------------------------------------------
@@ -426,7 +424,7 @@ def _build_imf_entry(iso3: str, country_name: str, country_group: str,
 
 
 def build_entries(product_key: str, product: dict) -> list[dict]:
-    """Return all 32 country entries for a product, ranked Tier 1 → 2 → 3."""
+    """Return all 30 country entries for a product, ranked Tier 1 → 2 → 3."""
     entries: list[dict] = []
 
     is_macro = (product_key == "global_macro")
@@ -524,18 +522,18 @@ def build_master(run_date: str | None = None) -> dict:
             "tier_2_imf_quad_vintage": {
                 "name": "IMF QUAD_VINTAGE (Global Macro)",
                 "description": (
-                    "Global macro product for all 32 countries uses IMF WEO "
+                    "Global macro product for all 30 countries uses IMF WEO "
                     "QUAD_VINTAGE: 4 named vintages per observation year."
                 ),
                 "official_release_date_precision": "named vintage publication month",
                 "revision_history": "4 snapshots per year per observation",
                 "vintages": ["April WEO", "July Update", "October WEO", "January Update"],
-                "countries": "all_32_countries (global_macro product only)",
+                "countries": "all_30_countries (global_macro product only)",
             },
             "tier_3_release_date_stamped": {
-                "name": "31-Country Release-Date Stamped Snapshots",
+                "name": "29-Country Release-Date Stamped Snapshots",
                 "description": (
-                    "EU27 (Eurostat SDMX), GBR (ONS), CAN (StatCan), AUS (ABS), NOR (SSB). "
+                    "EU27 (Eurostat SDMX), GBR (ONS), CAN (StatCan). "
                     "Official release dates estimated from agency publication schedules."
                 ),
                 "official_release_date_precision": "estimated ±3 days (monthly), ±7 days (quarterly)",

@@ -1,20 +1,18 @@
 {
-  "product_name": "Non-EU Global Macro (ONS/StatCan/ABS/SSB)",
+  "product_name": "Non-EU Global Macro (ONS/StatCan)",
   "product_code": "global_macro_non_eu",
   "vault_path": "gs://lekwankwa-vault/product=global_macro",
   "source_filter": null,
   "source_file_map": {
     "ons_api":       "global_macro_data.parquet",
-    "statcan_csv":   "global_macro_data.parquet",
-    "abs_sdmx":      "global_macro_data.parquet",
-    "ssb_statbank":  "global_macro_data.parquet"
+    "statcan_csv":   "global_macro_data.parquet"
   },
-  "sources": ["ons_api", "statcan_csv", "abs_sdmx", "ssb_statbank"],
-  "description": "Universal GX validation for GBR/CAN/AUS/NOR GDP and CPI macro indicators",
+  "sources": ["ons_api", "statcan_csv"],
+  "description": "Universal GX validation for GBR/CAN GDP and CPI macro indicators",
   "schema_version": "5.0",
   "critical_checks": {
     "row_count": { "min": 100, "max": 500000,
-                   "description": "4 countries x GDP quarterly + CPI monthly" },
+                   "description": "2 countries x GDP quarterly + CPI monthly" },
     "required_columns": [
       "data_vintage_id", "confidence_tier", "sovereign_series_id", "macro_metric_name",
       "reporting_date", "official_release_date", "as_of_date", "observed_value",
@@ -33,9 +31,9 @@
       }
     },
     "categorical_constraints": {
-      "iso_alpha3":     ["GBR", "CAN", "AUS", "NOR"],
-      "source_agency":  ["ONS", "STATCAN", "ABS", "SSB"],
-      "source":         ["ons_api", "statcan_csv", "abs_sdmx", "ssb_statbank"],
+      "iso_alpha3":     ["GBR", "CAN"],
+      "source_agency":  ["ONS", "STATCAN"],
+      "source":         ["ons_api", "statcan_csv"],
       "confidence_tier": ["PRIMARY", "DERIVED"]
     },
     "timestamp_checks": {

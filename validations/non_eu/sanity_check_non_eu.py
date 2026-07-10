@@ -1,5 +1,5 @@
 """
-Stage 3 — Sanity Checks: GBR / CAN / AUS / NOR.
+Stage 3 — Sanity Checks: GBR / CAN.
 
 Value range checks and MoM spike detection calibrated for
 RELEASE_DATE_ONLY sources (no vintage revision triangles).
@@ -199,7 +199,7 @@ def run(product: str) -> bool:
 
     report = {
         "timestamp": datetime.utcnow().isoformat() + "Z",
-        "product": product, "scope": "non_eu GBR/CAN/AUS/NOR",
+        "product": product, "scope": "non_eu GBR/CAN",
         "total_records": len(df),
         "checks_passed": passed, "checks_warned": warned, "checks_failed": failed,
         "overall": overall, "results": results,

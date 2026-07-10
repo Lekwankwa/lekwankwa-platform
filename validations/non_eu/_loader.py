@@ -1,5 +1,5 @@
 """
-Shared loader for non-EU country validation (GBR, CAN, AUS, NOR).
+Shared loader for non-EU country validation (GBR, CAN).
 All stage scripts import from here.
 """
 from __future__ import annotations
@@ -20,12 +20,7 @@ VAULT = Path(_VAULT_ROOT)
 COUNTRIES: dict[str, tuple[str, str, str]] = {
     "GBR": ("United Kingdom", "ons_api",       "ONS"),
     "CAN": ("Canada",         "statcan_csv",   "StatCan"),
-    "AUS": ("Australia",      "abs_sdmx",      "ABS"),
-    "NOR": ("Norway",         "ssb_statbank",  "SSB"),
 }
-
-# Products where NOR has no data (no housing table found)
-SKIP_NOR = {"Housing_Supply_and_Shelter_Inflation"}
 
 PRODUCT_FILENAMES: dict[str, str] = {
     "food_micropricing":                   "food_pricing_data.parquet",
@@ -40,8 +35,7 @@ ALL_PRODUCTS = list(PRODUCT_FILENAMES.keys())
 
 def active_countries(product: str) -> dict[str, tuple[str, str, str]]:
     """Return COUNTRIES filtered by product-level exclusions."""
-    skip = SKIP_NOR if product in SKIP_NOR else set()
-    return {iso: v for iso, v in COUNTRIES.items() if iso not in skip}
+    return dict(COUNTRIES)
 
 
 def _find_files(src_dir: str, filename: str) -> list[str]:

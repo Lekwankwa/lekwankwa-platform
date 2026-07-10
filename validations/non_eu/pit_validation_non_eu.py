@@ -1,7 +1,7 @@
 """
-Stage 1 — PIT Validation: GBR / CAN / AUS / NOR.
+Stage 1 — PIT Validation: GBR / CAN.
 
-All 4 countries use RELEASE_DATE_ONLY ingestion — release dates are estimated
+Both countries use RELEASE_DATE_ONLY ingestion — release dates are estimated
 from obs_date + lag. Checks validate bitemporal field completeness and ordering.
 
 Usage:
@@ -177,7 +177,7 @@ def run(product: str) -> bool:
 
     report = {
         "timestamp": datetime.utcnow().isoformat() + "Z",
-        "product": product, "scope": "non_eu GBR/CAN/AUS/NOR",
+        "product": product, "scope": "non_eu GBR/CAN",
         "total_records": len(df),
         "checks_passed": passed, "checks_warned": warned, "checks_failed": failed,
         "overall": overall, "results": [_np_safe(r) for r in results],

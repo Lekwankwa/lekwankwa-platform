@@ -62,7 +62,7 @@ EU27_MEMBERS = frozenset({
     "GRC","HUN","IRL","ITA","LVA","LTU","LUX","MLT","NLD","POL","PRT",
     "ROU","SVK","SVN","ESP","SWE",
 })
-NON_EU_COUNTRIES = frozenset({"GBR","CAN","AUS","NOR"})
+NON_EU_COUNTRIES = frozenset({"GBR","CAN"})
 
 
 def _geo_scope(country: str) -> str:

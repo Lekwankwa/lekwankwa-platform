@@ -65,8 +65,6 @@ _SCRAPER_LABELS = {
     "job-eurostat":    "Eurostat — EU27 × 5 products (SDMX)",
     "job-ons":         "ONS — GBR × 5 products",
     "job-statcan":     "StatCan — CAN × 5 products",
-    "job-abs":         "ABS — AUS × 5 products (SDMX)",
-    "job-ssb":         "SSB — NOR × 5 products (PX-Web)",
 }
 
 _META_LABELS = {

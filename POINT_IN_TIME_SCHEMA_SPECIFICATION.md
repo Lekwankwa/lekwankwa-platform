@@ -17,7 +17,7 @@ PIT coverage is structured in three tiers, reflecting what each source's API can
 |------|-------|--------------|-----------------|
 | **Tier 1** | USA — 5 products via ALFRED | Full bitemporal archive | Complete: every revision since initial publication |
 | **Tier 2** | Global macro — IMF WEO | QUAD_VINTAGE snapshots | 4 named vintages per observation year |
-| **Tier 3** | 31 countries — EU27 + GBR/CAN/AUS/NOR | Release-date-stamped snapshots | Forward-going from first ingestion |
+| **Tier 3** | 29 countries — EU27 + GBR/CAN | Release-date-stamped snapshots | Forward-going from first ingestion |
 
 All tiers populate the same four PIT schema fields on every vault record: `official_release_date`, `as_of_date`, `revision_number`, and `is_revised_figure`. The difference is the **source and precision** of those values.
 
@@ -139,8 +139,6 @@ For the 31 countries outside the ALFRED-covered USA datasets, PIT coverage is pr
 | **Eurostat SDMX** | 27 EU member states (AUT, BEL, BGR, CYP, CZE, DEU, DNK, ESP, EST, FIN, FRA, GRC, HRV, HUN, IRL, ITA, LTU, LVA, MLT, NLD, POL, PRT, ROU, SVK, SVN, SWE, + EU27 aggregate) | Food pricing, wages, housing, trade flows, global macro |
 | **ONS** | GBR | Food pricing, wages, housing, trade flows, global macro |
 | **Statistics Canada (StatCan)** | CAN | Food pricing, wages, housing, trade flows, global macro |
-| **ABS** | AUS | Food pricing, wages, housing, trade flows, global macro |
-| **SSB** | NOR | Food pricing, wages, housing, trade flows, global macro |
 
 ### How release dates are estimated
 
@@ -199,7 +197,7 @@ All vault records across all tiers carry these four PIT fields:
 
 | Field | Type | Definition |
 |-------|------|------------|
-| `official_release_date` | date | When the source agency first published this value. **Exact** for ALFRED/USA. **Estimated** for EU27/GBR/CAN/AUS/NOR. **Named vintage** for IMF. |
+| `official_release_date` | date | When the source agency first published this value. **Exact** for ALFRED/USA. **Estimated** for EU27/GBR/CAN. **Named vintage** for IMF. |
 | `as_of_date` | timestamp (UTC) | The earliest date a trader/researcher could have known this value. Equals `official_release_date` on initial publication; equals detection timestamp on subsequent revisions. |
 | `revision_number` | int | 0 = original publication, 1+ = revision. For Tier 1 (ALFRED), this reflects the true FRED revision count. For Tier 2/3, starts at 1 (initial) and increments on detected changes. |
 | `is_revised_figure` | bool | False for initial publication rows, True for all revision rows. |
@@ -290,7 +288,7 @@ The following limitations apply. Lekwankwa does not misrepresent these constrain
 
 ### All 32 countries / new releases (Tier 3)
 
-> All 32 country datasets (EU27 + GBR, CAN, AUS, NOR) carry a release-date estimate on every observation, computed from each source agency's known publication schedule. Every new release is captured with its release-date timestamp, enabling point-in-time filtering on live data going forward from June 2026. Revision detection is active: when a source agency revises a previously published value, a new versioned record is appended to the vault with the revision detection date as `as_of_date` and `is_revised_figure=True`. Historical pre-ingestion revisions are not available for non-ALFRED sources due to API limitations.
+> All 30 country datasets (EU27 + GBR, CAN) carry a release-date estimate on every observation, computed from each source agency's known publication schedule. Every new release is captured with its release-date timestamp, enabling point-in-time filtering on live data going forward from June 2026. Revision detection is active: when a source agency revises a previously published value, a new versioned record is appended to the vault with the revision detection date as `as_of_date` and `is_revised_figure=True`. Historical pre-ingestion revisions are not available for non-ALFRED sources due to API limitations.
 
 ---
 

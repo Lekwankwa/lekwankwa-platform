@@ -10,7 +10,7 @@
 **Sample File**: `sample_parquet_food_pricing/food_prices_v4.0_sample.parquet`
 **Update Frequency**: Monthly
 **Last Updated**: June 2026
-**Vault Coverage (Global)**: USA + 27 EU Member States + GBR, CAN, AUS, NOR = 32 countries total
+**Vault Coverage (Global)**: USA + 27 EU Member States + GBR, CAN = 30 countries total
 
 ---
 
@@ -32,7 +32,7 @@
 Institutional-grade US food micropricing data with full Point-in-Time (PIT) capability, enabling
 accurate backtesting without look-ahead bias. All records carry actual BLS/USDA publication
 timestamps and ALFRED vintage revision history. The 29,825-row USA vault is one component of a
-32-country global food pricing archive covering EU27, GBR, CAN, AUS, and NOR via Eurostat SDMX
+30-country global food pricing archive covering EU27, GBR, and CAN via Eurostat SDMX
 and national statistical offices.
 
 **Key differentiators:**
@@ -174,7 +174,7 @@ data_quality_certified: True
 
 | Dimension | USA Coverage | Global Vault |
 |-----------|-------------|-------------|
-| Date range | 1980–2026 (monthly) | 2005–2026 (EU27), 2000–2026 (GBR/CAN/AUS/NOR) |
+| Date range | 1980–2026 (monthly) | 2005–2026 (EU27), 2000–2026 (GBR/CAN) |
 | Frequency | Monthly | Monthly |
 | Food items | 40+ BLS categories; 80+ USDA commodities | 5 core categories (HICP-aligned) |
 | PIT type | FULL VINTAGE (ALFRED) + RELEASE_DATE_ONLY (BLS/USDA) | RELEASE_DATE_ONLY |

@@ -95,12 +95,12 @@ DATASETS: dict[str, dict] = {
 }
 
 # ──────────────────────────────────────────────────────────────
-#  PRICING CATALOG  (Research License 1x · Full 32-Country)
+#  PRICING CATALOG  (Research License 1x · Full 30-Country)
 # ──────────────────────────────────────────────────────────────
 PRICING = [
     {
         "product":      "Food Micropricing",
-        "coverage":     "1980–2026 · 40+ Items · 32 Countries",
+        "coverage":     "1980–2026 · 40+ Items · 30 Countries",
         "source":       "BLS / USDA ERS / Eurostat / NSOs",
         "archive_usd":  89_000,
         "live_usd":     62_000,
@@ -108,7 +108,7 @@ PRICING = [
     },
     {
         "product":      "Wages & Labour",
-        "coverage":     "1939–2026 · CPS + CES · 32 Countries",
+        "coverage":     "1939–2026 · CPS + CES · 30 Countries",
         "source":       "BLS CES + CPS / Eurostat / NSOs",
         "archive_usd":  78_000,
         "live_usd":     52_000,
@@ -124,7 +124,7 @@ PRICING = [
     },
     {
         "product":      "Trade Flows (HS-Code Level)",
-        "coverage":     "1992–2026 · 99 HS-2 Chapters · 32 Countries",
+        "coverage":     "1992–2026 · 99 HS-2 Chapters · 30 Countries",
         "source":       "US Census FT-900 / Eurostat / HMRC / StatCan",
         "archive_usd":  98_000,
         "live_usd":     72_000,
@@ -132,7 +132,7 @@ PRICING = [
     },
     {
         "product":      "Global Macro Baseline",
-        "coverage":     "1913–2031 · 18 Series · 32 Countries",
+        "coverage":     "1913–2031 · 18 Series · 30 Countries",
         "source":       "ALFRED (St. Louis Fed) / IMF WEO",
         "archive_usd":  58_000,
         "live_usd":     None,
@@ -148,7 +148,7 @@ LICENSE_TIERS = [
 ]
 
 # ──────────────────────────────────────────────────────────────
-#  32-COUNTRY COVERAGE TABLE
+#  30-COUNTRY COVERAGE TABLE
 # ──────────────────────────────────────────────────────────────
 COVERAGE_TABLE = [
     {
@@ -175,36 +175,20 @@ COVERAGE_TABLE = [
         "live_feed": "Food · Wages · Trade",
         "status":    "READY",
     },
-    {
-        "region":    "Australia (AUS)",
-        "countries": "1",
-        "products":  "4 / 5",
-        "pit_model": "RELEASE_DATE_ONLY (accumulating; ABS)",
-        "live_feed": "Food · Wages · Trade",
-        "status":    "4 READY · Housing DISCONTINUED (ABS RPPI ceased 2021-Q4)",
-    },
-    {
-        "region":    "Norway (NOR)",
-        "countries": "1",
-        "products":  "4 / 5",
-        "pit_model": "RELEASE_DATE_ONLY (SSB Statbank)",
-        "live_feed": "Food · Wages · Trade",
-        "status":    "4 READY · Housing DISCONTINUED (no SSB source identified)",
-    },
 ]
 
 # ──────────────────────────────────────────────────────────────
-#  VALIDATION MANIFEST (9-Stage Engine · 32-Country Scope)
+#  VALIDATION MANIFEST (9-Stage Engine · 30-Country Scope)
 # ──────────────────────────────────────────────────────────────
 VALIDATION_MANIFEST = {
-    "manifest_id":             "LKW-VAULT-MANIFEST-2026-06-26",
-    "generated_at":            "2026-06-26T00:00:00Z",
+    "manifest_id":             "LKW-VAULT-MANIFEST-2026-07-10",
+    "generated_at":            "2026-07-10T00:00:00Z",
     "vault_version":           "5.0",
     "schema_standard":         "SDMX 2.1 + ISO 8601 + ISO 3166-1",
     "overall_status":          "PASS",
     "products_certified":      5,
     "countries_certified":     30,
-    "country_dataset_ready":   "158 / 165",
+    "country_dataset_ready":   "150 / 150",
     "total_records_certified": 333_011,
     "validation_engine":       "Lekwankwa 9-Stage Automated Engine v2.0 + Live Feed Post-Delta Audit v1.0",
     "live_feed_audit": {
@@ -232,7 +216,7 @@ VALIDATION_MANIFEST = {
         "stage_2_sanity_checks": {
             "status": "PASS",
             "checks_run": 50,
-            "description": "Row counts, column presence, null ratios, and domain-specific range checks across 32 countries",
+            "description": "Row counts, column presence, null ratios, and domain-specific range checks across 30 countries",
             "anomalies_detected": 0,
         },
         "stage_3_schema_compliance": {
@@ -804,7 +788,7 @@ def page_showroom() -> None:
         "<div class='section-title'>Institutional-Grade Historical<br>Data Archives</div>"
         "<div class='section-sub'>"
         "High-fidelity, flat-schema quantitative data sourced exclusively from official "
-        "government APIs across 32 sovereign jurisdictions. Point-in-Time enabled. "
+        "government APIs across 30 sovereign jurisdictions. Point-in-Time enabled. "
         "Audit-ready. One-off CAPEX acquisition."
         "</div>",
         unsafe_allow_html=True,
@@ -815,7 +799,7 @@ def page_showroom() -> None:
         "<div class='compliance-banner'>"
         "<strong>Compliance Guarantee</strong> — "
         "Sourcing strictly restricted to open-government APIs and bulk downloads "
-        "from 32 sovereign jurisdictions (USA · EU27 · GBR · CAN · AUS · NOR). "
+        "from 30 sovereign jurisdictions (USA · EU27 · GBR · CAN). "
         "<strong>Zero web-scraping dependencies.</strong> "
         "<strong>100% Flat Parquet schemas.</strong> "
         "9-stage automated vault validation + 5-check live feed post-delta audit. "
@@ -833,9 +817,9 @@ def page_showroom() -> None:
 
     st.markdown("<br>", unsafe_allow_html=True)
 
-    # ── 32-Country Coverage ──
+    # ── 30-Country Coverage ──
     st.markdown(
-        "<div class='section-eyebrow'>32-Country Sovereign Coverage</div>",
+        "<div class='section-eyebrow'>30-Country Sovereign Coverage</div>",
         unsafe_allow_html=True,
     )
 
@@ -874,7 +858,7 @@ def page_showroom() -> None:
 
     # ── Pricing ──
     st.markdown(
-        "<div class='section-eyebrow'>Historical Archive Pricing — Research License (1×) · Full 32-Country</div>",
+        "<div class='section-eyebrow'>Historical Archive Pricing — Research License (1×) · Full 30-Country</div>",
         unsafe_allow_html=True,
     )
 
@@ -968,7 +952,7 @@ def page_showroom() -> None:
         "    font-weight:600; letter-spacing:0.02em;'>(The \"Vault\")</div>"
         "  <div class='vault-sub' style='margin-top:0.6rem;'>"
         "    Permanent corporate access to the entire historical library across all five data products "
-        "    · 32 sovereign jurisdictions · Research License 1×."
+        "    · 30 sovereign jurisdictions · Research License 1×."
         "  </div>"
         "  <div class='vault-body-flex'>"
         "    <div>"
@@ -977,7 +961,7 @@ def page_showroom() -> None:
         "    </div>"
         "    <div style='flex:1; min-width:200px;'>"
         "      <div style='font-size:0.78rem; color:#555555; margin-bottom:0.6rem;'>"
-        "        Includes all five products (32 countries each):</div>"
+        "        Includes all five products (30 countries each):</div>"
         "      <div style='font-size:0.82rem; color:#aaaaaa; line-height:1.9;'>"
         "        Food Micropricing<br>"
         "        Wages &amp; Labour<br>"
@@ -1049,11 +1033,11 @@ def page_showroom() -> None:
         "    <div class='pillar-body'>100% flat-schema Parquet files. No nested JSON. "
         "    No proprietary formats. SDMX-aligned column naming, ISO 8601 timestamps, "
         "    ISO 3166-1 geo codes. Golden Record Schema v5.0 consistent across all "
-        "    32 countries and 5 products.</div>"
+        "    30 countries and 5 products.</div>"
         "  </div>"
         "  <div class='pillar-card'>"
         "    <div class='pillar-eyebrow'>Source Integrity</div>"
-        "    <div class='pillar-title'>32-Country Gov-API Pipeline</div>"
+        "    <div class='pillar-title'>30-Country Gov-API Pipeline</div>"
         "    <div class='pillar-body'>Data sourced exclusively from sovereign government "
         "    APIs: BLS, US Census, ALFRED, USDA (USA) · Eurostat SDMX (EU27) · "
         "    ONS, StatCan, ABS, SSB (Non-EU). Zero web-scraping. "
@@ -1078,7 +1062,7 @@ def page_sandbox() -> None:
         "<br><br>"
         "Select a USA dataset below to inspect the sample (2015–2017), download the "
         "Parquet file, and review the full schema dictionary inline. All sample data uses "
-        "the Golden Record Schema v5.0 — the same schema applied across all 32 countries "
+        "the Golden Record Schema v5.0 — the same schema applied across all 30 countries "
         "in the production vault."
         "</div>",
         unsafe_allow_html=True,
@@ -1182,7 +1166,7 @@ def page_quality_hub() -> None:
         "<div class='section-sub'>"
         "Every Lekwankwa data product passes a 9-stage automated validation engine "
         "before delivery. The manifest below is machine-readable and shipped with each archive. "
-        "Coverage spans 32 countries across 5 data products."
+        "Coverage spans 30 countries across 5 data products."
         "</div>",
         unsafe_allow_html=True,
     )
@@ -1192,7 +1176,7 @@ def page_quality_hub() -> None:
         "<div class='compliance-banner'>"
         "<strong>Sourcing strictly restricted to open-government APIs and bulk downloads. "
         "Zero web-scraping dependencies. 100% Flat Parquet schemas.</strong> "
-        "32 sovereign jurisdictions. 159 / 165 country-dataset combinations READY. "
+        "30 sovereign jurisdictions. 150 / 150 country-dataset combinations READY. "
         "Every live feed delivery passes a 9-stage vault validation suite "
         "<em>and</em> a 5-check post-delta audit gate before any GCS write."
         "</div>",
@@ -1216,7 +1200,7 @@ def page_quality_hub() -> None:
 
     stage_defs = [
         ("01", "PIT Validation",           "10 checks · 0 look-ahead violations"),
-        ("02", "Sanity Checks",             "50 checks · Zero anomalies · 32 countries"),
+        ("02", "Sanity Checks",             "50 checks · Zero anomalies · 30 countries"),
         ("03", "Schema Compliance",         "15 SDMX checks · 312 fields validated"),
         ("04", "Temporal Consistency",      "17 checks · No gaps detected"),
         ("05", "Referential Integrity",     "0 orphan records"),
@@ -1384,16 +1368,16 @@ def page_quality_hub() -> None:
         " margin-bottom:0.7rem;'>Lekwankwa Corporation — Audit Certification v2026.06</div>"
         "<div style='font-size:0.85rem; color:#666; line-height:1.65;'>"
         "This data vault has been independently processed through the Lekwankwa 9-Stage "
-        "Automated Validation Engine across 32 sovereign jurisdictions (USA · EU27 · "
-        "GBR · CAN · AUS · NOR). All records carry sovereign series identifiers, "
+        "Automated Validation Engine across 30 sovereign jurisdictions (USA · EU27 · "
+        "GBR · CAN). All records carry sovereign series identifiers, "
         "data vintage IDs, and full PIT metadata. Source provenance is traceable to "
         "official government API endpoints. No web-scraped content is present in any product."
         "</div>"
         "<div style='font-size:0.75rem; color:#333; margin-top:1rem;'>"
-        "Certification Date: 2026-06-26 &nbsp;·&nbsp; "
-        "Manifest ID: LKW-VAULT-MANIFEST-2026-06-26 &nbsp;·&nbsp; "
+        "Certification Date: 2026-07-10 &nbsp;·&nbsp; "
+        "Manifest ID: LKW-VAULT-MANIFEST-2026-07-10 &nbsp;·&nbsp; "
         "Engine Version: 2.0 + Audit v1.0 &nbsp;·&nbsp; "
-        "Country-Dataset READY: 158 / 165 (2 Housing DISCONTINUED: AUS · NOR)"
+        "Country-Dataset READY: 150 / 150"
         "</div>"
         "</div>",
         unsafe_allow_html=True,

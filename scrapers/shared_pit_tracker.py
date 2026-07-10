@@ -1,6 +1,6 @@
 """
 Shared PIT row builder for non-EU national statistics scrapers.
-(ONS/GBR, StatCan/CAN, ABS/AUS, SSB/NOR — all RELEASE_DATE_ONLY)
+(ONS/GBR, StatCan/CAN — all RELEASE_DATE_ONLY)
 
 Provides the same interface as eurostat/revision_tracker.py but
 source-agnostic (no EU-27 country_map dependency).
@@ -24,8 +24,6 @@ log = logging.getLogger(__name__)
 _COUNTRY_NAMES: dict[str, str] = {
     "GBR": "United Kingdom",
     "CAN": "Canada",
-    "AUS": "Australia",
-    "NOR": "Norway",
     "CHE": "Switzerland",
 }
 

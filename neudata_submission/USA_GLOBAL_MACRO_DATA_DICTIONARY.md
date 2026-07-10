@@ -11,7 +11,7 @@
 **Sample File**: `sample_parquet_global_macro/global_macro_imf_weo_v1.0_sample.parquet`
 **Update Frequency**: Monthly (ALFRED) · Quarterly January/April/July/October (IMF WEO)
 **Last Updated**: June 2026
-**Vault Coverage (Global)**: USA + 27 EU Member States + GBR, CAN, AUS, NOR = 32 countries
+**Vault Coverage (Global)**: USA + 27 EU Member States + GBR, CAN = 30 countries
 
 ---
 

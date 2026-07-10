@@ -1,11 +1,7 @@
 {
-  "product_name": "Non-EU Housing Supply & Shelter Inflation (GBR/CAN only — AUS DISCONTINUED 2021-Q4, NOR DISCONTINUED no source)",
+  "product_name": "Non-EU Housing Supply & Shelter Inflation (GBR/CAN)",
   "product": "Housing_Supply_and_Shelter_Inflation",
   "countries": ["GBR", "CAN"],
-  "discontinued_countries": {
-    "AUS": { "reason": "ABS RPPI ceased", "last_obs": "2021-10-01", "rows_retained": 74 },
-    "NOR": { "reason": "No SSB housing price table identified", "last_obs": null, "rows_retained": 0 }
-  },
   "sources": [
     { "source": "ons_api",     "year_start": 1988, "year_end": 2025 },
     { "source": "statcan_csv", "year_start": 1981, "year_end": 2025 }

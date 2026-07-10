@@ -430,25 +430,6 @@ misc_fields:
 #
 source_specific_fields:
 
-  # ── Australia (ABS — Australian Bureau of Statistics) ─────────────────────
-  abs_key:
-    type: string
-    nullable: true
-    source_countries: ["AUS"]
-    description: "ABS series identifier (e.g. A2325807C)"
-
-  abs_dataflow:
-    type: string
-    nullable: true
-    source_countries: ["AUS"]
-    description: "ABS SDMX dataflow ID (e.g. ABS_RPPI_2)"
-
-  abs_series_id:
-    type: string
-    nullable: true
-    source_countries: ["AUS"]
-    description: "ABS internal series reference used by the scraper"
-
   # ── Canada (Statistics Canada) ────────────────────────────────────────────
   statcan_vector:
     type: string
@@ -475,12 +456,6 @@ source_specific_fields:
     source_countries: ["GBR"]
     description: "ONS CDID series code (e.g. ABMI)"
 
-  # ── Norway (SSB — Statistics Norway) ─────────────────────────────────────
-  ssb_table_id:
-    type: string
-    nullable: true
-    source_countries: ["NOR"]
-    description: "SSB StatBank table identifier (e.g. 03013)"
 
   # ── United States — BLS and USDA/ERS pipelines ────────────────────────────
   bls_footnotes:

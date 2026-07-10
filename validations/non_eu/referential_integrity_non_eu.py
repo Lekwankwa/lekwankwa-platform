@@ -1,5 +1,5 @@
 """
-Stage 5 — Referential Integrity: GBR / CAN / AUS / NOR.
+Stage 5 — Referential Integrity: GBR / CAN.
 
 Checks:
   1. Vintage ID format matches source-specific pattern
@@ -27,21 +27,17 @@ from validations.non_eu._loader import load, active_countries, COUNTRIES, ALL_PR
 ISO3_TO_NAME = {
     "GBR": "United Kingdom",
     "CAN": "Canada",
-    "AUS": "Australia",
-    "NOR": "Norway",
 }
 
 ISO3_TO_AGENCY = {
     "GBR": "ONS",
     "CAN": "STATCAN",   # ingested as all-caps STATCAN
-    "AUS": "ABS",
-    "NOR": "SSB",
 }
 
 # Each source prefix produces IDs like: ONS-GBR-METRIC-YYYY-MM-vN
 # CAN uses STATCAN (all-caps) as ingested by the StatCan scraper
 _VID_PATTERN = re.compile(
-    r"^(ONS|STATCAN|ABS|SSB)-(GBR|CAN|AUS|NOR)-.+-\d{4}(-\d{2})?-v\d+$"
+    r"^(ONS|STATCAN)-(GBR|CAN)-.+-\d{4}(-\d{2})?-v\d+$"
 )
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s",
@@ -161,7 +157,7 @@ def run(product: str) -> bool:
 
     report = {
         "timestamp": datetime.utcnow().isoformat() + "Z",
-        "product": product, "scope": "non_eu GBR/CAN/AUS/NOR",
+        "product": product, "scope": "non_eu GBR/CAN",
         "total_records": len(df),
         "checks_passed": passed, "checks_warned": warned, "checks_failed": failed,
         "overall": overall, "results": results,

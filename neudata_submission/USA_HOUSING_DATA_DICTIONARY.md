@@ -13,7 +13,7 @@
 **Update Frequency**: Monthly
 **Last Updated**: June 2026
 **Vault Filenames**: `housing_hicp_rent_data.parquet` (shelter) · `permits_eu27_data.parquet` (permits)
-**Vault Coverage (Global)**: USA + 27 EU Member States + GBR, CAN = 30 countries active (AUS DISCONTINUED — ABS RPPI ceased 2021-Q4; NOR DISCONTINUED — no SSB source identified)
+**Vault Coverage (Global)**: USA + 27 EU Member States + GBR, CAN = 30 countries
 
 ---
 
@@ -304,11 +304,11 @@ data_quality_certified : True
 | Frequency | Monthly | Monthly | Monthly/Quarterly |
 | Series count | 7 | 3 | ~15 per country |
 | PIT type | RELEASE_DATE_ONLY | RELEASE_DATE_ONLY | RELEASE_DATE_ONLY |
-| Countries | 1 (USA) | 1 (USA) | 30 active (AUS + NOR DISCONTINUED) |
+| Countries | 1 (USA) | 1 (USA) | 29 (EU27 + GBR + CAN) |
 | Availability | Archive only | Archive only | Archive only |
 
 **Live feed note**: Housing data is archive-only (no live feed product) due to mixed quarterly
-frequency in EU27 HICP shelter components. This applies across all 32 countries.
+frequency in EU27 HICP shelter components. This applies across all 30 countries.
 
 ---
 
@@ -317,8 +317,6 @@ frequency in EU27 HICP shelter components. This applies across all 32 countries.
 | Gap ID | Affected Series | Period | Reason | Client Action |
 |--------|----------------|--------|--------|---------------|
 | `BLS_2025_APPROPRIATIONS_LAPSE` | `CUUR0000SAH1`, `CUUR0000SEHA`, `CUUR0000SEHB`, `CUUR0000SEHC`, `CUSR0000SEHA`, `CUSR0000SEHB`, `CUSR0000SAH1` (all 7 BLS shelter series) | October 2025 only | US government appropriations lapse; BLS CPI not published (footnote code X). BLS does not retroactively backfill. November 2025 confirmed normal resumption. | Treat all 7 shelter series as `NaN` for October 2025. Do not flag as scraper error. Forward-fill from September 2025 for that single month if gap-free series is required. |
-| `AUS_RPPI_DISCONTINUED` | `RPPI_HOUSES` (AUS only) | All periods after 2021-Q4 | ABS SDMX RPPI dataflow ceased. No `includeHistory` support; no mechanism to extend. | 74 vault rows available for 2003-Q3 to 2021-Q4 historical backtests only. Do not use for post-2021 strategies. |
-| `NOR_HOUSING_NO_SOURCE` | All NOR housing series | All periods | No SSB Statbank table for residential property price index identified. No vault data exists. | Exclude NOR from all housing strategies. |
 
 ---
 
