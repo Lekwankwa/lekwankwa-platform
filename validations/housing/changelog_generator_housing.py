@@ -266,22 +266,19 @@ def generate_changelog_for_year(year_folder: Path, year: int, source: str, previ
         logger.warning(f"No month folders found in {year_folder.name}")
         return {"success": False, "schema": None}
 
-    # Determine parquet filename by source
-    if source == "bls_cpi_shelter":
-        parquet_filename = "shelter_inflation_data.parquet"
-    elif source == "census_bps":
-        parquet_filename = "housing_permits_data.parquet"
-    else:
-        parquet_filename = "base_data.parquet"
-
     try:
         all_dfs = []
         for month_folder in month_folders:
-            parquet_file = month_folder / parquet_filename
-            if parquet_file.exists():
-                all_dfs.append(pd.read_parquet(parquet_file))
+            # Match the source's data file by the standard *_data.parquet
+            # convention. USA housing filenames vary (housing_hicp_rent_data.parquet,
+            # permits_eu27_data.parquet) and never matched the old hardcoded
+            # bls/census names; ancillary sidecars don't end in _data.parquet.
+            data_files = sorted(month_folder.glob("*_data.parquet"))
+            if data_files:
+                for pf in data_files:
+                    all_dfs.append(pd.read_parquet(pf))
             else:
-                logger.warning(f"Missing {parquet_filename} in {month_folder.name}")
+                logger.warning(f"No *_data.parquet in {month_folder.name}")
 
         if not all_dfs:
             logger.warning(f"No data files found in {year_folder.name}")

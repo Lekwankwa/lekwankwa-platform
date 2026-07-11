@@ -250,15 +250,14 @@ def _load_source_df(vault_path: Path, source: str) -> pd.DataFrame:
     Load ALL parquet files for a source across all years/months.
     This is required so MoM calculations are never broken at year boundaries.
     """
-    if source == "bls_cpi_shelter":
-        parquet_filename = "shelter_inflation_data.parquet"
-    elif source == "census_bps":
-        parquet_filename = "housing_permits_data.parquet"
-    else:
-        parquet_filename = "base_data.parquet"
-
+    # Match data files by the standard *_data.parquet convention rather than a
+    # hardcoded name. USA housing files are written with source-specific names
+    # (housing_hicp_rent_data.parquet, permits_eu27_data.parquet) that never
+    # matched the old hardcoded bls/census names, so this stage silently loaded
+    # nothing. Ancillary sidecars (outliers.parquet, changelog.parquet) don't
+    # end in _data.parquet and are naturally excluded.
     dfs = []
-    for parquet_file in sorted(vault_path.rglob(parquet_filename)):
+    for parquet_file in sorted(vault_path.rglob("*_data.parquet")):
         try:
             dfs.append(pd.read_parquet(parquet_file))
         except Exception as e:
