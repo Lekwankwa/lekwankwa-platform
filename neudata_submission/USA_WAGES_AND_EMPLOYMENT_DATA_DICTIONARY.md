@@ -286,7 +286,7 @@ data_quality_certified : True
 | Series count | 11 | 850+ NAICS | ~5–15 per country |
 | Industry depth | Household (aggregate) | 850+ NAICS codes | Varies by country |
 | PIT type | RELEASE_DATE_ONLY | RELEASE_DATE_ONLY | RELEASE_DATE_ONLY · FULL VINTAGE (ALFRED) |
-| Countries | 1 (USA) | 1 (USA) | 32 total |
+| Countries | 1 (USA) | 1 (USA) | 30 total |
 | Live feed | Yes (monthly) | Yes (monthly) | Yes (monthly) |
 
 ---
@@ -317,7 +317,7 @@ data_quality_certified : True
 
 ## Provenance Fields — Pipeline Bookkeeping
 
-`data_quality_certified` is a universal vault field present on all records across all 5 products and all 32 countries (100% of data partitions). `conversion_timestamp` is a USA-only pipeline ingestion artifact, present only in the food_micropricing/USA and wages_and_employment/USA vault partitions (2 of 160 total); it is absent from all EU27 and non-EU country partitions and from all USA housing, trade, and global_macro partitions. Both fields are pipeline bookkeeping metadata — **not** PIT events or publication metadata.
+`data_quality_certified` is a universal vault field present on all records across all 5 products and all 30 countries (100% of data partitions). `conversion_timestamp` is a USA-only pipeline ingestion artifact, present only in the food_micropricing/USA and wages_and_employment/USA vault partitions (2 of 160 total); it is absent from all EU27 and non-EU country partitions and from all USA housing, trade, and global_macro partitions. Both fields are pipeline bookkeeping metadata — **not** PIT events or publication metadata.
 
 ### `data_quality_certified` (boolean)
 
@@ -325,7 +325,7 @@ data_quality_certified : True
 |-----------|-------|
 | Type | boolean |
 | Nullable | No |
-| Coverage | All 5 products · All 32 countries · 100% of vault data partitions. Value = True for all countries across all 5 products. USA food_micropricing and USA wages_and_employment were corrected to True June 2026 (scraper-placeholder False; confirmed 9/9 validation PASS for both). |
+| Coverage | All 5 products · All 30 countries · 100% of vault data partitions. Value = True for all countries across all 5 products. USA food_micropricing and USA wages_and_employment were corrected to True June 2026 (scraper-placeholder False; confirmed 9/9 validation PASS for both). |
 | True | Record passed all 9 automated validation stages |
 | False | Record carries one or more quality flags (retained, not suppressed; documented in validation reports) |
 

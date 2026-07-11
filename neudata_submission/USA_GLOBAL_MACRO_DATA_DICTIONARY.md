@@ -88,6 +88,8 @@ historical actuals and IMF projections through 2031.
 | `GGXCNL_NGDP` | Government Net Lending/Borrowing (% GDP) | % GDP | 2001 |
 | `PPPGDP` | GDP at PPP (International USD) | Billions | 1980 |
 
+**`BCA_NGDPD` and `GGXCNL_NGDP` are net/balance measures and are frequently negative** — `BCA_NGDPD` (current account balance) is negative whenever the US runs a current account deficit; `GGXCNL_NGDP` (government net lending/borrowing) is negative whenever the US runs a fiscal deficit. Both are negative for essentially the entire USA history in this vault (e.g. the 2015–2017 sample shows `BCA_NGDPD` -2.3 to -2.4 and `GGXCNL_NGDP` -3.2 to -3.6). **Do not treat negative values in these two series as data errors** — see `configs/known_anomalies.json` entry `BALANCE_METRICS_LEGITIMATELY_NEGATIVE` for the full explanation and other affected series across products.
+
 ---
 
 ## Union Schema (v2.0 — 26 columns)
@@ -214,6 +216,7 @@ data_quality_certified : True
 |--------|-------------------|--------|--------|---------------|
 | `IMF_SYNTHETIC_JAN_JUL_VINTAGES` | IMF WEO `month=01` (January Update) and `month=07` (July Update) partitions | All years 1980–2031 | DataMapper API returns current-vintage values only; no historical snapshot archive exists. January and July `official_release_date` values are genuine but the data values are synthetic backdates. | Use April and October vintages for revision-delta analysis. January and July vintages are valid for PIT ordering (information availability gate) but not for measuring revision depth across WEO editions. |
 | `BLS_2025_APPROPRIATIONS_LAPSE` | ALFRED series `UNRATE` (`LNS14000000`) and `PAYEMS` — note: these map to CPS/BLS, not ALFRED vintage | October 2025 only | US government appropriations lapse; BLS Employment Situation not published. ALFRED vintage series (`GDPC1`, `CPIAUCSL`, `FEDFUNDS`, `DGS10`, `M2SL`, `INDPRO`, `HOUST`, `BOPGSTB`, `CES0500000003`) are **not affected** — all confirmed present with real October 2025 values. | ALFRED multi-vintage component: no action needed. If combining with BLS CPS data from another product, treat CPS unemployment for October 2025 as `NaN`. |
+| `IMF_WEO_FORECAST_ANNUAL_CADENCE` | IMF WEO component, forecast years 2027 and later | 2027–2031 | IMF WEO publishes one annual observation per forecast year beyond the ALFRED historical window, not one per month. A naive monthly-continuity check will report missing months for the other 11 months of each forecast year — this is expected, not a gap. | Filter on `source = "imf_weo"` and expect annual cadence for forecast years; do not run monthly gap-continuity checks against this window without accounting for source-specific frequency. See `configs/known_anomalies.json` entry `IMF_WEO_FORECAST_ANNUAL_CADENCE`. |
 
 ---
 
@@ -225,7 +228,7 @@ data_quality_certified : True
 | Frequency | Monthly/Quarterly | Quarterly (observation: Annual) | Mixed |
 | Series count | 10 | 8 | 18 |
 | Countries (USA vault) | USA | USA | USA |
-| Countries (global vault) | USA only | 32 countries | 32 countries |
+| Countries (global vault) | USA only | 30 countries | 30 countries |
 | Vault records (USA) | 77,247 | 1,496 (374 × 4 vintages) | 78,743 |
 
 ---
@@ -249,7 +252,7 @@ data_quality_certified : True
 
 ## Provenance Fields — Pipeline Bookkeeping
 
-`data_quality_certified` is a universal vault field present on all records across all 5 products and all 32 countries (100% of data partitions). `conversion_timestamp` is a USA-only pipeline ingestion artifact, present only in the food_micropricing/USA and wages_and_employment/USA vault partitions (2 of 160 total); it is absent from all EU27 and non-EU country partitions and from all USA housing, trade, and global_macro partitions. Both fields are pipeline bookkeeping metadata — **not** PIT events or publication metadata.
+`data_quality_certified` is a universal vault field present on all records across all 5 products and all 30 countries (100% of data partitions). `conversion_timestamp` is a USA-only pipeline ingestion artifact, present only in the food_micropricing/USA and wages_and_employment/USA vault partitions (2 of 160 total); it is absent from all EU27 and non-EU country partitions and from all USA housing, trade, and global_macro partitions. Both fields are pipeline bookkeeping metadata — **not** PIT events or publication metadata.
 
 ### `data_quality_certified` (boolean)
 
@@ -257,7 +260,7 @@ data_quality_certified : True
 |-----------|-------|
 | Type | boolean |
 | Nullable | No |
-| Coverage | All 5 products · All 32 countries · 100% of vault data partitions. Value = True for all countries across all 5 products. USA food_micropricing and USA wages_and_employment were corrected to True June 2026 (scraper-placeholder False; confirmed 9/9 validation PASS for both). |
+| Coverage | All 5 products · All 30 countries · 100% of vault data partitions. Value = True for all countries across all 5 products. USA food_micropricing and USA wages_and_employment were corrected to True June 2026 (scraper-placeholder False; confirmed 9/9 validation PASS for both). |
 | True | Record passed all 9 automated validation stages |
 | False | Record carries one or more quality flags (retained, not suppressed; documented in validation reports) |
 

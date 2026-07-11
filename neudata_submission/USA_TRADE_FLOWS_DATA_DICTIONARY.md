@@ -254,9 +254,18 @@ data_quality_certified : True
 | Granularity | HS-2 chapter | Aggregate BOP | Mixed |
 | PIT type | RELEASE_DATE_ONLY | FULL VINTAGE | Mixed |
 | Countries (USA vault) | USA | USA | USA |
-| Countries (global vault) | 32 countries | USA only | 32 countries |
+| Countries (global vault) | 30 countries | USA only | 30 countries |
 | Vault records (USA) | ~42,440 | ~580 | 43,020 |
 | Live feed | Yes (monthly FT-900) | Yes (monthly ALFRED) | Yes |
+
+---
+
+## Known Data Gaps
+
+| Gap ID | Affected Component | Period | Reason | Client Action |
+|--------|-------------------|--------|--------|---------------|
+| `BALANCE_METRICS_LEGITIMATELY_NEGATIVE` | `BOPGSTB` (ALFRED trade balance series) | Ongoing — most of the 1992–2026 history | `BOPGSTB` is a net trade balance (exports minus imports); it is negative whenever the US runs a goods-and-services trade deficit, which has been the norm for most of the observed history (confirmed range -132,983 to -831 USD millions). This is real, correctly-reported data, not an error. | Do not flag negative `observed_value`/`trade_value` on `BOPGSTB` as a data defect. HS-code EXP/IMP series are always non-negative; only the `BOPGSTB` balance series carries a sign. See `configs/known_anomalies.json` entry `BALANCE_METRICS_LEGITIMATELY_NEGATIVE`. |
+| `BLS_2025_APPROPRIATIONS_LAPSE` | Not applicable to this product | October 2025 | The October 2025 US appropriations lapse affected BLS-sourced series in other products. `BOPGSTB` (ALFRED-sourced) and Census FT-900 HS-code data were confirmed **not affected** — both have real October 2025 values. | No action needed for trade_flows. |
 
 ---
 
@@ -279,7 +288,7 @@ data_quality_certified : True
 
 ## Provenance Fields — Pipeline Bookkeeping
 
-`data_quality_certified` is a universal vault field present on all records across all 5 products and all 32 countries (100% of data partitions). `conversion_timestamp` is a USA-only pipeline ingestion artifact, present only in the food_micropricing/USA and wages_and_employment/USA vault partitions (2 of 160 total); it is absent from all EU27 and non-EU country partitions and from all USA housing, trade, and global_macro partitions. Both fields are pipeline bookkeeping metadata — **not** PIT events or publication metadata.
+`data_quality_certified` is a universal vault field present on all records across all 5 products and all 30 countries (100% of data partitions). `conversion_timestamp` is a USA-only pipeline ingestion artifact, present only in the food_micropricing/USA and wages_and_employment/USA vault partitions (2 of 160 total); it is absent from all EU27 and non-EU country partitions and from all USA housing, trade, and global_macro partitions. Both fields are pipeline bookkeeping metadata — **not** PIT events or publication metadata.
 
 ### `data_quality_certified` (boolean)
 
@@ -287,7 +296,7 @@ data_quality_certified : True
 |-----------|-------|
 | Type | boolean |
 | Nullable | No |
-| Coverage | All 5 products · All 32 countries · 100% of vault data partitions. Value = True for all countries across all 5 products. USA food_micropricing and USA wages_and_employment were corrected to True June 2026 (scraper-placeholder False; confirmed 9/9 validation PASS for both). |
+| Coverage | All 5 products · All 30 countries · 100% of vault data partitions. Value = True for all countries across all 5 products. USA food_micropricing and USA wages_and_employment were corrected to True June 2026 (scraper-placeholder False; confirmed 9/9 validation PASS for both). |
 | True | Record passed all 9 automated validation stages |
 | False | Record carries one or more quality flags (retained, not suppressed; documented in validation reports) |
 
