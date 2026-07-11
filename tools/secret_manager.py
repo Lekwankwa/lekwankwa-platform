@@ -1,7 +1,14 @@
 """
-tools/secrets.py — Lekwankwa Corporation
+tools/secret_manager.py — Lekwankwa Corporation
 
 Enterprise API key management via GCP Secret Manager.
+
+NOTE: This module is deliberately NOT named `secrets.py`. A module named
+`secrets` in tools/ shadows the Python standard-library `secrets` module
+whenever a script inside tools/ is run directly (e.g. `python tools/foo.py`,
+which puts tools/ on sys.path[0]). numpy.random does `from secrets import
+randbits`, so the shadow breaks numpy — and therefore pandas — with
+"cannot import name randbits". Keep this name distinct from any stdlib module.
 
 In Cloud Run (production):
   - Secrets are loaded from GCP Secret Manager at container startup.
@@ -13,7 +20,7 @@ In local development:
     (no credentials, or running offline).
 
 Usage in entry points (run.py / ingest_all.py):
-    from tools.secrets import load_all_secrets_to_env
+    from tools.secret_manager import load_all_secrets_to_env
     load_all_secrets_to_env()   # call once before any scraper code runs
 
 After that call, all downstream modules can use os.environ.get("BLS_API_KEY")

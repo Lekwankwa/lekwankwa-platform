@@ -19,7 +19,7 @@ import sys
 import pandas as pd
 
 from scrapers.utilities.vault_io import get_vault_root
-from tools.secrets import load_all_secrets_to_env
+from tools.secret_manager import load_all_secrets_to_env
 load_all_secrets_to_env()
 
 from scrapers.ons.ons_client import fetch_timeseries

@@ -18,7 +18,7 @@ import logging
 import sys
 import time
 
-from tools.secrets import load_all_secrets_to_env
+from tools.secret_manager import load_all_secrets_to_env
 load_all_secrets_to_env()
 
 logging.basicConfig(
