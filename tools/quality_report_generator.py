@@ -151,6 +151,85 @@ LIVE_FEED_EXCLUDED: frozenset[tuple[str, str]] = frozenset()
 # Sources confirmed discontinued — no further releases expected from the source agency
 KNOWN_DISCONTINUED: frozenset[tuple[str, str]] = frozenset()
 
+# ---------------------------------------------------------------------------
+# Known-anomaly registry — client-facing exception disclosures
+# ---------------------------------------------------------------------------
+# metadata/known_anomalies.json is the master registry of documented data
+# exceptions (gaps, value extremes, path conventions, pipeline artifacts, ...).
+# Client-facing entries are attached to each quality report so clients can
+# account for them during backtesting / model training. Only a trimmed,
+# client-safe view is surfaced (internal_notes are never shipped).
+_KNOWN_ANOMALIES_CACHE: Optional[dict] = None
+_GEO_SCOPE_TOKENS: dict[str, set[str]] = {
+    "usa_only":        {"USA"},
+    "eu27_only":       {"EU27"},
+    "non_eu_block":    {"GBR", "CAN"},
+    "full_32_country": {"USA", "EU27", "GBR", "CAN"},
+}
+
+
+def _load_known_anomalies() -> dict:
+    global _KNOWN_ANOMALIES_CACHE
+    if _KNOWN_ANOMALIES_CACHE is None:
+        # Source registry lives in configs/ (tracked), alongside catalog_expected_series.yaml
+        for cand in (
+            Path(__file__).resolve().parent.parent / "configs" / "known_anomalies.json",
+            Path("configs") / "known_anomalies.json",
+        ):
+            if cand.exists():
+                try:
+                    with open(cand, encoding="utf-8") as fh:
+                        _KNOWN_ANOMALIES_CACHE = json.load(fh)
+                        break
+                except Exception:
+                    pass
+        if _KNOWN_ANOMALIES_CACHE is None:
+            _KNOWN_ANOMALIES_CACHE = {"anomalies": []}
+    return _KNOWN_ANOMALIES_CACHE
+
+
+def _anomalies_for_report(product: str, geo_key: str) -> list[dict]:
+    """Client-safe view of client-facing anomalies relevant to this product+geo."""
+    tokens = _GEO_SCOPE_TOKENS.get(geo_key, set())
+    out: list[dict] = []
+    for a in _load_known_anomalies().get("anomalies", []):
+        if not a.get("client_facing"):
+            continue
+        prods = a.get("products", [])
+        if prods and product not in prods:
+            continue
+        scope = (a.get("country_scope") or "").upper()
+        relevant = (
+            scope in ("ALL", "")
+            or any(t in scope for t in tokens)
+            or geo_key == "full_32_country"   # full report shows all cross-cutting exceptions
+        )
+        if relevant:
+            out.append({
+                "anomaly_id":       a["anomaly_id"],
+                "category":         a.get("category"),
+                "title":            a.get("title"),
+                "country_scope":    a.get("country_scope"),
+                "severity":         a.get("severity"),
+                "affected_period":  a.get("affected_period"),
+                "status":           a.get("status"),
+                "client_guidance":  a.get("client_guidance"),
+            })
+    return out
+
+
+def _dedup_anomalies(items: list[dict]) -> list[dict]:
+    """De-duplicate anomaly views by anomaly_id, preserving first-seen order."""
+    seen: set[str] = set()
+    out: list[dict] = []
+    for a in items:
+        aid = a.get("anomaly_id")
+        if aid in seen:
+            continue
+        seen.add(aid)
+        out.append(a)
+    return out
+
 # Structural lag: days from end of reference period to agency publication
 # Source: confirmed via live API probes across all 6 country groups, June 2026
 # (product, country_group) → lag_days
@@ -1406,6 +1485,10 @@ def master_to_json(report: MasterReport) -> dict:
         "report_type": "MASTER",
         "run_date": report.run_date,
         "products_included": report.products_included,
+        "known_anomalies": _dedup_anomalies([
+            a for p in report.products_included
+            for a in _anomalies_for_report(p, "full_32_country")
+        ]),
         "severity_counts": report.severity_counts,
         "total_findings": sum(report.severity_counts.values()),
         "cross_check_passed": report.cross_check_passed,
@@ -2190,6 +2273,7 @@ def _write_geo_split_reports(
             "severity_counts": sev,
             "total_findings":  sum(sev.values()),
             "total_countries": len(geo_countries),
+            "known_anomalies": _anomalies_for_report(product, geo_key),
             "countries":       geo_countries,
             "all_findings":    geo_findings,
             "summary": {
