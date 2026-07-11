@@ -48,8 +48,8 @@
     "value_constraints": {
       "observed_value": {
         "min": 0.0,
-        "max": 2000.0,
-        "description": "Index values (2015=100), permit counts in thousands, HICP index"
+        "max": 20000.0,
+        "description": "Index values (2015=100), permit counts in thousands, HICP index. Building-permit indices (Index 2015=100, NSA quarterly) legitimately reach ~9300 for small EU states whose 2015 permit baselines were tiny/volatile (observed max 9312.0), so the cap is 20000 not 2000."
       }
     },
     "categorical_constraints": {

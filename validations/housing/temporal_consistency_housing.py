@@ -72,6 +72,25 @@ HEADLINE_SHELTER = "CUUR0000SEHA"
 BPS_VARIABLES    = ["PERMIT", "PERMIT1", "PERMIT2", "PERMIT3_4", "PERMIT5", "BLDGS", "VALUE"]
 HEADLINE_BPS     = "PERMIT"
 
+# Documented, permanent gaps that must NOT be reported as continuity failures.
+# Kept in lockstep with configs/catalog_expected_series.yaml known_gaps.
+#   BLS_2025_APPROPRIATIONS_LAPSE (2025-10): the US federal government operated
+#   without appropriations in late Oct 2025; BLS could not collect/publish and
+#   does not retroactively backfill lapse periods. Affects the CPI shelter
+#   series. This is expected missing data, not a scraper/pipeline failure.
+KNOWN_GAP_MONTHS = {"2025-10"}
+
+
+def _strip_known_gaps(gaps: list) -> list:
+    """Drop gap ranges whose every month is a documented KNOWN_GAP_MONTHS entry."""
+    kept = []
+    for start, end in gaps:
+        months = {str(p) for p in pd.period_range(start, end, freq="M")}
+        if months <= KNOWN_GAP_MONTHS:
+            continue  # entirely explained by a documented known gap
+        kept.append((start, end))
+    return kept
+
 # Historical plausibility for PERMIT (total units authorized, SAAR)
 PERMIT_MIN = 200_000
 PERMIT_MAX = 2_500_000
@@ -148,13 +167,17 @@ def check_shelter_headline_continuity(df: pd.DataFrame) -> dict:
     if series_df.empty:
         return {"status": "FAIL", "check": "A1 Shelter Headline Continuity",
                 "message": f"Series {HEADLINE_SHELTER} not found in vault"}
-    gaps = _detect_gaps(series_df["_ts"])
+    all_gaps = _detect_gaps(series_df["_ts"])
+    gaps = _strip_known_gaps(all_gaps)
     span = f"{series_df['_ts'].min().date()} - {series_df['_ts'].max().date()}"
+    known_n = len(all_gaps) - len(gaps)
     if not gaps:
-        return {"status": "PASS", "check": "A1 Shelter Headline Continuity",
-                "message": f"No gaps in {HEADLINE_SHELTER} monthly series ({span})"}
+        note = f"No unexplained gaps in {HEADLINE_SHELTER} monthly series ({span})"
+        if known_n:
+            note += f"; {known_n} documented known-gap period(s) excluded (BLS_2025_APPROPRIATIONS_LAPSE)"
+        return {"status": "PASS", "check": "A1 Shelter Headline Continuity", "message": note}
     return {"status": "FAIL", "check": "A1 Shelter Headline Continuity",
-            "message": f"{len(gaps)} gap(s) detected in {HEADLINE_SHELTER} ({span})",
+            "message": f"{len(gaps)} unexplained gap(s) detected in {HEADLINE_SHELTER} ({span})",
             "gaps": gaps[:10]}
 
 
@@ -168,7 +191,7 @@ def check_shelter_intra_series_gaps(df: pd.DataFrame) -> dict:
         sdf = df[df["sovereign_series_id"] == sid]
         if sdf.empty:
             continue
-        g = _detect_gaps(sdf["_ts"])
+        g = _strip_known_gaps(_detect_gaps(sdf["_ts"]))
         if g:
             series_gaps[sid] = g
     if not series_gaps:

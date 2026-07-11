@@ -86,11 +86,22 @@ def _result(status, check, message, details=None):
     return entry
 
 
+# Ancillary sidecar files (outliers.parquet, changelog.parquet, audit.parquet)
+# live inside the same month partitions as the data files but carry a
+# different schema (no sovereign_series_id). They must be excluded from data
+# gathering — otherwise column-projected reads like
+# pd.read_parquet(f, columns=["sovereign_series_id", ...]) raise ArrowInvalid.
+_ANCILLARY_NAMES = ("outliers", "changelog", "change_log", "audit")
+
+
 def _all_partitions(source):
-    return sorted(Path(".").glob(str(
-        VAULT_DIR / f"product={PRODUCT}" / f"country={COUNTRY}"
-        / f"source={source}" / "year=*" / "month=*" / "*.parquet"
-    )))
+    return sorted(
+        p for p in Path(".").glob(str(
+            VAULT_DIR / f"product={PRODUCT}" / f"country={COUNTRY}"
+            / f"source={source}" / "year=*" / "month=*" / "*.parquet"
+        ))
+        if not any(a in p.name.lower() for a in _ANCILLARY_NAMES)
+    )
 
 
 def _partition_ym(path: Path):
