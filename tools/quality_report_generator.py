@@ -11,15 +11,16 @@ TRIGGER CHAIN (GCS event-driven — fires on every new data release)
 -------------------------------------------------------------------
 1.  vault_extractor --mode live writes a completion marker on success:
       {vault_root}/run_markers/extractor_{product}_{YYYY-MM-DD}.complete
-2.  A Cloud Storage OBJECT_FINALIZE trigger fires this Cloud Function when any
-    extractor_{product}_*.complete object lands in the bucket.
-3.  This function checks markers for all required live products on that run date.
-    If any are missing → exits cleanly; re-triggered when the next extractor
-    writes its marker.
-4.  Once all required live-product markers are present, the full quality report
-    (geo-split) is generated and uploaded to GCS.
-5.  Archive products (housing, global_macro) trigger separately via
-    extractor_archive_*.complete markers.
+import datetime
+import glob as _glob_module
+import hashlib
+import hmac
+import json
+import os
+import subprocess
+import re as _re_module
+import re
+import smtplib
 
 DEPLOYMENT
 ----------
@@ -868,10 +869,10 @@ def audit_vault_integrity(
         except ValueError:
             pass
     if far_future:
-        issues.append(
-            f"FUTURE_PARTITION:{len(far_future)} year= folders exceed "
-            f"current_year+6 ({current_year + 6}): {sorted(far_future)[:5]}"
-        )
+    (marker_dir / f"extractor_{product}_{run_date}.complete").touch()
+
+
+# ---------------------------------------------------        )
     if near_future:
         issues.append(
             f"FORECAST_PARTITION:{len(near_future)} year= folders are future "
