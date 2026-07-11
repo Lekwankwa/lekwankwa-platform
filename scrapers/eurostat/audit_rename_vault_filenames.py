@@ -107,6 +107,15 @@ _PRODUCT_EXPECTED = {
     "trade_flows":                          _TRADE_EXPECTED,
 }
 
+# This is a Eurostat/EU27 naming tool. Non-EU countries (USA, GBR, CAN) have
+# their own scrapers with their own filename conventions (e.g. USA housing uses
+# shelter_inflation_data.parquet / housing_permits_data.parquet). Applying this
+# tool's EU-flavored, content-based stems (permits_eu27_data,
+# housing_hicp_rent_data) to those files is a mislabeling bug — USA CPI shelter
+# was renamed to housing_hicp_rent_data and USA Census permits to
+# permits_eu27_data. Skip them entirely.
+_NON_EU_COUNTRIES = frozenset({"USA", "GBR", "CAN"})
+
 
 def _expected_stems(product: str, ctypes: frozenset) -> set[str]:
     """Return set of acceptable filename stems for this content fingerprint."""
@@ -180,6 +189,13 @@ def run() -> None:
         for fpath in sorted(base.rglob("*.parquet")):
             # Skip non-data helper files
             if fpath.stem in ("changelog", "outliers"):
+                continue
+            # Never relabel non-EU countries — they own their filename conventions.
+            country = next(
+                (p.split("=", 1)[1] for p in fpath.parts if p.startswith("country=")),
+                None,
+            )
+            if country in _NON_EU_COUNTRIES:
                 continue
             total_files += 1
 
@@ -268,6 +284,12 @@ def run() -> None:
             continue
         for fpath in sorted(base.rglob("*.parquet")):
             if fpath.stem in ("changelog", "outliers"):
+                continue
+            country = next(
+                (p.split("=", 1)[1] for p in fpath.parts if p.startswith("country=")),
+                None,
+            )
+            if country in _NON_EU_COUNTRIES:
                 continue
             post_files += 1
             try:
