@@ -388,16 +388,17 @@ def _quarter_end(d: datetime.date) -> datetime.date:
     q_start = _quarter_start(d)
     # Quarter spans 3 months; find the end of the 3rd month
     end_month = q_start.month + 2
-    if end_month == 3: return q_start.replace(month=3, day=31)
-    if end_month == 6: return q_start.replace(month=6, day=30)
-    if end_month == 9: return q_start.replace(month=9, day=30)
-    return q_start.replace(month=12, day=31)
-
-
-def _prev_month_start(d: datetime.date) -> datetime.date:
-    return (d.replace(day=1) - datetime.timedelta(days=1)).replace(day=1)
-
-
+    if status == "STALE":
+        if is_live_feed and not is_excluded:
+            return "HIGH"
+        return "MEDIUM"
+    if status == "NO_DATA":
+        if is_live_feed and not is_excluded:
+            return "CRITICAL"
+        if is_live_feed and is_excluded:
+            return "MEDIUM"
+        return "HIGH"
+    return "LOW"
 def _prev_quarter_start(d: datetime.date) -> datetime.date:
     qs = _quarter_start(d)
     return _quarter_start(qs - datetime.timedelta(days=1))
