@@ -29,7 +29,9 @@ urllib3.disable_warnings()
 logger = logging.getLogger(__name__)
 
 FRED_BASE = "https://api.stlouisfed.org/fred"
-ALFRED_KEY = os.getenv("ALFRED_API_KEY") or os.getenv("FRED_API_KEY", "136178f657b4aba7ad9e55938a1473bd")
+ALFRED_KEY = os.getenv("ALFRED_API_KEY") or os.getenv("FRED_API_KEY", "")
+if not ALFRED_KEY:
+    logger.warning("ALFRED_API_KEY / FRED_API_KEY not set — ALFRED requests will fail.")
 REALTIME_START = "1900-01-01"
 REALTIME_END   = "9999-12-31"
 REQUEST_DELAY  = 0.35   # seconds between calls — FRED rate limit is ~120/min
