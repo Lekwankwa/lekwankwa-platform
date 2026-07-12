@@ -128,6 +128,26 @@ VINTAGES = [
     {
         "label":     "April WEO (final)",
         "suffix":    None,
+        "pub_month": 4,
+        "release_date":    lambda year: f"{year + 1}-04-01",
+        "published_date":  lambda year: f"{year + 1}-04-01T00:00:00Z",
+    },
+]
+
+
+def _now_utc() -> str:
+    """Return the current UTC time as an ISO-8601 'Z' timestamp string."""
+    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def fetch_indicator(indicator: str, retries: int = 3) -> dict | None:
+    """
+    Fetch one IMF DataMapper indicator for COUNTRY with retry/backoff.
+
+    Returns the {year: value} mapping, or None if no data is available after
+    all retries. Raises RuntimeError if the API envelope shape is unrecognised
+    so the self-healing layer can escalate a genuine contract change.
+    """
     url = f"{IMF_BASE}/{indicator}/{COUNTRY}"
     for attempt in range(1, retries + 1):
         try:
@@ -135,67 +155,17 @@ VINTAGES = [
             r.raise_for_status()
             payload = r.json()
 
-            # IMF DataMapper API changed field name from 'value' → 'values'.
-            # Support both to stay robust against future renames.
-            if "values" in payload:
-                top_level = payload["values"]
-            elif "value" in payload:
-                logger.warning(
-        try:
-            r = requests.get(url, timeout=60, verify=False)
-            r.raise_for_status()
-            payload = r.json()
-
-            # IMF DataMapper API changed the top-level envelope key from
-            # "value" (legacy) to "values" (current) in the /latest endpoint.
-            # Support both shapes during any transition period; prefer "values".
-            if "values" in payload:
-                top_level = payload["values"]
-            elif "value" in payload:
-                logger.warning(
-                    "  fetch_indicator(%s): API returned legacy key 'value' "
-                    "instead of 'values' — using fallback. "
-                    "Update this scraper once the old key is fully retired.",
-                    indicator,
-                )
-                top_level = payload["value"]
-            else:
-                logger.warning(
-                    "  fetch_indicator(%s): API response contains neither "
-                    "'values' nor 'value' key. Keys present: %s",
-                    indicator,
-                    list(payload.keys()),
-                )
-                top_level = {}
-
-            values = top_level.get(indicator, {}).get(COUNTRY, {})
-
-            if not values:
-                logger.warning("  No data returned for %s", indicator)
-                return None                )
-
-            values = top_level.get(indicator, {}).get(COUNTRY, {})
-
-            if not values:
-                logger.warning("  No data returned for %s", indicator)
-                return None
-            return values
-        except requests.exceptions.RequestException as exc:
-            logger.warning("  Attempt %d/%d failed for %s: %s", attempt, retries, indicator, exc)
-            if attempt < retries:
-                time.sleep(2 ** attempt)
-    return None            # Defensive dual-key extraction.
+            # Defensive dual-key extraction.
             # IMF DataMapper renamed the top-level envelope key from 'value'
-            # to 'values' (observed 2026-06).  We try the current canonical
+            # to 'values' (observed 2026-06). We try the current canonical
             # key first, then fall back to the legacy key so the scraper
             # survives either form without a KeyError.
-            # ----------------------------------------------------------------
             if "values" in payload:
                 envelope = payload["values"]
             elif "value" in payload:
                 logger.warning(
-                    "  IMF API returned legacy key 'value' (expected 'values') "
-                    "for indicator %s — using fallback. Verify API contract.",
+                    "  fetch_indicator(%s): API returned legacy key 'value' "
+                    "(expected 'values') — using fallback. Verify API contract.",
                     indicator,
                 )
                 envelope = payload["value"]
@@ -207,14 +177,9 @@ VINTAGES = [
                     "The API envelope may have changed again — inspect raw response."
                 )
 
-            values = (
-                envelope
-                .get(indicator, {})
-                .get(COUNTRY, {})
-            )
+            values = envelope.get(indicator, {}).get(COUNTRY, {})
             if not values:
                 logger.warning("  No data returned for %s", indicator)
-                return None                logger.warning("  No data returned for %s", indicator)
                 return None
             return values
         except requests.exceptions.RequestException as exc:
