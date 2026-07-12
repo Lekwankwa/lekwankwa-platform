@@ -1100,10 +1100,8 @@ def freshness_severity(
             return "HIGH"
         return "MEDIUM"
     if status == "NO_DATA":
-        if is_live_feed and not is_excluded:
-            return "CRITICAL"
-        if is_live_feed and is_excluded:
-            return "MEDIUM"
+        if is_live_feed:
+            return "MEDIUM" if is_excluded else "CRITICAL"
         return "HIGH"
     return "LOW"
 
