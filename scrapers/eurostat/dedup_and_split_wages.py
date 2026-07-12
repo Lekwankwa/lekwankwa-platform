@@ -23,6 +23,7 @@ import io
 from pathlib import Path
 
 import pandas as pd
+from scrapers.utilities.vault_io import get_vault_root
 
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8")
 

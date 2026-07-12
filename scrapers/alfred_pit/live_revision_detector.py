@@ -30,6 +30,7 @@ from pathlib import Path
 from typing import Optional
 
 import pandas as pd
+from scrapers.utilities.vault_io import get_vault_root
 import requests
 import urllib3
 

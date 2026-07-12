@@ -30,9 +30,9 @@ from pathlib import Path
 
 import pandas as pd
 
+from scrapers.utilities.vault_io import get_vault_root
 _SCRAPER_ROOT = get_vault_root(str(Path(__file__).resolve().parents[2] / "lekwankwa-historical-vault"))
 sys.path.insert(0, str(_SCRAPER_ROOT))
-from scrapers.utilities.vault_io import get_vault_root
 
 from scrapers.eurostat.country_map import ALL_GEO2, ALL_ISO3, GEO2_TO_ISO3, ISO3_TO_GEO2, ISO3_TO_NAME
 from scrapers.eurostat.eurostat_client import fetch_dataset, period_to_date

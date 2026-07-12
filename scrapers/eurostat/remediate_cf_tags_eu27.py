@@ -37,6 +37,7 @@ import sys
 from pathlib import Path
 
 import pandas as pd
+from scrapers.utilities.vault_io import get_vault_root
 
 VAULT = get_vault_root(str(Path(__file__).resolve().parents[2] / "lekwankwa-historical-vault"))
 EU27 = [

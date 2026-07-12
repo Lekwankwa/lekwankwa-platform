@@ -16,9 +16,9 @@ import sys
 import logging
 from pathlib import Path
 
+from scrapers.utilities.vault_io import get_vault_root
 _SCRAPER_ROOT = get_vault_root(str(Path(__file__).resolve().parents[2] / "lekwankwa-historical-vault"))
 sys.path.insert(0, str(_SCRAPER_ROOT))
-from scrapers.utilities.vault_io import get_vault_root
 
 logging.basicConfig(
     level=logging.INFO,
