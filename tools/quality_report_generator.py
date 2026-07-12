@@ -373,16 +373,17 @@ class MasterReport:
 
 def _month_end(d: datetime.date) -> datetime.date:
     """Last day of d's month."""
-    next_month = (d.replace(day=1) + datetime.timedelta(days=32)).replace(day=1)
-    return next_month - datetime.timedelta(days=1)
-
-
-def _quarter_start(d: datetime.date) -> datetime.date:
-    """First day of the quarter containing d."""
-    q_month = ((d.month - 1) // 3) * 3 + 1
-    return d.replace(month=q_month, day=1)
-
-
+    if status == "STALE":
+        if is_live_feed and not is_excluded:
+            return "HIGH"
+        return "MEDIUM"
+    if status == "NO_DATA":
+        if is_live_feed and not is_excluded:
+            return "CRITICAL"
+        if is_live_feed and is_excluded:
+            return "MEDIUM"
+        return "HIGH"
+    return "LOW"
 def _quarter_end(d: datetime.date) -> datetime.date:
     """Last day of the quarter containing d."""
     q_start = _quarter_start(d)
