@@ -1080,6 +1080,9 @@ def freshness_severity(
     FROZEN + archive-only → MEDIUM
     STALE  + live-feed → HIGH
     STALE  + archive  → MEDIUM
+    NO_DATA + live-feed product → CRITICAL
+    NO_DATA + live-feed product but explicitly excluded → MEDIUM
+    NO_DATA + archive-only → HIGH
     DISCONTINUED → always MEDIUM (source confirmed stopped)
     """
     key = (product, country_group)
@@ -1097,8 +1100,10 @@ def freshness_severity(
             return "HIGH"
         return "MEDIUM"
     if status == "NO_DATA":
-        if is_live_feed:
+        if is_live_feed and not is_excluded:
             return "CRITICAL"
+        if is_live_feed and is_excluded:
+            return "MEDIUM"
         return "HIGH"
     return "LOW"
 
