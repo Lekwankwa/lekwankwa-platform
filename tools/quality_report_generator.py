@@ -334,16 +334,17 @@ class CountryResult:
     country_group: str
     vault_latest: Optional[str]        # ISO date string or None
     expected_latest: Optional[str]
-    days_behind: Optional[int]
-    freshness_status: str     # FRESH | STALE | FROZEN | PENDING | NO_DATA
-    live_feed_eligible: bool
-    validation_overall: str   # PASS | FAIL | NO_SUMMARY
-    validation_stages_passed: int
-    validation_stages_failed: int
-    consistency_issues: list[str]
-    findings: list[Finding]
-
-
+    if status == "STALE":
+        if is_live_feed and not is_excluded:
+            return "HIGH"
+        return "MEDIUM"
+    if status == "NO_DATA":
+        if is_live_feed and not is_excluded:
+            return "CRITICAL"
+        if is_live_feed and is_excluded:
+            return "MEDIUM"
+        return "HIGH"
+    return "LOW"
 @dataclasses.dataclass
 class ProductReport:
     product: str
