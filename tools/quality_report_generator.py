@@ -880,14 +880,15 @@ def audit_vault_integrity(
 ) -> list[str]:
     """
     Structural and cross-partition integrity checks that audit_consistency()
-    misses because it only samples the most-recent 10 partitions.
+                freshness_status, days_behind = classify_freshness(
+                    vault_latest, expected_latest, lag, freq, consecutive_frozen_runs
+                )
+                if freshness_status in ("FROZEN", "NO_DATA") and (
+                    product, country_group
+                ) in KNOWN_DISCONTINUED:
+                    freshness_status = "DISCONTINUED"
 
-    VI1 — Cross-partition data_vintage_id dedup.
-          Loads only the data_vintage_id column from ALL parquet files.
-          Ratio total_rows / unique_vids > 1.5x → DEDUP_VIOLATION (HIGH).
-          Catches scrapers that write the same vintage to multiple month= folders.
-
-    VI2 — Non-zero-padded month= folder names.
+            live_feed_eligible = (    VI2 — Non-zero-padded month= folder names.
           Path-only check, no parquet reads.
           month=1..month=9 instead of month=01..month=09 → PATH_CONVENTION (MEDIUM).
 
