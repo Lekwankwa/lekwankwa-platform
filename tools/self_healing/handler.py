@@ -123,6 +123,32 @@ def _escalate_to_layer3(
     log.info("[SELF-HEAL] Layer 3 escalation — %s / %s",
              layer, Path(program).name)
 
+    # De-dup guard: if the *same* underlying finding (same program/layer/
+    # product/country/source/detail, ignoring run_date) is already awaiting
+    # approval from a prior run, don't send another approval email — a
+    # still-unresolved issue re-detected by the next scheduled run (e.g.
+    # daily quality_report_generator jobs) would otherwise re-escalate and
+    # re-email every single run until someone acts on it.
+    fingerprint = None
+    try:
+        from tools.self_healing.firestore_tokens import (
+            compute_fingerprint, find_active_token_for_fingerprint,
+        )
+        fingerprint = compute_fingerprint(program, context, tb_str)
+        active = find_active_token_for_fingerprint(fingerprint)
+        if active is not None:
+            log.info(
+                "[SELF-HEAL] Duplicate escalation suppressed — matching "
+                "finding already PENDING approval (token=%s, created_at=%s). "
+                "No new email sent.",
+                active.get("token"), active.get("created_at"),
+            )
+            log_event(program, context, "SKIPPED_DUPLICATE_ESCALATION")
+            return
+    except Exception as dedup_exc:
+        log.warning("[SELF-HEAL] Dedup check failed, proceeding without it: %s",
+                    dedup_exc)
+
     # Claude Sonnet 5 diagnosis
     try:
         from tools.self_healing.claude_diagnosis import diagnose_with_claude
@@ -156,7 +182,7 @@ def _escalate_to_layer3(
             generate_approval_token, store_in_firestore,
         )
         token = generate_approval_token(program, context, diagnosis)
-        store_in_firestore(token, program, context, diagnosis)
+        store_in_firestore(token, program, context, diagnosis, fingerprint=fingerprint)
     except Exception as fs_exc:
         log.error("[SELF-HEAL] Token storage failed: %s", fs_exc)
         import uuid
