@@ -620,14 +620,16 @@ def _count_months_in_vault(
     data_files = [f for f in all_files if not _is_ancillary_file(f)]
     if not data_files:
         return 0
+                freshness_status, days_behind = classify_freshness(
+                    vault_latest, expected_latest, lag, freq, consecutive_frozen_runs
+                )
+                if (
+                    freshness_status in ("FROZEN", "NO_DATA")
+                    and (product, country_group) in KNOWN_DISCONTINUED
+                ):
+                    freshness_status = "DISCONTINUED"
 
-    # Partition-level check (no series_id): count distinct (year, month) from paths.
-    if series_id is None:
-        months: set[tuple[int, int]] = set()
-        for fpath in data_files:
-            m = _YEAR_MONTH_RE.search(fpath)
-            if m:
-                months.add((int(m.group(1)), int(m.group(2))))
+            live_feed_eligible = (                months.add((int(m.group(1)), int(m.group(2))))
         return len(months)
 
     # Series-level check: count distinct months where THIS series is actually present.
