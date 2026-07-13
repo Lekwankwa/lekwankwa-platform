@@ -30,6 +30,7 @@ from __future__ import annotations
 
 import logging
 import os
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeoutError
 
 log = logging.getLogger(__name__)
 
@@ -48,14 +49,57 @@ _SECRET_MAP: dict[str, str] = {
 _PROJECT = os.environ.get("GOOGLE_CLOUD_PROJECT", "fluted-alloy-498317-u0")
 _loaded  = False   # guard: only load once per process
 
+# Client-discovery timeout: on some networks, resolving/probing the GCE
+# metadata server for Application Default Credentials can block for many
+# seconds per attempt (with internal retries) when the server is
+# unreachable rather than promptly refused. Bound this to a few seconds so
+# scraper entry points fail fast to the .env/env-var fallback instead of
+# hanging at import time. Cache the outcome so we only pay this cost once
+# per process, not once per secret.
+_CLIENT_DISCOVERY_TIMEOUT_SECS = 5
+_client = None
+_client_unavailable = False
+
+
+def _build_client():
+    """Construct (and cache) the Secret Manager client, or None on failure."""
+    global _client, _client_unavailable
+    if _client is not None:
+        return _client
+    if _client_unavailable:
+        return None
+
+    def _construct():
+        from google.cloud import secretmanager
+        return secretmanager.SecretManagerServiceClient()
+
+    try:
+        with ThreadPoolExecutor(max_workers=1) as pool:
+            future = pool.submit(_construct)
+            _client = future.result(timeout=_CLIENT_DISCOVERY_TIMEOUT_SECS)
+        return _client
+    except FutureTimeoutError:
+        log.debug(
+            "[SECRETS] Secret Manager client discovery timed out after %ss "
+            "— falling back to .env/env vars for the rest of this process",
+            _CLIENT_DISCOVERY_TIMEOUT_SECS,
+        )
+        _client_unavailable = True
+        return None
+    except Exception as exc:
+        log.debug("[SECRETS] Secret Manager client unavailable: %s", exc)
+        _client_unavailable = True
+        return None
+
 
 def _get_from_secret_manager(secret_name: str) -> str | None:
     """Return secret value from GCP Secret Manager, or None on any error."""
+    client = _build_client()
+    if client is None:
+        return None
     try:
-        from google.cloud import secretmanager
-        client = secretmanager.SecretManagerServiceClient()
-        name   = f"projects/{_PROJECT}/secrets/{secret_name}/versions/latest"
-        resp   = client.access_secret_version(request={"name": name})
+        name = f"projects/{_PROJECT}/secrets/{secret_name}/versions/latest"
+        resp = client.access_secret_version(request={"name": name})
         return resp.payload.data.decode("utf-8").strip()
     except Exception as exc:
         log.debug("[SECRETS] Secret Manager unavailable for %s: %s", secret_name, exc)
