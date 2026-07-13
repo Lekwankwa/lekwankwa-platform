@@ -368,34 +368,37 @@ class MasterReport:
 
 
 # ---------------------------------------------------------------------------
-# Freshness helpers
-# ---------------------------------------------------------------------------
+    """
+    FROZEN + live-feed product → CRITICAL
+    FROZEN + live-feed product but explicitly excluded (NOR wages) → MEDIUM
+    FROZEN + archive-only → MEDIUM
+    STALE  + live-feed → HIGH
+    STALE  + archive  → MEDIUM
+    NO_DATA + live-feed → CRITICAL
+    NO_DATA + live-feed but explicitly excluded → MEDIUM
+    DISCONTINUED → always MEDIUM (source confirmed stopped)
+    """
+    key = (product, country_group)
+    is_live_feed = product in LIVE_FEED_PRODUCTS
+    is_excluded = key in LIVE_FEED_EXCLUDED
 
-def _month_end(d: datetime.date) -> datetime.date:
-    """Last day of d's month."""
-    next_month = (d.replace(day=1) + datetime.timedelta(days=32)).replace(day=1)
-    return next_month - datetime.timedelta(days=1)
-
-
-def _quarter_start(d: datetime.date) -> datetime.date:
-    """First day of the quarter containing d."""
-    q_month = ((d.month - 1) // 3) * 3 + 1
-    return d.replace(month=q_month, day=1)
-
-
-def _quarter_end(d: datetime.date) -> datetime.date:
-    """Last day of the quarter containing d."""
-    q_start = _quarter_start(d)
-    # Quarter spans 3 months; find the end of the 3rd month
-    end_month = q_start.month + 2
-    if end_month == 3: return q_start.replace(month=3, day=31)
-    if end_month == 6: return q_start.replace(month=6, day=30)
-    if end_month == 9: return q_start.replace(month=9, day=30)
-    return q_start.replace(month=12, day=31)
-
-
-def _prev_month_start(d: datetime.date) -> datetime.date:
-    return (d.replace(day=1) - datetime.timedelta(days=1)).replace(day=1)
+    if status == "DISCONTINUED":
+        return "MEDIUM"
+    if status == "FROZEN":
+        if is_live_feed and not is_excluded:
+            return "CRITICAL"
+        return "MEDIUM"
+    if status == "STALE":
+        if is_live_feed and not is_excluded:
+            return "HIGH"
+        return "MEDIUM"
+    if status == "NO_DATA":
+        if is_live_feed and is_excluded:
+            return "MEDIUM"
+        if is_live_feed:
+            return "CRITICAL"
+        return "HIGH"
+    return "LOW"    return (d.replace(day=1) - datetime.timedelta(days=1)).replace(day=1)
 
 
 def _prev_quarter_start(d: datetime.date) -> datetime.date:
