@@ -1,12 +1,17 @@
 """
 scrapers/housing/run.py — Lekwankwa Corporation
-Cloud Scheduler entry point for Housing_Supply_and_Shelter_Inflation.
+Cloud Scheduler entry point for Housing_Supply_and_Shelter_Inflation — USA
+only.
+
+GBR/EU27 housing coverage is ingested through the combined per-source jobs,
+each of which covers all 5 vault products in one run:
+    python -m scrapers.eurostat.run_all_ingestion   (EU27, all 27 members)
+    python -m scrapers.ons.ingest_all               (GBR)
+See deploy/04_cloud_run_jobs.sh (job-eurostat / job-ons).
 
 Usage:
     python scrapers/housing/run.py --country USA --source bls_cpi_shelter
     python scrapers/housing/run.py --country USA --source census_bps
-    python scrapers/housing/run.py --country GBR
-    python scrapers/housing/run.py --country EU27
 """
 from __future__ import annotations
 
@@ -35,6 +40,7 @@ log = logging.getLogger(__name__)
 PRODUCT = "Housing_Supply_and_Shelter_Inflation"
 TODAY   = date.today().isoformat()
 
+# GBR/EU27 are NOT routed here — see module docstring.
 COUNTRY_ROUTER: dict[str, list[dict]] = {
     "USA": [
         {
@@ -50,8 +56,6 @@ COUNTRY_ROUTER: dict[str, list[dict]] = {
             "kwargs": {"dataset": "permits"},
         },
     ],
-    "GBR": [{"source": "ons",      "module": "scrapers.housing.ons_housing_scraper",      "fn": "scrape_gbr_housing", "kwargs": {}}],
-    "EU27": [{"source": "eurostat", "module": "scrapers.housing.eurostat_housing_scraper", "fn": "scrape_eu27_housing", "kwargs": {}}],
 }
 
 

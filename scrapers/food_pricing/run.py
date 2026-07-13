@@ -1,12 +1,17 @@
 """
 scrapers/food_pricing/run.py — Lekwankwa Corporation
-Cloud Scheduler entry point for food_micropricing across all countries.
+Cloud Scheduler entry point for food_micropricing — USA only.
+
+GBR/CAN/EU27 food_micropricing coverage is ingested through the combined
+per-source jobs, each of which covers all 5 vault products in one run:
+    python -m scrapers.eurostat.run_all_ingestion   (EU27, all 27 members)
+    python -m scrapers.ons.ingest_all               (GBR)
+    python -m scrapers.statcan.ingest_all           (CAN)
+See deploy/04_cloud_run_jobs.sh (job-eurostat / job-ons / job-statcan).
 
 Usage:
     python scrapers/food_pricing/run.py --country USA
-    python scrapers/food_pricing/run.py --country EU27
-    python scrapers/food_pricing/run.py --country ALL_EU
-    python scrapers/food_pricing/run.py --country GBR --dry-run
+    python scrapers/food_pricing/run.py --country USA --dry-run
 """
 from __future__ import annotations
 
@@ -37,35 +42,17 @@ log = logging.getLogger(__name__)
 PRODUCT = "food_micropricing"
 TODAY   = date.today().isoformat()
 
-# Countries routed through each underlying scraper
+# Countries routed through this per-product entry point. GBR/CAN/EU27 are
+# NOT routed here — they are ingested via the combined per-source jobs
+# (scrapers.eurostat.run_all_ingestion / scrapers.ons.ingest_all /
+# scrapers.statcan.ingest_all), which cover all 5 products in one run.
 COUNTRY_ROUTER: dict[str, dict] = {
     "USA": {
         "module":  "scrapers.food_pricing.usa_food_scraper",
         "fn":      "scrape_usa_food_pricing",
         "sources": ["bls_cpi"],
     },
-    "GBR": {
-        "module":  "scrapers.food_pricing.ons_food_scraper",
-        "fn":      "scrape_gbr_food_pricing",
-        "sources": ["ons"],
-    },
-    "CAN": {
-        "module":  "scrapers.food_pricing.statcan_food_scraper",
-        "fn":      "scrape_can_food_pricing",
-        "sources": ["statcan"],
-    },
-    "EU27": {
-        "module":  "scrapers.food_pricing.eurostat_food_scraper",
-        "fn":      "scrape_eu27_food_pricing",
-        "sources": ["eurostat"],
-    },
 }
-
-EU_MEMBERS = [
-    "AUT","BEL","BGR","HRV","CYP","CZE","DNK","EST","FIN","FRA","DEU",
-    "GRC","HUN","IRL","ITA","LVA","LTU","LUX","MLT","NLD","POL","PRT",
-    "ROU","SVK","SVN","ESP","SWE",
-]
 
 
 def run_country(country: str, mode: str, since: str | None, dry_run: bool) -> bool:
@@ -214,7 +201,8 @@ def main():
         description="food_micropricing cloud scraper entry point"
     )
     parser.add_argument("--country", required=True,
-                        help="ISO alpha-3 country code, EU27, ALL_EU, or ALL")
+                        help="ISO alpha-3 country code (USA only — see "
+                             "module docstring for GBR/CAN/EU27 coverage)")
     parser.add_argument("--mode", choices=["incremental", "full"],
                         default="incremental")
     parser.add_argument("--since", type=str, default=None, metavar="YYYY-MM")
@@ -226,15 +214,7 @@ def main():
     log.info("Country: %s | Mode: %s", args.country, args.mode)
     log.info("=" * 60)
 
-    if args.country == "ALL_EU":
-        countries = EU_MEMBERS
-    elif args.country == "ALL":
-        countries = list(COUNTRY_ROUTER.keys()) + EU_MEMBERS
-    else:
-        countries = [args.country]
-
-    ok = all(run_country(c, args.mode, args.since, args.dry_run)
-             for c in countries)
+    ok = run_country(args.country, args.mode, args.since, args.dry_run)
     sys.exit(0 if ok else 1)
 
 

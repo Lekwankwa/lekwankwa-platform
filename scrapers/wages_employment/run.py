@@ -1,11 +1,17 @@
 """
 scrapers/wages_employment/run.py — Lekwankwa Corporation
-Cloud Scheduler entry point for wages_and_employment across all countries.
+Cloud Scheduler entry point for wages_and_employment — USA only.
+
+GBR/CAN/EU27 wages_and_employment coverage is ingested through the combined
+per-source jobs, each of which covers all 5 vault products in one run:
+    python -m scrapers.eurostat.run_all_ingestion   (EU27, all 27 members)
+    python -m scrapers.ons.ingest_all               (GBR)
+    python -m scrapers.statcan.ingest_all           (CAN)
+See deploy/04_cloud_run_jobs.sh (job-eurostat / job-ons / job-statcan).
 
 Usage:
     python scrapers/wages_employment/run.py --country USA --source bls_ces
     python scrapers/wages_employment/run.py --country USA --source bls_cps
-    python scrapers/wages_employment/run.py --country GBR
 """
 from __future__ import annotations
 
@@ -34,6 +40,7 @@ log = logging.getLogger(__name__)
 PRODUCT = "wages_and_employment"
 TODAY   = date.today().isoformat()
 
+# GBR/CAN/EU27 are NOT routed here — see module docstring.
 COUNTRY_ROUTER: dict[str, list[dict]] = {
     "USA": [
         {
@@ -49,9 +56,6 @@ COUNTRY_ROUTER: dict[str, list[dict]] = {
             "kwargs":  {"dataset": "cps"},
         },
     ],
-    "GBR": [{"source": "ons",     "module": "scrapers.wages_employment.ons_wages_scraper",    "fn": "scrape_gbr_wages", "kwargs": {}}],
-    "CAN": [{"source": "statcan", "module": "scrapers.wages_employment.statcan_wages_scraper", "fn": "scrape_can_wages", "kwargs": {}}],
-    "EU27": [{"source": "eurostat", "module": "scrapers.wages_employment.eurostat_wages_scraper", "fn": "scrape_eu27_wages", "kwargs": {}}],
 }
 
 

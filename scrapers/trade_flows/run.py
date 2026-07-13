@@ -1,10 +1,17 @@
 """
 scrapers/trade_flows/run.py — Lekwankwa Corporation
-Cloud Scheduler entry point for trade_flows across all countries.
+Cloud Scheduler entry point for trade_flows — USA only.
+
+GBR/CAN/EU27 trade_flows coverage is ingested through the combined
+per-source jobs, each of which covers all 5 vault products in one run:
+    python -m scrapers.eurostat.run_all_ingestion   (EU27, all 27 members)
+    python -m scrapers.ons.ingest_all               (GBR)
+    python -m scrapers.statcan.ingest_all           (CAN)
+See deploy/04_cloud_run_jobs.sh (job-eurostat / job-ons / job-statcan).
 
 Usage:
     python scrapers/trade_flows/run.py --country USA
-    python scrapers/trade_flows/run.py --country GBR --mode full
+    python scrapers/trade_flows/run.py --country USA --mode full
 """
 from __future__ import annotations
 
@@ -33,11 +40,9 @@ log = logging.getLogger(__name__)
 PRODUCT = "trade_flows"
 TODAY   = date.today().isoformat()
 
+# GBR/CAN/EU27 are NOT routed here — see module docstring.
 COUNTRY_ROUTER: dict[str, dict] = {
     "USA":  {"source": "census_ft900", "module": "scrapers.trade_flows.census_ft900_usa_scraper",   "fn": "main"},
-    "GBR":  {"source": "ons",          "module": "scrapers.trade_flows.ons_trade_scraper",           "fn": "scrape_gbr_trade"},
-    "CAN":  {"source": "statcan",      "module": "scrapers.trade_flows.statcan_trade_scraper",       "fn": "scrape_can_trade"},
-    "EU27": {"source": "eurostat",     "module": "scrapers.trade_flows.eurostat_trade_scraper",      "fn": "scrape_eu27_trade"},
 }
 
 
