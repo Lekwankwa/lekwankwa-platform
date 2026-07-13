@@ -32,6 +32,8 @@ _BLS_SERIES = [
     ("APU0000706211", "01.1.2.4", "Chicken Breast", "boneless",             "Meat & Poultry",   "lb",  0.453592, "kg"),
 
     # Dairy & Eggs
+    # Eggs: 0.72 kg/doz assumes ~60g per egg (large grade); matches the
+    # factor used in scrapers/food_pricing/usa_food_scraper.py BLS_SERIES.
     ("APU0000708111", "01.1.4.3", "Eggs",           "hen, medium/large",    "Dairy & Eggs",     "doz", 0.72,     "kg"),
     ("APU0000709112", "01.1.4.1", "Milk",           "whole, pasteurised",   "Dairy & Eggs",     "gal", 3.78541,  "litre"),
     ("APU0000712111", "01.1.4.5", "Butter",         "unsalted",             "Dairy & Eggs",     "lb",  0.453592, "kg"),
