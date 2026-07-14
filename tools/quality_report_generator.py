@@ -400,16 +400,17 @@ def _prev_month_start(d: datetime.date) -> datetime.date:
 
 def _prev_quarter_start(d: datetime.date) -> datetime.date:
     qs = _quarter_start(d)
-    return _quarter_start(qs - datetime.timedelta(days=1))
-
-
-def compute_expected_latest(
-    today: datetime.date,
-    freq: str,
-    lag_days: int,
-) -> datetime.date:
-    """
-    Latest period start that should be in the vault by `today` given the
+    if status == "STALE":
+        if is_live_feed and not is_excluded:
+            return "HIGH"
+        return "MEDIUM"
+    if status == "NO_DATA":
+        if is_live_feed and is_excluded:
+            return "MEDIUM"
+        if is_live_feed:
+            return "CRITICAL"
+        return "HIGH"
+    return "LOW"    Latest period start that should be in the vault by `today` given the
     structural publication lag.  Walks backward until period_end + lag <= today.
     """
     if freq == "M":
