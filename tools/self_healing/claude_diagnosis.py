@@ -110,14 +110,52 @@ Diagnose root cause, classify severity, and provide the unified diff fix.
 The diff MUST target the file above using the exact path shown."""
 
     log.info("[CLAUDE] Sending MAJOR_EXCEPTION to Claude Sonnet 5...")
+    # max_tokens must leave enough headroom *after* the thinking budget for
+    # the actual answer, or the response can come back with only a
+    # 'thinking' block and no 'text' block (silently truncated before the
+    # model gets to write the final diagnosis/diff). Explicitly reserving a
+    # thinking budget well below max_tokens guarantees room is left for the
+    # final text output.
+    THINKING_BUDGET_TOKENS = 4096
+    MAX_TOKENS = 12288  # thinking budget + ample room for diagnosis/diff text
     response = client.messages.create(
         model="claude-sonnet-5",
-        max_tokens=4096,
+        max_tokens=MAX_TOKENS,
+        thinking={"type": "enabled", "budget_tokens": THINKING_BUDGET_TOKENS},
         system=SYSTEM_PROMPT,
         messages=[{"role": "user", "content": user_msg}],
     )
     text_blocks = [block.text for block in response.content if getattr(block, "type", None) == "text"]
     if not text_blocks:
+        # Fall back to any 'thinking' content so the approver still gets
+        # useful context instead of a bare "[Claude unavailable: ...]"
+        # placeholder, and so callers don't treat this as a hard failure
+        # when the model's reasoning is actually present and usable.
+        thinking_blocks = [
+            getattr(block, "thinking", None) or getattr(block, "text", None)
+            for block in response.content
+            if getattr(block, "type", None) == "thinking"
+        ]
+        thinking_blocks = [t for t in thinking_blocks if t]
+        if thinking_blocks:
+            log.warning(
+                "[CLAUDE] Response had no text block (types: %s) — falling "
+                "back to thinking content.",
+                [getattr(b, "type", type(b).__name__) for b in response.content],
+            )
+            diagnosis = (
+                "ROOT_CAUSE: [Claude returned reasoning only, no final answer "
+                "block — treat as COMPLEX, human review required]\n"
+                "SEVERITY: HIGH\n"
+                "VALIDATION_STAGE: N/A\n"
+                "PROPOSED_FIX: N/A\n"
+                "FILE_AND_FUNCTION: N/A\n"
+                "DIFF: N/A\n\n"
+                "--- Claude's raw reasoning ---\n" + "\n".join(thinking_blocks)
+            )
+            log.info("[CLAUDE] Diagnosis received (%d chars, thinking-only fallback)",
+                      len(diagnosis))
+            return diagnosis
         raise RuntimeError(
             f"Claude response had no text block (got types: "
             f"{[getattr(b, 'type', type(b).__name__) for b in response.content]})"
