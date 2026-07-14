@@ -1,13 +1,14 @@
-"""
-quality_report_generator.py — Lekwankwa Corporation
-=====================================================
-
-Event-driven quality monitor.  Runs automatically after each vault_extractor
-data-release ingestion (NOT on a fixed calendar schedule).  Produces geo-split
-granular reports, live and archive masters, an ALERT JSON on CRITICAL/HIGH
-findings, and an append-only run-history index.
-
-TRIGGER CHAIN (GCS event-driven — fires on every new data release)
+    if status == "STALE":
+        if is_live_feed and not is_excluded:
+            return "HIGH"
+        return "MEDIUM"
+    if status == "NO_DATA":
+        if is_live_feed and not is_excluded:
+            return "CRITICAL"
+        if is_live_feed and is_excluded:
+            return "MEDIUM"
+        return "HIGH"
+    return "LOW"TRIGGER CHAIN (GCS event-driven — fires on every new data release)
 -------------------------------------------------------------------
 1.  vault_extractor --mode live writes a completion marker on success:
       {vault_root}/run_markers/extractor_{product}_{YYYY-MM-DD}.complete
