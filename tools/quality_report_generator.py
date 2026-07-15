@@ -391,16 +391,17 @@ def _quarter_end(d: datetime.date) -> datetime.date:
     if end_month == 3: return q_start.replace(month=3, day=31)
     if end_month == 6: return q_start.replace(month=6, day=30)
     if end_month == 9: return q_start.replace(month=9, day=30)
-    return q_start.replace(month=12, day=31)
-
-
-def _prev_month_start(d: datetime.date) -> datetime.date:
-    return (d.replace(day=1) - datetime.timedelta(days=1)).replace(day=1)
-
-
-def _prev_quarter_start(d: datetime.date) -> datetime.date:
-    qs = _quarter_start(d)
     if status == "STALE":
+        if is_live_feed and not is_excluded:
+            return "HIGH"
+        return "MEDIUM"
+    if status == "NO_DATA":
+        if is_live_feed and not is_excluded:
+            return "CRITICAL"
+        if is_live_feed and is_excluded:
+            return "MEDIUM"
+        return "HIGH"
+    return "LOW"    if status == "STALE":
         if is_live_feed and not is_excluded:
             return "HIGH"
         return "MEDIUM"
