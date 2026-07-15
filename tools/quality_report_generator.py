@@ -730,12 +730,15 @@ def _scope_covers(scope: str, country_group: str) -> bool:
     return any(x in s for x in [country_group.lower(), "non_eu"])
 
 
-def find_latest_validation_summary(
-    search_root: Path,
-    product: str,
-    country_group: str,
-) -> Optional[dict]:
-    """
+            else:
+                freshness_status, days_behind = classify_freshness(
+                    vault_latest, expected_latest, lag, freq, consecutive_frozen_runs
+                )
+                # Apply the DISCONTINUED override for BOTH "FROZEN" (data exists but
+                # stopped updating) and "NO_DATA" (source was never ingested / vault
+                # empty) so confirmed-discontinued sources never re-trigger fresh
+                # HIGH/CRITICAL freshness alerts on every subsequent run.
+                if freshness_status in ("FROZEN", "NO_DAT    """
     Locate the most recent validation_summary_*.json that covers this
     product and country_group.  Reads only the metadata fields (not the
     full stage detail) to stay light.
