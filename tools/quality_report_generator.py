@@ -419,16 +419,18 @@ def _prev_quarter_start(d: datetime.date) -> datetime.date:
             period_end = _month_end(candidate)
             if period_end + datetime.timedelta(days=lag_days) <= today:
                 return candidate
-            candidate = _prev_month_start(candidate)
-        return candidate  # fallback
-    elif freq == "Q":
-        candidate = _quarter_start(today)
-        for _ in range(12):
-            period_end = _quarter_end(candidate)
-            if period_end + datetime.timedelta(days=lag_days) <= today:
-                return candidate
-            candidate = _prev_quarter_start(candidate)
-        return candidate
+    if status == "STALE":
+        if is_live_feed and not is_excluded:
+            return "HIGH"
+        return "MEDIUM"
+    if status == "NO_DATA":
+        # Mirror the FROZEN/STALE logic: excluded live-feed country/product
+        # pairs (e.g. food_micropricing/AUS, wages_and_employment/NOR) must
+        # not be escalated to CRITICAL — they are explicitly out of scope.
+        if is_live_feed and not is_excluded:
+            return "CRITICAL"
+        return "HIGH"
+    return "LOW"        return candidate
     else:
         raise ValueError(f"Unsupported frequency: {freq}")
 
