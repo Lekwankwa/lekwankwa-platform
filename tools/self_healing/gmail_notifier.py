@@ -166,6 +166,92 @@ the fix is rejected and logged for manual review.
     log.info("[EMAIL] Approval email sent — token %s", approval_token[:8] + "...")
 
 
+def send_diagnosis_failure_notice(
+    program: str,
+    context: dict[str, Any],
+    error_detail: str,
+) -> None:
+    """
+    Sent when the automated diagnosis step itself breaks (e.g. Claude call
+    failed) — there is no fix to approve, so this is a plain FYI notice
+    instead of an approve/reject request.
+    """
+    from tools.self_healing.secret_manager import get_secret
+
+    sender   = get_secret("gmail-sender-address")
+    password = get_secret("gmail-app-password")
+
+    product  = context.get("product", "unknown")
+    country  = context.get("country", "unknown")
+    source   = context.get("source", "unknown")
+    run_date = context.get("run_date", "unknown")
+
+    subject = (
+        f"[LEKWANKWA SELF-HEAL] Automated diagnosis failed — "
+        f"{product} / {country} — no action needed from you"
+    )
+
+    body_plain = f"""
+LEKWANKWA PIPELINE — AUTOMATED DIAGNOSIS FAILED
+=================================================
+
+A problem was found in {product} / {country}, but the automatic system
+that normally explains the problem and suggests a fix could not run
+properly this time. There is nothing to approve or reject here — the
+issue is with the diagnosis tool itself, not a fix waiting on you.
+
+Program:   {program}
+Product:   {product}
+Country:   {country}
+Source:    {source}
+Date:      {run_date}
+
+What went wrong (technical detail, for engineering):
+{error_detail}
+
+No changes have been made. This needs a developer to look at the
+self-healing diagnosis code directly.
+
+— Lekwankwa Automated Pipeline
+"""
+
+    body_html = f"""
+<html><body>
+<h2 style="color:#e67e22">LEKWANKWA PIPELINE — AUTOMATED DIAGNOSIS FAILED</h2>
+<p>A problem was found in <b>{product} / {country}</b>, but the tool that
+normally diagnoses it and suggests a fix broke instead. There is nothing
+to approve or reject — this needs a developer to look at the diagnosis
+code itself.</p>
+
+<table border="1" cellpadding="6" style="border-collapse:collapse;font-family:monospace">
+  <tr><td><b>Program</b></td><td>{program}</td></tr>
+  <tr><td><b>Product</b></td><td>{product}</td></tr>
+  <tr><td><b>Country</b></td><td>{country}</td></tr>
+  <tr><td><b>Source</b></td><td>{source}</td></tr>
+  <tr><td><b>Date</b></td><td>{run_date}</td></tr>
+</table>
+
+<h3>Technical detail</h3>
+<pre style="background:#f4f4f4;padding:12px;border-radius:4px">{error_detail}</pre>
+
+<p><small>No changes have been made.</small></p>
+</body></html>
+"""
+
+    msg = MIMEMultipart("alternative")
+    msg["From"]    = sender
+    msg["To"]      = RECIPIENT
+    msg["Subject"] = subject
+    msg.attach(MIMEText(body_plain, "plain"))
+    msg.attach(MIMEText(body_html,  "html"))
+
+    log.info("[EMAIL] Sending diagnosis-failure notice to %s", RECIPIENT)
+    with smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=30) as server:
+        server.login(sender, password)
+        server.send_message(msg)
+    log.info("[EMAIL] Diagnosis-failure notice sent.")
+
+
 def send_auto_fix_notification(
     program: str,
     context: dict[str, Any],

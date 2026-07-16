@@ -129,7 +129,15 @@ def _escalate_to_layer3(
         diagnosis = diagnose_with_claude(program, exception, context, tb_str)
     except Exception as l3_exc:
         log.error("[SELF-HEAL] Layer 3 Claude call failed: %s", l3_exc)
-        diagnosis = f"[Claude unavailable: {l3_exc}]"
+        # No diagnosis means no fix to evaluate — send a plain failure
+        # notice instead of an approve/reject email with nothing behind it.
+        try:
+            from tools.self_healing.gmail_notifier import send_diagnosis_failure_notice
+            send_diagnosis_failure_notice(program, context, str(l3_exc))
+        except Exception as mail_exc:
+            log.error("[SELF-HEAL] Diagnosis-failure notice send failed: %s", mail_exc)
+        log_event(program, context, "DIAGNOSIS_FAILED", diagnosis=str(l3_exc))
+        return
 
     # ── Auto-apply via GitHub → open PR → notify (always attempted) ─────────
     try:
