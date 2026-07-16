@@ -120,17 +120,26 @@ CES_SERIES = [
     "CES3000000007",   # Manufacturing — avg weekly earnings (SA)
 ]
 
-# Data-type-code (last 2 chars of CES series ID) → (metric_name, unit)
+# Data-type-code (last 2 chars of CES series ID) → (metric_name, unit).
+# Fixed 2026-07-16: labels for 01/02/03/06/07/08/09 were scrambled relative to
+# BLS's real data-type-code convention (values fetched from the BLS API were
+# always correct; only these display labels were wrong). Verified against
+# known real-world BLS figures for several supersectors/dates before fixing —
+# e.g. code "08" was labeled AGGREGATE_WEEKLY_HOURS_INDEX but its value is the
+# real Average Hourly Earnings, Production/Nonsupervisory figure (matches the
+# FRED/ALFRED "AHETPI" series exactly).
+# "11" was already correct. "26" is unused by CES_SERIES and does not match
+# any standard BLS data-type code — left as-is rather than guess a value.
 CES_DATA_TYPE_MAP = {
-    "01": ("NONFARM_PAYROLL_EMPLOYMENT",   "THOUSANDS_PERSONS"),
-    "02": ("PRODUCTION_WORKERS",           "THOUSANDS_PERSONS"),
-    "03": ("AVG_WEEKLY_HOURS",             "HOURS"),
-    "06": ("AVG_HOURLY_EARNINGS",          "USD"),
-    "07": ("AVG_WEEKLY_EARNINGS",          "USD"),
-    "08": ("AGGREGATE_WEEKLY_HOURS_INDEX", "INDEX"),
-    "09": ("WOMEN_EMPLOYEES",              "THOUSANDS_PERSONS"),
-    "11": ("OVERTIME_HOURS",               "HOURS"),
-    "26": ("PAYROLL_3MTH_AVG_CHANGE",      "THOUSANDS_PERSONS"),
+    "01": ("NONFARM_PAYROLL_EMPLOYMENT",              "THOUSANDS_PERSONS"),
+    "02": ("AVG_WEEKLY_HOURS",                        "HOURS"),
+    "03": ("AVG_HOURLY_EARNINGS",                     "USD"),
+    "06": ("PRODUCTION_NONSUPERVISORY_EMPLOYEES",     "THOUSANDS_PERSONS"),
+    "07": ("AVG_WEEKLY_HOURS_PROD_NONSUPERVISORY",    "HOURS"),
+    "08": ("AVG_HOURLY_EARNINGS_PROD_NONSUPERVISORY", "USD"),
+    "09": ("AVG_WEEKLY_EARNINGS_PROD_NONSUPERVISORY", "USD"),
+    "11": ("OVERTIME_HOURS",                          "HOURS"),
+    "26": ("PAYROLL_3MTH_AVG_CHANGE",                 "THOUSANDS_PERSONS"),  # unverified, unused
 }
 
 # CES supersector codes (positions 3-10 in series ID, 8 digits) → name
