@@ -24,12 +24,16 @@ TRIGGER CHAIN (GCS event-driven — fires on every new data release)
 DEPLOYMENT
 ----------
   gcloud functions deploy quality-report-generator \\
-    --runtime python311 --trigger-resource lekwankwa-historical-vault \\
+    --runtime python311 --trigger-resource lekwankwa-pipeline-ops \\
     --trigger-event google.storage.object.finalize \\
     --entry-point cloud_function_handler \\
-    --set-env-vars VAULT_ROOT=gs://lekwankwa-historical-vault \\
-    --set-secrets ALERT_EMAIL_PASS=quality-report-alert-pass:latest \\
+    --set-env-vars VAULT_ROOT=gs://lekwankwa-vault,METADATA_BUCKET=gs://lekwankwa-metadata \\
     --memory 1Gi --timeout 540s --region us-central1
+
+  Cloud Run Jobs (job-quality-live, job-quality-archive) need Secret Manager
+  read access to gmail-sender-address / gmail-app-password for alert emails
+  (same secrets self-healing already uses) — no separate ALERT_EMAIL_PASS
+  secret needed.
 
 OUTPUTS (metadata/quality_reports/)
 ------------------------------------
@@ -80,9 +84,6 @@ from typing import Any, Dict, List, Optional, Tuple
 # ---------------------------------------------------------------------------
 
 ALERT_EMAIL_TO = "info@lekwankwa.com"
-ALERT_EMAIL_FROM = "info@lekwankwa.com"
-SMTP_HOST = os.environ.get("SMTP_HOST", "smtp.gmail.com")
-SMTP_PORT = int(os.environ.get("SMTP_PORT", "587"))
 APPROVAL_SERVICE_URL = os.environ.get("APPROVAL_SERVICE_URL", "https://approval.lekwankwa.com")
 APPROVAL_TOKEN_EXPIRY_DAYS = 7
 
@@ -1759,22 +1760,27 @@ def send_alert_email(
         print(f"[DRY-RUN ALERT] Plain body preview:\n{plain_body[:600]}")
         return True
 
-    password = os.environ.get("ALERT_EMAIL_PASS", "")
-    if not password:
-        print("WARNING: ALERT_EMAIL_PASS not set — alert email not sent", file=sys.stderr)
+    # Reuses the same Gmail account/app-password already configured and
+    # proven working for self-healing approval emails, rather than the
+    # never-configured ALERT_EMAIL_PASS secret this used before.
+    try:
+        from tools.self_healing.secret_manager import get_secret
+        sender   = get_secret("gmail-sender-address")
+        password = get_secret("gmail-app-password")
+    except Exception as e:
+        print(f"WARNING: Gmail credentials unavailable — alert email not sent: {e}", file=sys.stderr)
         return False
 
     try:
         msg = MIMEMultipart("alternative")
         msg["Subject"] = subject
-        msg["From"] = ALERT_EMAIL_FROM
+        msg["From"] = sender
         msg["To"] = ALERT_EMAIL_TO
         msg.attach(MIMEText(plain_body, "plain"))
         msg.attach(MIMEText(html_body, "html"))
-        with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=30) as server:
-            server.starttls()
-            server.login(ALERT_EMAIL_FROM, password)
-            server.sendmail(ALERT_EMAIL_FROM, ALERT_EMAIL_TO, msg.as_string())
+        with smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=30) as server:
+            server.login(sender, password)
+            server.sendmail(sender, ALERT_EMAIL_TO, msg.as_string())
         return True
     except Exception as e:
         print(f"ERROR: Alert email failed: {e}", file=sys.stderr)
