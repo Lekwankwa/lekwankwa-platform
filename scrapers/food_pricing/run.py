@@ -35,12 +35,38 @@ from tools.live_feed_audit import run_post_delta_audit
 log = logging.getLogger(__name__)
 
 PRODUCT = "food_micropricing"
+PRODUCT = "food_micropricing"
 TODAY   = date.today().isoformat()
+
+DEFAULT_VAULT_ROOT = "gs://lekwankwa-historical-vault"
+
+
+def _ensure_valid_vault_root() -> str:
+    """
+    Normalize the VAULT_ROOT env var and write the corrected value back
+    into the environment before any downstream validation is invoked.
+
+    A scheme-only value such as "gs://" is truthy, so a naive
+    ``.strip().rstrip("/")  or <default>`` pattern never falls back to
+    the default — ``.rstrip("/")`` collapses "gs://" down to "gs:",
+    which downstream tools (get_vault_latest_month, _vault_root.py's
+    vault_glob, and the lineage_food_pricing.py subprocess that
+    inherits this process's environment) then treat as a literal GCS
+    bucket name, causing gcsfs to raise "Invalid bucket name: 'gs:'".
+    """
+    raw = os.environ.get("VAULT_ROOT", "").strip()
+    normalized = raw.rstrip("/")
+    if not normalized or normalized in ("gs:", "gs:/", "gs"):
+        normalized = DEFAULT_VAULT_ROOT
+    elif not normalized.startswith("gs://"):
+        normalized = f"gs://{normalized}"
+    os.environ["VAULT_ROOT"] = normalized
+    return normalized
+
 
 # Countries routed through each underlying scraper
 COUNTRY_ROUTER: dict[str, dict] = {
     "USA": {
-        "module":  "scrapers.food_pricing.usa_food_scraper",
         "fn":      "scrape_usa_food_pricing",
         "sources": ["bls_cpi"],
     },
@@ -134,26 +160,28 @@ def run_country(country: str, mode: str, since: str | None, dry_run: bool) -> bo
             if latest:
                 os.environ["VALIDATION_SINCE_YEAR"] = str(max(1, latest[0] - 2))
         else:
-            os.environ.pop("VALIDATION_SINCE_YEAR", None)
-
-        # Post-scrape: 9-stage + GX + Bitemporal Core validation
-        try:
-            val = run_9_stage_validation(product=PRODUCT, country=country)
-        except Exception as exc:
-            log.error("run_9_stage_validation raised for %s/%s/%s: %s",
+        if mode == "incremental":
+            from scrapers.utilities.incremental import get_vault_latest_month
+            vault_root_env = _ensure_valid_vault_root()
+            scan_root = f"{vault_root_env}/product={PRODUCT}/country={country}/source={source}"
+            # Always clear first: if latest comes back falsy (empty vault,
+            # first-ever run for this country/source), neither branch below
+            # would otherwise touch the var, letting a stale scoping value
                       PRODUCT, country, source, exc, exc_info=True)
             try:
                 from tools.self_healing.handler import handle_exception
                 handle_exception(
                     program=__file__,
                     exception=exc,
-                    context={
-                        "product": PRODUCT, "country": country,
-                        "source": source, "run_date": TODAY,
-                        "layer": "VALIDATION",
-                    },
-                )
-            except ImportError:
+                os.environ["VALIDATION_SINCE_YEAR"] = str(max(1, latest[0] - 2))
+        else:
+            os.environ.pop("VALIDATION_SINCE_YEAR", None)
+            # Even in full mode, ensure downstream validators (lineage,
+            # referential, GX) inherit a valid, non-truncated VAULT_ROOT.
+            _ensure_valid_vault_root()
+
+        # Post-scrape: 9-stage + GX + Bitemporal Core validation
+        try:            except ImportError:
                 pass
             return False
 
