@@ -737,71 +737,79 @@ def find_latest_validation_summary(
 ) -> Optional[dict]:
     """
     Locate the most recent validation_summary_*.json that covers this
-    product and country_group.  Reads only the metadata fields (not the
-    full stage detail) to stay light.
-    """
-    p_lower = product.lower().replace("housing_supply_and_shelter_inflation", "housing")
-    candidates = []
-    for f in sorted(search_root.glob(f"validation_summary_*.json")):
-        name = f.stem.lower()
-        if p_lower not in name:
-            continue
-        candidates.append(f)
+            else:
+                consistency_issues = []
 
-    # Most recent last after sort
-    for f in reversed(candidates):
-        try:
-            with open(f, encoding="utf-8") as fh:
-                d = json.load(fh)
-            scope = d.get("scope", "")
-            if _scope_covers(scope, country_group):
-                return d
-        except Exception:
-            continue
-    return None
+            # Build findings for this country
+            findings: list[Finding] = []
 
+            # Freshness findings
+            if freshness_status in ("STALE", "FROZEN", "NO_DATA", "DISCONTINUED"):
+                sev = freshness_severity(freshness_status, product, country_group, days_behind or 0)
+                extra_msg = ""
+                if (product, country_group) in LIVE_FEED_EXCLUDED:
+                    extra_msg = " (excluded from live feed tier)"
+                if freshness_status == "DISCONTINUED":
+                    fmsg = (
+                        f"{product} / {country_group}: DISCONTINUED — data collection has stopped. "
+                        f"Last available: {vault_latest} ({days_behind} days behind expected)."
+                    )
+                else:
+                    fmsg = (
+                        f"{product} / {country_group}: {freshness_status}. "
+                        f"Vault latest = {vault_latest}, expected = {expected_latest}, "
+                        f"days behind = {days_behind}{extra_msg}."
+                    )
+                f = make_finding(
+                    product=product,
+                    country_group=country_group,
+                    check_type="FRESHNESS",
+                    code=f"FRESHNESS_{freshness_status}",
+                    severity=sev,
+                    message=fmsg,
+                    detail={
+                        "vault_latest": str(vault_latest),
+                        "expected_latest": str(expected_latest),
+                        "days_behind": days_behind,
+                        "lag_days": lag,
+                        "frequency": freq,
+                        "live_feed_eligible": live_feed_eligible,
+                        "consecutive_frozen_runs": consecutive_frozen_runs,
+                    },
+                    run_date=run_date,
+                    prior_status_map=prior_status_map,
+                )
+                findings.append(f)
 
-# ---------------------------------------------------------------------------
-# Consistency audit (lightweight, no full parquet scan for large vaults)
-# ---------------------------------------------------------------------------
-
-def audit_consistency(
-    vault_root: Path,
-    product: str,
-    country_iso3: str,
-    sample_rows: int = 5000,
-) -> list[str]:
-    """
-    Run consistency checks on a random sample of vault rows.
-    Returns a list of issue descriptions (empty list = clean).
-    """
-    try:
-        import pandas as pd
-        import numpy as np
-    except ImportError:
-        return ["pandas not available — consistency audit skipped"]
-
-    _META_FILES = {"outliers.parquet", "changelog.parquet"}
-    partitions = sorted(
-        f for f in (vault_root / f"product={product}" / f"country={country_iso3}").rglob("*.parquet")
-        if f.name not in _META_FILES
-    )
-    if not partitions:
-        return []
-
-    frames = []
-    remaining = sample_rows
-    for p in partitions[-10:]:  # read most recent 10 partitions
-        try:
-            df = pd.read_parquet(p)
-            # Normalize any tz-aware datetime columns to UTC to prevent concat errors
-            for col in df.select_dtypes(include=["datetimetz"]).columns:
-                df[col] = df[col].dt.tz_convert(None)
-            frames.append(df.head(remaining))
-            remaining -= len(df)
-            if remaining <= 0:
-                break
-        except Exception:
+            # Validation stage failures.
+            # val_summary is fetched per country_group, not per ISO3 country —
+            # every constituent country in a multi-country group (e.g. all 27
+            # EU27 members) shares the exact same validation result. Emitting a
+            # Finding inside this per-ISO3 loop for every member would fan a
+            # single genuine GX failure out into N duplicate findings (e.g. 27
+            # for EU27), which falsely inflates the alert/finding count and can
+            # trip mass-failure thresholds downstream. Only emit once per
+            # (product, country_group), gated on the same "representative"
+            # country already used for the consistency/vault-integrity audit.
+            if val_overall == "FAIL" and val_summary and country_iso3 == representative:
+                for stage in val_summary.get("stage_results", []):
+                    if stage.get("status") == "FAIL":
+                        sev = stage_fail_severity(product, stage.get("name", ""))
+                        f = make_finding(
+                            product=product,
+                            country_group=country_group,
+                            check_type="VALIDATION_STAGE",
+                            code=f"STAGE_FAIL_S{stage.get('stage', '?')}",
+                            severity=sev,
+                            message=(
+                                f"{product} / {country_group}: Validation stage "
+                                f"'{stage.get('name')}' FAILED."
+                            ),
+                            detail={"stage": stage.get("stage"), "name": stage.get("name")},
+                            run_date=run_date,
+                            prior_status_map=prior_status_map,
+                        )
+                        findings.append(f)        except Exception:
             pass
 
     if not frames:
