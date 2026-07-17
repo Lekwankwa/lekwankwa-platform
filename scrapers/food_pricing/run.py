@@ -27,13 +27,18 @@ logging.basicConfig(
 )
 
 from tools.secret_manager import load_all_secrets_to_env
-load_all_secrets_to_env()
-
-from tools.release_calendar_extractor import is_release_due
-from tools.vault_audit import run_9_stage_validation
-from tools.live_feed_audit import run_post_delta_audit
 log = logging.getLogger(__name__)
 
+PRODUCT = "food_micropricing"
+TODAY   = date.today().isoformat()
+
+# Ensure downstream subprocesses (validation/lineage scripts) always inherit
+# a fully-qualified GCS URI, never an empty string or bare bucket name.
+VAULT_ROOT_DEFAULT = "gs://lekwankwa-historical-vault"
+os.environ.setdefault("VAULT_ROOT", VAULT_ROOT_DEFAULT)
+
+# Countries routed through each underlying scraper
+COUNTRY_ROUTER: dict[str, dict] = {
 PRODUCT = "food_micropricing"
 TODAY   = date.today().isoformat()
 
@@ -131,13 +136,14 @@ def run_country(country: str, mode: str, since: str | None, dry_run: bool) -> bo
             # into this source's validation and live-feed-audit calls.
             os.environ.pop("VALIDATION_SINCE_YEAR", None)
             latest = get_vault_latest_month(scan_root)
-            if latest:
-                os.environ["VALIDATION_SINCE_YEAR"] = str(max(1, latest[0] - 2))
-        else:
-            os.environ.pop("VALIDATION_SINCE_YEAR", None)
-
-        # Post-scrape: 9-stage + GX + Bitemporal Core validation
-        try:
+        if mode == "incremental":
+            from scrapers.utilities.incremental import get_vault_latest_month
+            vault_root_env = (os.environ.get("VAULT_ROOT", "").strip().rstrip("/")
+                               or VAULT_ROOT_DEFAULT)
+            os.environ["VAULT_ROOT"] = vault_root_env
+            scan_root = f"{vault_root_env}/product={PRODUCT}/country={country}/source={source}"
+            # Always clear first: if latest comes back falsy (empty vault,
+            # first-ever run for this country/source), neither branch below        try:
             val = run_9_stage_validation(product=PRODUCT, country=country)
         except Exception as exc:
             log.error("run_9_stage_validation raised for %s/%s/%s: %s",
