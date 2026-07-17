@@ -73,9 +73,10 @@ def run_source(country: str, cfg: dict, source_filter: str | None,
 
     try:
         import importlib
+        from scrapers.utilities.call_scraper_entry import call_scraper_entry
         mod = importlib.import_module(cfg["module"])
         fn  = getattr(mod, cfg["fn"])
-        fn(mode=mode, since=since, **cfg["kwargs"])
+        call_scraper_entry(fn, mode, since, cfg["kwargs"])
         log.info("Completed scrape %s/%s/%s", PRODUCT, country, source)
     except Exception as exc:
         log.error("Scraper failed %s/%s/%s: %s", PRODUCT, country, source, exc,

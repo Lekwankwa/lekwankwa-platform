@@ -74,9 +74,10 @@ def main():
 
     try:
         import importlib
+        from scrapers.utilities.call_scraper_entry import call_scraper_entry
         mod = importlib.import_module(cfg["module"])
         fn  = getattr(mod, cfg["fn"])
-        fn(mode=args.mode, since=args.since)
+        call_scraper_entry(fn, args.mode, args.since, cfg.get("kwargs", {}))
         log.info("Completed scrape %s/%s", PRODUCT, args.country)
     except Exception as exc:
         log.error("Failed %s/%s: %s", PRODUCT, args.country, exc, exc_info=True)
