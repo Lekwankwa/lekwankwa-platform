@@ -114,14 +114,24 @@ def run_country(country: str, mode: str, since: str | None, dry_run: bool) -> bo
         # Scope validation to the incremental window instead of the full
         # ~46-year vault — the whole history has already been validated
         # once; re-checking all of it on every run is what was making
-        # validation take 45-60+ minutes. Mirrors the same "latest vault
-        # partition minus revision lookback" window the scraper itself
-        # just used, so validation always covers at least what was
-        # touched this run. Full-mode runs intentionally re-process
-        # everything, so validation stays unscoped for those.
         if mode == "incremental":
             from scrapers.utilities.incremental import get_vault_latest_month
             vault_root_env = os.environ.get("VAULT_ROOT", "").strip().rstrip("/") or "lekwankwa-historical-vault"
+            # Guard against a malformed VAULT_ROOT (e.g. "gs://" with no bucket
+            # name, which .rstrip("/") collapses down to the invalid "gs:").
+            # A bad value here is inherited by the downstream validation
+            # subprocess — including the lineage check spawned from it —
+            # which then globs against bucket "gs:" and dies with an
+            # HttpError: Invalid bucket name: 'gs:'. Detect and repair it
+            # before it ever reaches the environment used by validation.
+            if vault_root_env in ("gs:", "gs://", "") or not vault_root_env.replace("gs://", "").strip():
+                log.error(
+                    "VAULT_ROOT resolved to invalid value %r for %s/%s/%s — "
+                    "falling back to default vault root.",
+                    vault_root_env, PRODUCT, country, source,
+                )
+                vault_root_env = "lekwankwa-historical-vault"
+            os.environ["VAULT_ROOT"] = vault_root_env
             scan_root = f"{vault_root_env}/product={PRODUCT}/country={country}/source={source}"
             # Always clear first: if latest comes back falsy (empty vault,
             # first-ever run for this country/source), neither branch below
@@ -131,6 +141,19 @@ def run_country(country: str, mode: str, since: str | None, dry_run: bool) -> bo
             # into this source's validation and live-feed-audit calls.
             os.environ.pop("VALIDATION_SINCE_YEAR", None)
             latest = get_vault_latest_month(scan_root)
+            if latest:
+                os.environ["VALIDATION_SINCE_YEAR"] = str(max(1, latest[0] - 2))
+        else:
+            os.environ.pop("VALIDATION_SINCE_YEAR", None)
+            vault_root_env = os.environ.get("VAULT_ROOT", "").strip().rstrip("/") or "lekwankwa-historical-vault"
+            if vault_root_env in ("gs:", "gs://", "") or not vault_root_env.replace("gs://", "").strip():
+                log.error(
+                    "VAULT_ROOT resolved to invalid value %r for %s/%s/%s — "
+                    "falling back to default vault root.",
+                    vault_root_env, PRODUCT, country, source,
+                )
+                vault_root_env = "lekwankwa-historical-vault"
+            os.environ["VAULT_ROOT"] = vault_root_env            latest = get_vault_latest_month(scan_root)
             if latest:
                 os.environ["VALIDATION_SINCE_YEAR"] = str(max(1, latest[0] - 2))
         else:
