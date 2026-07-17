@@ -53,6 +53,10 @@ logger = logging.getLogger(__name__)
 #  CONFIGURATION
 # ══════════════════════════════════════════════════════════════════════════════
 
+# pathlib collapses "gs://bucket" to "gs:/bucket" (drops one slash), which
+# gcsfs then reads as bucket "gs:" — a 400 error. Use the raw VAULT_ROOT
+# string for GCS path building; VAULT_DIR (Path-typed) is only safe for
+# _run_eu27_changelog()'s local-filesystem-only usage below.
 VAULT_DIR = Path(VAULT_ROOT)
 PRODUCT = "food_micropricing"
 COUNTRY = "USA"
@@ -399,7 +403,7 @@ def run_changelog_generation():
     overall_year_count = 0
     
     for source in SOURCES:
-        vault_path = f"{VAULT_DIR}/product={PRODUCT}/country={COUNTRY}/source={source}"
+        vault_path = f"{VAULT_ROOT}/product={PRODUCT}/country={COUNTRY}/source={source}"
 
         if not vault_exists(vault_path):
             logger.warning(f"Vault path not found for source '{source}': {vault_path}")

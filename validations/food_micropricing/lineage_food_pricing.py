@@ -51,6 +51,10 @@ logger = logging.getLogger(__name__)
 # CONFIGURATION
 # =============================================================================
 
+# pathlib collapses "gs://bucket" to "gs:/bucket" (drops one slash), which
+# gcsfs then reads as bucket "gs:" — a 400 error. Use the raw VAULT_ROOT
+# string for GCS path building; VAULT_DIR (Path-typed) is only safe for
+# _run_eu27_lineage()'s local-filesystem-only usage below.
 VAULT_DIR   = Path(VAULT_ROOT)
 PRODUCT     = "food_micropricing"
 COUNTRY     = "USA"
@@ -97,7 +101,7 @@ def _result(status, standard, message, details=None):
 
 def load_sample(source: str) -> pd.DataFrame:
     fname = SOURCE_FILES.get(source, "*.parquet")
-    path  = f"{VAULT_DIR}/product={PRODUCT}/country={COUNTRY}/source={source}"
+    path  = f"{VAULT_ROOT}/product={PRODUCT}/country={COUNTRY}/source={source}"
     files = vault_glob(path, fname)
     step  = max(1, len(files) // SAMPLE_FILES)
     dfs   = []
@@ -112,7 +116,7 @@ def load_sample(source: str) -> pd.DataFrame:
 
 def load_all_files(source: str):
     fname = SOURCE_FILES.get(source, "*.parquet")
-    path  = f"{VAULT_DIR}/product={PRODUCT}/country={COUNTRY}/source={source}"
+    path  = f"{VAULT_ROOT}/product={PRODUCT}/country={COUNTRY}/source={source}"
     return vault_glob(path, fname)
 
 
