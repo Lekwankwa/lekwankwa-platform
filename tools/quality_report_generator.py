@@ -1309,8 +1309,15 @@ def generate_granular_report(
                 )
                 findings.append(f)
 
-            # Validation stage failures
-            if val_overall == "FAIL" and val_summary:
+            # Validation stage failures — val_summary is looked up by
+            # country_group alone (one combined run per group, e.g. EU27),
+            # not by country_iso3, so it's identical on every inner-loop
+            # iteration. Only emit on the representative country to avoid
+            # reporting the same single stage failure once per member
+            # country (was producing 27 duplicate HIGH findings for one
+            # real EU27 issue — same pattern already guarded against for
+            # consistency_issues above).
+            if val_overall == "FAIL" and val_summary and country_iso3 == representative:
                 for stage in val_summary.get("stage_results", []):
                     if stage.get("status") == "FAIL":
                         sev = stage_fail_severity(product, stage.get("name", ""))
