@@ -105,25 +105,36 @@ def run_country(country: str, mode: str, since: str | None, dry_run: bool) -> bo
                         "layer": "SCRAPER",
                         "module": cfg["module"], "fn": cfg["fn"],
                         "mode": mode, "since": since,
-                    },
-                )
-            except ImportError:
-                pass
-            return False
-
+        if mode == "incremental":
+            from scrapers.utilities.incremental import get_vault_latest_month
+            vault_root_env = os.environ.get("VAULT_ROOT", "").strip().rstrip("/") or "lekwankwa-historical-vault"
+            # Normalize to a fully-qualified gs:// URI. Downstream validation
+            # stages (e.g. lineage_food_pricing.py via _vault_root.py) read
+            # VAULT_ROOT directly from the environment; if it lacks the
+            # scheme, path construction can collapse to a bare "gs:" with no
+            # bucket name, which gcsfs rejects with "Invalid bucket name".
+            if not vault_root_env.startswith("gs://"):
+                vault_root_env = f"gs://{vault_root_env}"
+            os.environ["VAULT_ROOT"] = vault_root_env
+            scan_root = f"{vault_root_env}/product={PRODUCT}/country={country}/source={source}"
+            # Always clear first: if latest comes back falsy (empty vault,
+            # first-ever run for this country/source), neither branch below
         # Scope validation to the incremental window instead of the full
         # ~46-year vault — the whole history has already been validated
         # once; re-checking all of it on every run is what was making
         # validation take 45-60+ minutes. Mirrors the same "latest vault
         # partition minus revision lookback" window the scraper itself
-        # just used, so validation always covers at least what was
-        # touched this run. Full-mode runs intentionally re-process
-        # everything, so validation stays unscoped for those.
-        if mode == "incremental":
-            from scrapers.utilities.incremental import get_vault_latest_month
+            if latest:
+                os.environ["VALIDATION_SINCE_YEAR"] = str(max(1, latest[0] - 2))
+        else:
+            os.environ.pop("VALIDATION_SINCE_YEAR", None)
             vault_root_env = os.environ.get("VAULT_ROOT", "").strip().rstrip("/") or "lekwankwa-historical-vault"
-            scan_root = f"{vault_root_env}/product={PRODUCT}/country={country}/source={source}"
-            # Always clear first: if latest comes back falsy (empty vault,
+            if not vault_root_env.startswith("gs://"):
+                vault_root_env = f"gs://{vault_root_env}"
+            os.environ["VAULT_ROOT"] = vault_root_env
+
+        # Post-scrape: 9-stage + GX + Bitemporal Core validation
+        try:            # Always clear first: if latest comes back falsy (empty vault,
             # first-ever run for this country/source), neither branch below
             # would otherwise touch the var, letting a stale scoping value
             # from an earlier country/source in this same process (main()
