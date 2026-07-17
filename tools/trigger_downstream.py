@@ -27,6 +27,37 @@ _METADATA_JOBS = [
 ]
 
 
+def _is_already_running(job_name: str, headers: dict) -> bool:
+    """
+    True if the most recent execution of job_name has no completionTime yet.
+
+    Every scraper (8 entry points) calls trigger_all_metadata() independently
+    on its own schedule. Without this guard, two scrapers finishing within
+    the same 1-3.5hr window each fire their own overlapping copy of the same
+    metadata job — observed 2026-07-17 causing duplicate self-healing PRs
+    from concurrent job-quality-live/archive runs scanning the same data.
+    """
+    try:
+        url = (
+            f"https://{_REGION}-run.googleapis.com/apis/run.googleapis.com/v1"
+            f"/namespaces/{_PROJECT}/executions"
+        )
+        resp = requests.get(
+            url, headers=headers,
+            params={"labelSelector": f"run.googleapis.com/job={job_name}"},
+        )
+        if resp.status_code != 200:
+            return False  # can't tell — don't block firing on an API hiccup
+        items = resp.json().get("items", [])
+        if not items:
+            return False
+        latest = max(items, key=lambda it: it["metadata"]["creationTimestamp"])
+        return "completionTime" not in latest.get("status", {})
+    except Exception as exc:
+        log.warning("running-check %s: failed (assuming not running) — %s", job_name, exc)
+        return False
+
+
 def _fire_job(job_name: str) -> None:
     """POST to Cloud Run Jobs API to execute a named job. Non-fatal on any error."""
     try:
@@ -36,12 +67,17 @@ def _fire_job(job_name: str) -> None:
         creds, _ = google.auth.default()
         auth_req = google.auth.transport.requests.Request()
         creds.refresh(auth_req)
+        headers = {"Authorization": f"Bearer {creds.token}"}
+
+        if _is_already_running(job_name, headers):
+            log.info("skip %s: an execution is already running", job_name)
+            return
 
         url = (
             f"https://{_REGION}-run.googleapis.com/apis/run.googleapis.com/v1"
             f"/namespaces/{_PROJECT}/jobs/{job_name}:run"
         )
-        resp = requests.post(url, headers={"Authorization": f"Bearer {creds.token}"})
+        resp = requests.post(url, headers=headers)
         if resp.status_code in (200, 201):
             log.info("✓ Triggered %s (HTTP %s)", job_name, resp.status_code)
         else:
