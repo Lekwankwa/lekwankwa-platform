@@ -72,12 +72,30 @@ def run_source(country: str, cfg: dict, source_filter: str | None,
         return True
 
     try:
+    try:
         import importlib
         from scrapers.utilities.call_scraper_entry import call_scraper_entry
         mod = importlib.import_module(cfg["module"])
         fn  = getattr(mod, cfg["fn"])
         call_scraper_entry(fn, mode, since, cfg["kwargs"])
         log.info("Completed scrape %s/%s/%s", PRODUCT, country, source)
+
+        try:
+            from tools.vault_audit import verify_data_landed
+        except ImportError:
+            verify_data_landed = None
+
+        if verify_data_landed is not None:
+            landed = verify_data_landed(
+                product=PRODUCT, country=country, source=source,
+                run_date=TODAY,
+            )
+            if not landed:
+                raise RuntimeError(
+                    f"Scraper for {PRODUCT}/{country}/{source} completed "
+                    f"without error but no data landed in vault for run "
+                    f"date {TODAY} — refusing to proceed to validation."
+                )
     except Exception as exc:
         log.error("Scraper failed %s/%s/%s: %s", PRODUCT, country, source, exc,
                   exc_info=True)
@@ -90,9 +108,7 @@ def run_source(country: str, cfg: dict, source_filter: str | None,
             )
         except ImportError:
             pass
-        return False
-
-    val = run_9_stage_validation(product=PRODUCT, country=country)
+        return False    val = run_9_stage_validation(product=PRODUCT, country=country)
     if val.severity in ("CRITICAL", "HIGH"):
         from tools.self_healing.handler import handle_validation_finding
         handle_validation_finding(
