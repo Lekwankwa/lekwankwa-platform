@@ -81,14 +81,22 @@ def run_source(country: str, cfg: dict, source_filter: str | None,
     except Exception as exc:
         log.error("Failed %s/%s/%s: %s", PRODUCT, country, source, exc, exc_info=True)
         try:
-            from tools.self_healing.handler import handle_exception
-            handle_exception(
-                program=__file__, exception=exc,
-                context={"product": PRODUCT, "country": country,
-                         "source": source, "run_date": TODAY, "layer": "SCRAPER"},
-            )
-        except ImportError:
             pass
+        return False
+
+    # NOTE: Lineage stage (Stage 6) loads full-history partitions for both
+    # bls_cpi_shelter and census_bps and has been regularly exceeding the
+    # default 600s per-stage timeout as vault history grows. Give the
+    # overall harness more headroom and bump the lineage stage specifically.
+    val = run_9_stage_validation(
+        product=PRODUCT,
+        country=country,
+        timeout_seconds=1800,
+        stage_timeout_overrides={"lineage": 1500},
+    )
+    if val.severity in ("CRITICAL", "HIGH"):
+        from tools.self_healing.handler import handle_validation_finding
+        handle_validation_finding(            pass
         return False
 
     val = run_9_stage_validation(product=PRODUCT, country=country)
