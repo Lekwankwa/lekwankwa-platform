@@ -203,7 +203,22 @@ def write_partition(
     out = part / filename
 
     if out.exists():
-        existing = pd.read_parquet(out)
+        try:
+            existing = pd.read_parquet(out)
+        except Exception as read_exc:
+            # Existing partition file is unreadable (corrupt footer from an
+            # interrupted write, or an incompatible schema from an older code
+            # version). Rebuild it from the incoming data rather than crashing
+            # the whole scrape — this self-heals the partition going forward.
+            # Previously uncaught here, this crashed every EU27 dataset scrape
+            # the moment it hit one stale partition (scrapers/utilities/incremental.py
+            # already handles this exact case for the USA scrapers).
+            log.warning("Could not read existing partition %s (%s) — rewriting from incoming data.",
+                        out, read_exc)
+            combined = df.drop_duplicates(subset=["data_vintage_id"], keep="first")
+            combined.to_parquet(out, index=False, engine="pyarrow")
+            log.debug("Written %d rows → %s", len(combined), out)
+            return
         combined = pd.concat([existing, df], ignore_index=True)
         combined = combined.drop_duplicates(subset=["data_vintage_id"], keep="first")
     else:
