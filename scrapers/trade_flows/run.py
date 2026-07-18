@@ -43,12 +43,46 @@ COUNTRY_ROUTER: dict[str, dict] = {
 
 def main():
     parser = argparse.ArgumentParser(
+}
+
+
+def _repair_vault_schema(product: str, country: str, source: str) -> None:
+    """
+    Pre-flight guard against ArrowTypeError when merging parquet partitions
+    whose 'source' (or other string) columns were written with mixed
+    dictionary-encoded vs plain-string Arrow types. Casts any
+    dictionary-encoded columns back to plain string in-place so that
+    pd.read_parquet()/pyarrow dataset schema unification succeeds downstream
+    in save_to_vault().
+    """
+    try:
+        from pathlib import Path
+        import pyarrow as pa
+        import pyarrow.parquet as pq
+
+        vault_dir = Path("data") / "vault" / product / country / source
+        if not vault_dir.exists():
+            return
+        for pq_file in vault_dir.rglob("*.parquet"):
+            table = pq.read_table(pq_file)
+            if any(pa.types.is_dictionary(f.type) for f in table.schema):
+                new_cols = [
+                    table.column(name).cast(pa.string())
+                    if pa.types.is_dictionary(table.schema.field(name).type)
+                    else table.column(name)
+                    for name in table.column_names
+                ]
+                fixed_table = pa.table(new_cols, names=table.column_names)
+                pq.write_table(fixed_table, pq_file)
+                log.info("Repaired dictionary-encoded schema drift in %s", pq_file)
+    except Exception as repair_exc:
+        log.warning("Vault schema repair skipped for %s/%s/%s: %s",
+                    product, country, source, repair_exc)
+
+
+def main():
+    parser = argparse.ArgumentParser(
         description="trade_flows cloud scraper entry point"
-    )
-    parser.add_argument("--country", required=True)
-    parser.add_argument("--mode", choices=["incremental", "full"], default="incremental")
-    parser.add_argument("--since", type=str, default=None, metavar="YYYY-MM")
-    parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
 
     log.info("=" * 60)
@@ -75,13 +109,13 @@ def main():
     try:
         import importlib
         from scrapers.utilities.call_scraper_entry import call_scraper_entry
+    try:
+        import importlib
+        from scrapers.utilities.call_scraper_entry import call_scraper_entry
+        _repair_vault_schema(PRODUCT, args.country, source)
         mod = importlib.import_module(cfg["module"])
         fn  = getattr(mod, cfg["fn"])
-        call_scraper_entry(fn, args.mode, args.since, cfg.get("kwargs", {}))
-        log.info("Completed scrape %s/%s", PRODUCT, args.country)
-    except Exception as exc:
-        log.error("Failed %s/%s: %s", PRODUCT, args.country, exc, exc_info=True)
-        try:
+        call_scraper_entry(fn, args.mode, args.since, cfg.get("kwargs", {}))        try:
             from tools.self_healing.handler import handle_exception
             handle_exception(
                 program=__file__, exception=exc,
