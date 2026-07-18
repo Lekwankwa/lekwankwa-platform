@@ -17,6 +17,7 @@ import argparse
 import logging
 import sys
 import time
+from datetime import date
 
 from tools.secret_manager import load_all_secrets_to_env
 load_all_secrets_to_env()
@@ -28,6 +29,44 @@ logging.basicConfig(
               logging.FileHandler("eurostat_ingestion.log")],
 )
 log = logging.getLogger(__name__)
+
+TODAY = date.today().isoformat()
+
+# Maps this orchestrator's dataset keys to the PRODUCT names run_9_stage_validation()
+# expects (matches tools/vault_audit.py's _SCRIPT_MAP keys).
+_PRODUCT_MAP = {
+    "food":    "food_micropricing",
+    "wages":   "wages_and_employment",
+    "housing": "Housing_Supply_and_Shelter_Inflation",
+    "trade":   "trade_flows",
+    "macro":   "global_macro",
+}
+
+
+def _validate_dataset(name: str) -> str:
+    """Run the 9-stage validation for one dataset's EU27 data. Escalates to
+    self-healing on exception or CRITICAL/HIGH findings. Returns a status
+    suffix to append to the dataset's overall status."""
+    product = _PRODUCT_MAP[name]
+    context = {"product": product, "country": "EU27",
+               "source": "eurostat", "run_date": TODAY, "layer": "VALIDATION"}
+    try:
+        from tools.vault_audit import run_9_stage_validation
+        val = run_9_stage_validation(product=product, country="EU27")
+    except Exception as exc:
+        log.error(f"[{name}] validation raised: {exc}", exc_info=True)
+        try:
+            from tools.self_healing.handler import handle_exception
+            handle_exception(program=__file__, exception=exc, context=context)
+        except ImportError:
+            pass
+        return " (validation error)"
+
+    if val.severity in ("CRITICAL", "HIGH"):
+        from tools.self_healing.handler import handle_validation_finding
+        handle_validation_finding(program=__file__, context=context, result=val)
+        return f" (validation {val.severity})"
+    return ""
 
 
 def _run_dataset(name: str) -> tuple[str, int, float, str]:
@@ -50,6 +89,8 @@ def _run_dataset(name: str) -> tuple[str, int, float, str]:
         rows = run()
         elapsed = time.time() - t0
         status = "OK" if rows > 0 else "EMPTY"
+        if rows > 0:
+            status += _validate_dataset(name)
         return name, rows, elapsed, status
 
     except Exception as exc:

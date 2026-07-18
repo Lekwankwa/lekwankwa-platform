@@ -106,6 +106,29 @@ def _ingest_cdid(
     return len(df_vault)
 
 
+def _validate_product(product: str) -> None:
+    """Run the 9-stage validation for one product's GBR data. Escalates to
+    self-healing on exception or CRITICAL/HIGH findings."""
+    from datetime import date
+    context = {"product": product, "country": ISO3,
+               "source": SOURCE, "run_date": date.today().isoformat(), "layer": "VALIDATION"}
+    try:
+        from tools.vault_audit import run_9_stage_validation
+        val = run_9_stage_validation(product=product, country=ISO3)
+    except Exception as exc:
+        log.error("validation raised for %s: %s", product, exc, exc_info=True)
+        try:
+            from tools.self_healing.handler import handle_exception
+            handle_exception(program=__file__, exception=exc, context=context)
+        except ImportError:
+            pass
+        return
+
+    if val.severity in ("CRITICAL", "HIGH"):
+        from tools.self_healing.handler import handle_validation_finding
+        handle_validation_finding(program=__file__, context=context, result=val)
+
+
 def run() -> int:
     log.info("=" * 70)
     log.info("ONS GBR -- All 5 vault products")
@@ -113,10 +136,20 @@ def run() -> int:
     log.info("=" * 70)
 
     total = 0
+    rows_by_product: dict[str, int] = {}
     for entry in SERIES:
-        total += _ingest_cdid(*entry)
+        rows = _ingest_cdid(*entry)
+        total += rows
+        vault_product = entry[3]
+        rows_by_product[vault_product] = rows_by_product.get(vault_product, 0) + rows
 
     log.info("\nONS GBR ingestion complete: %d rows written", total)
+
+    for product, rows in rows_by_product.items():
+        if rows > 0:
+            log.info("  Validating %s ...", product)
+            _validate_product(product)
+
     if total > 0:
         from tools.trigger_downstream import trigger_all_metadata
         trigger_all_metadata()
