@@ -31,12 +31,50 @@ from tools.live_feed_audit import run_post_delta_audit
 log = logging.getLogger(__name__)
 
 PRODUCT = "trade_flows"
-TODAY   = date.today().isoformat()
+}
 
-COUNTRY_ROUTER: dict[str, dict] = {
-    "USA":  {"source": "census_ft900", "module": "scrapers.trade_flows.census_ft900_usa_scraper",   "fn": "main"},
-    "GBR":  {"source": "ons",          "module": "scrapers.trade_flows.ons_trade_scraper",           "fn": "scrape_gbr_trade"},
-    "CAN":  {"source": "statcan",      "module": "scrapers.trade_flows.statcan_trade_scraper",       "fn": "scrape_can_trade"},
+
+def _patch_pandas_read_parquet_for_schema_drift():
+    """
+    Some trade_flows vault partitions (e.g. census_ft900) were written with a
+    dictionary-encoded 'source' column while older partitions used a plain
+    string type. PyArrow refuses to merge these incompatible physical
+    encodings on read, raising ArrowTypeError and crashing save_to_vault
+    before any data is persisted. Patch pandas.read_parquet globally (for
+    this process only) to fall back to a permissive pyarrow.dataset merge
+    and coerce dictionary-encoded columns back to plain strings.
+    """
+    import pandas as pd
+    import pyarrow as pa
+    import pyarrow.dataset as ds
+
+    if getattr(pd.read_parquet, "_lekwankwa_patched", False):
+        return
+
+    _original_read_parquet = pd.read_parquet
+
+    def _safe_read_parquet(path, engine="pyarrow", **kwargs):
+        try:
+            return _original_read_parquet(path, engine=engine, **kwargs)
+        except pa.lib.ArrowTypeError:
+            log.warning("Schema drift detected while reading parquet at %s; "
+                        "retrying with permissive schema unification.", path)
+            dataset = ds.dataset(path, format="parquet")
+            table = dataset.to_table(promote_options="permissive")
+            for i, field in enumerate(table.schema):
+                if pa.types.is_dictionary(field.type):
+                    table = table.set_column(
+                        i, field.name, table.column(i).cast(pa.string())
+                    )
+            return table.to_pandas()
+
+    _safe_read_parquet._lekwankwa_patched = True
+    pd.read_parquet = _safe_read_parquet
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="trade_flows cloud scraper entry point"
     "EU27": {"source": "eurostat",     "module": "scrapers.trade_flows.eurostat_trade_scraper",      "fn": "scrape_eu27_trade"},
 }
 
@@ -60,13 +98,14 @@ def main():
     if not cfg:
         log.error("No router entry for country=%s", args.country)
         sys.exit(1)
-
-    source = cfg["source"]
-    if not is_release_due(product=PRODUCT, country=args.country,
-                          source=source, as_of=TODAY):
-        log.info("No release due today for %s/%s/%s — skipping.",
-                 PRODUCT, args.country, source)
+        log.info("[DRY-RUN] Would scrape %s/%s/%s", PRODUCT, args.country, source)
         sys.exit(0)
+
+    _patch_pandas_read_parquet_for_schema_drift()
+
+    try:
+        import importlib
+        from scrapers.utilities.call_scraper_entry import call_scraper_entry        sys.exit(0)
 
     if args.dry_run:
         log.info("[DRY-RUN] Would scrape %s/%s/%s", PRODUCT, args.country, source)
