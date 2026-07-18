@@ -1,9 +1,10 @@
-"""
-scrapers/wages_employment/run.py — Lekwankwa Corporation
-Cloud Scheduler entry point for wages_and_employment across all countries.
+from __future__ import annotations
 
-Usage:
-    python scrapers/wages_employment/run.py --country USA --source bls_ces
+import argparse
+import time
+import logging
+import sys
+from datetime import date
     python scrapers/wages_employment/run.py --country USA --source bls_cps
     python scrapers/wages_employment/run.py --country GBR
 """
@@ -15,12 +16,13 @@ import sys
 from datetime import date
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+from tools.release_calendar_extractor import is_release_due
+from tools.vault_audit import run_9_stage_validation
+from tools.live_feed_audit import run_post_delta_audit
+from tools.vault_audit import vault_has_data
+log = logging.getLogger(__name__)
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s %(levelname)s %(message)s",
-    handlers=[logging.StreamHandler(sys.stdout)],
+PRODUCT = "wages_and_employment"
 )
 
 from tools.secret_manager import load_all_secrets_to_env
@@ -73,13 +75,43 @@ def run_source(country: str, cfg: dict, source_filter: str | None,
 
     try:
         import importlib
-        from scrapers.utilities.call_scraper_entry import call_scraper_entry
-        mod = importlib.import_module(cfg["module"])
-        fn  = getattr(mod, cfg["fn"])
-        call_scraper_entry(fn, mode, since, cfg["kwargs"])
-        log.info("Completed scrape %s/%s/%s", PRODUCT, country, source)
-    except Exception as exc:
-        log.error("Scraper failed %s/%s/%s: %s", PRODUCT, country, source, exc,
+            pass
+        return False
+
+    # Guard against eventual-consistency / silent no-op writes: confirm the
+    # scraper actually landed data in the vault before handing off to the
+    # validation pipeline, which otherwise fails with an opaque
+    # FileNotFoundError at the PIT stage.
+    max_attempts = 5
+    wait_seconds = 3
+    for attempt in range(1, max_attempts + 1):
+        if vault_has_data(product=PRODUCT, country=country,
+                           source=source, as_of=TODAY):
+            break
+        log.warning("Vault data not yet visible for %s/%s/%s (attempt %d/%d) — "
+                    "waiting %ds before re-check.",
+                    PRODUCT, country, source, attempt, max_attempts, wait_seconds)
+        time.sleep(wait_seconds)
+    else:
+        no_data_exc = RuntimeError(
+            f"No vault data found for {PRODUCT}/{country}/{source} after "
+            f"scraper reported success — treating as scraper write failure."
+        )
+        log.error(str(no_data_exc))
+        try:
+            from tools.self_healing.handler import handle_exception
+            handle_exception(
+                program=__file__, exception=no_data_exc,
+                context={"product": PRODUCT, "country": country,
+                         "source": source, "run_date": TODAY, "layer": "SCRAPER"},
+            )
+        except ImportError:
+            pass
+        return False
+
+    val = run_9_stage_validation(product=PRODUCT, country=country)
+    if val.severity in ("CRITICAL", "HIGH"):
+        from tools.self_healing.handler import handle_validation_finding        log.error("Scraper failed %s/%s/%s: %s", PRODUCT, country, source, exc,
                   exc_info=True)
         try:
             from tools.self_healing.handler import handle_exception
