@@ -769,25 +769,45 @@ def audit_consistency(
     vault_root: Path,
     product: str,
     country_iso3: str,
-    sample_rows: int = 5000,
-) -> list[str]:
-    """
-    Run consistency checks on a random sample of vault rows.
-    Returns a list of issue descriptions (empty list = clean).
-    """
-    try:
-        import pandas as pd
-        import numpy as np
-    except ImportError:
-        return ["pandas not available — consistency audit skipped"]
-
-    _META_FILES = {"outliers.parquet", "changelog.parquet"}
-    partitions = sorted(
-        f for f in (vault_root / f"product={product}" / f"country={country_iso3}").rglob("*.parquet")
-        if f.name not in _META_FILES
-    )
-    if not partitions:
-        return []
+            if val_overall == "FAIL" and val_summary and country_iso3 == representative:
+                for stage in val_summary.get("stage_results", []):
+                    if stage.get("status") == "FAIL":
+                        sev = stage_fail_severity(product, stage.get("name", ""))
+                        # Surface the actual failure detail from the validation
+                        # summary (GX expectation failures, error text, etc.) so
+                        # the alert/PR is actionable instead of just naming the
+                        # stage. Different validation-stage implementations use
+                        # slightly different keys, so check the common variants.
+                        failure_detail = (
+                            stage.get("failed_expectations")
+                            or stage.get("failure_reasons")
+                            or stage.get("detail")
+                            or stage.get("error")
+                            or stage.get("message")
+                        )
+                        detail_str = f" Detail: {failure_detail}" if failure_detail else (
+                            " No failure detail available in validation_summary — "
+                            "check the raw GX suite output for this run."
+                        )
+                        f = make_finding(
+                            product=product,
+                            country_group=country_group,
+                            check_type="VALIDATION_STAGE",
+                            code=f"STAGE_FAIL_S{stage.get('stage', '?')}",
+                            severity=sev,
+                            message=(
+                                f"{product} / {country_group}: Validation stage "
+                                f"'{stage.get('name')}' FAILED.{detail_str}"
+                            ),
+                            detail={
+                                "stage": stage.get("stage"),
+                                "name": stage.get("name"),
+                                "failure_detail": failure_detail,
+                            },
+                            run_date=run_date,
+                            prior_status_map=prior_status_map,
+                        )
+                        findings.append(f)
 
     frames = []
     remaining = sample_rows
@@ -1118,11 +1138,17 @@ def consistency_severity(code: str, product: str) -> str:
     critical_codes = {"MISSING_FIELD", "PIT_VIOLATION", "DUPLICATE_RECORD_ID"}
     high_codes     = {"DEDUP_VIOLATION"}
     medium_codes   = {"PATH_CONVENTION"}
-    info_codes     = {"EXPECTED_FILL", "FUTURE_PARTITION", "FORECAST_PARTITION"}
-    code_prefix = code.split(":")[0]
-    if code_prefix in critical_codes:
-        return "CRITICAL" if product in LIVE_FEED_PRODUCTS else "HIGH"
-    if code_prefix in high_codes:
+    if code.startswith("STAGE_FAIL"):
+        failure_detail = finding.detail.get("failure_detail")
+        base = f"Re-run validation pipeline for {finding.product} / {finding.country_group}."
+        if failure_detail:
+            return f"{base} Root cause reported by validation stage: {failure_detail}"
+        return (
+            f"{base} No failure detail was captured from validation_summary — "
+            f"inspect the raw GX suite output for stage '{finding.detail.get('name')}' before re-running."
+        )
+    if code.startswith("EXPECTED_FILL"):
+        return "No action required. DERIVED gap-fill rows carry dqc=False by design. Clients filter on confidence_tier."    if code_prefix in high_codes:
         return "HIGH"
     if code_prefix in medium_codes:
         return "MEDIUM"
