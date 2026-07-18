@@ -33,11 +33,14 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from _vault_root import VAULT_ROOT, vault_glob_paths as vault_glob, vault_read_parquet  # noqa: E402
+
 # =============================================================================
 # CONFIGURATION
 # =============================================================================
 
-VAULT_DIR  = Path("lekwankwa-historical-vault")
+VAULT_DIR  = VAULT_ROOT
 PRODUCT    = "trade_flows"
 COUNTRY    = "USA"
 SOURCES    = ["census_ft900"]
@@ -75,7 +78,7 @@ def validate_partition(parquet_file: Path, source: str, year: str, month: str) -
     }
 
     try:
-        df = pd.read_parquet(parquet_file)
+        df = vault_read_parquet(parquet_file)
         result["row_count"] = len(df)
 
         # CHECK 1: Row count
@@ -186,15 +189,15 @@ def run_sanity_check():
     failures     = []
 
     for source in SOURCES:
-        source_path = VAULT_DIR / f"product={PRODUCT}" / f"country={COUNTRY}" / f"source={source}"
+        source_path = f"{VAULT_DIR}/product={PRODUCT}/country={COUNTRY}/source={source}"
         parquet_files = [
-            f for f in source_path.rglob("*.parquet")
+            f for f in vault_glob(source_path, "*.parquet")
             if "outliers" not in f.name and "changelog" not in f.name
         ]
         logger.info(f"  Source={source}: {len(parquet_files)} partition files")
 
         for pf in sorted(parquet_files):
-            parts   = pf.parts
+            parts   = str(pf).split("/")
             year    = next((p.split("=")[1] for p in parts if p.startswith("year=")),  "unknown")
             month   = next((p.split("=")[1] for p in parts if p.startswith("month=")), "unknown")
             result  = validate_partition(pf, source, year, month)

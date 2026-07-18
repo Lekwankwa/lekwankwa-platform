@@ -25,11 +25,15 @@ Date: 2026-06-12
 
 import json
 import logging
+import sys
 from datetime import datetime
 from pathlib import Path
 from typing import Any
 
 import pandas as pd
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from _vault_root import VAULT_ROOT, vault_glob_paths as vault_glob, vault_read_parquet  # noqa: E402
 
 logging.basicConfig(
     level=logging.INFO,
@@ -45,7 +49,7 @@ logger = logging.getLogger(__name__)
 # CONFIGURATION
 # =============================================================================
 
-VAULT_DIR = Path("lekwankwa-historical-vault")
+VAULT_DIR = VAULT_ROOT
 PRODUCT   = "Housing_Supply_and_Shelter_Inflation"
 COUNTRY   = "USA"
 SOURCES   = ["bls_cpi_shelter", "census_bps"]
@@ -104,7 +108,7 @@ def validate_partition(f: Path, source: str, year: str, month: str) -> dict[str,
     }
 
     try:
-        df = pd.read_parquet(f)
+        df = vault_read_parquet(f)
         result["row_count"] = len(df)
 
         # ── 1. Empty file ────────────────────────────────────────────────
@@ -225,14 +229,14 @@ def run_sanity_check():
     }
 
     for source in SOURCES:
-        src_path = VAULT_DIR / f"product={PRODUCT}" / f"country={COUNTRY}" / f"source={source}"
-        files = sorted(src_path.rglob("*_data.parquet"))  # Only _data.parquet files
+        src_path = f"{VAULT_DIR}/product={PRODUCT}/country={COUNTRY}/source={source}"
+        files = sorted(vault_glob(src_path, "*_data.parquet"))  # Only _data.parquet files
         logger.info(f"\nSource: {source} — {len(files)} partition(s)")
 
         src_stats = {"files": len(files), "rows": 0, "passed": 0, "failed": 0}
 
         for f in files:
-            parts = f.parts
+            parts = str(f).split("/")
             year  = next((p.split("=")[1] for p in parts if p.startswith("year=")), "?")
             month = next((p.split("=")[1] for p in parts if p.startswith("month=")), "?")
 

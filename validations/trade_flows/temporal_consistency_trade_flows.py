@@ -38,11 +38,14 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from _vault_root import VAULT_ROOT, vault_glob_paths as vault_glob, vault_read_parquet  # noqa: E402
+
 # =============================================================================
 # CONFIGURATION
 # =============================================================================
 
-VAULT_DIR    = Path("lekwankwa-historical-vault")
+VAULT_DIR    = VAULT_ROOT
 PRODUCT      = "trade_flows"
 COUNTRY      = "USA"
 SOURCE       = "census_ft900"
@@ -75,13 +78,11 @@ def _result(status, check, message, details=None):
 
 
 def _all_partitions():
-    return sorted(
-        (VAULT_DIR / f"product={PRODUCT}" / f"country={COUNTRY}" / f"source={SOURCE}")
-        .glob("year=*/month=*/*.parquet")
-    )
+    path = f"{VAULT_DIR}/product={PRODUCT}/country={COUNTRY}/source={SOURCE}"
+    return sorted(vault_glob(path, "*.parquet"))
 
 
-def _partition_ym(path: Path):
+def _partition_ym(path):
     return (
         int(path.parent.parent.name.split("=")[1]),
         int(path.parent.name.split("=")[1]),
@@ -91,7 +92,7 @@ def _partition_ym(path: Path):
 def _load_sample(n: int) -> pd.DataFrame:
     files = _all_partitions()
     step  = max(1, len(files) // n)
-    dfs   = [pd.read_parquet(f) for f in files[::step][:n]]
+    dfs   = [vault_read_parquet(f) for f in files[::step][:n]]
     return pd.concat(dfs, ignore_index=True) if dfs else pd.DataFrame()
 
 
@@ -102,7 +103,7 @@ def _load_dense(years) -> pd.DataFrame:
     ]
     if not files:
         return pd.DataFrame()
-    return pd.concat([pd.read_parquet(f) for f in files], ignore_index=True)
+    return pd.concat([vault_read_parquet(f) for f in files], ignore_index=True)
 
 
 # =============================================================================
@@ -147,7 +148,7 @@ def chk_partition_path_alignment(files, n_sample: int = 60):
     sampled = files[::max(1, len(files) // n_sample)][:n_sample]
     for f in sampled:
         p_year, p_month = _partition_ym(f)
-        df_p = pd.read_parquet(f, columns=["data_timestamp"])
+        df_p = vault_read_parquet(f, columns=["data_timestamp"])
         if df_p.empty:
             continue
         ts = pd.to_datetime(df_p["data_timestamp"].iloc[0], utc=True)
@@ -204,7 +205,7 @@ def chk_hs_code_stability(files):
             year_files[y] = f
     for year, f in sorted(year_files.items()):
         try:
-            df_y = pd.read_parquet(f, columns=["commodity_code"])
+            df_y = vault_read_parquet(f, columns=["commodity_code"])
             year_codes[year] = set(df_y["commodity_code"].dropna().unique())
         except Exception:
             pass

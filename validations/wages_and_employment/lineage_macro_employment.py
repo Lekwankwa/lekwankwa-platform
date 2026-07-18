@@ -28,11 +28,15 @@ Date: 2026-06-07
 """
 
 import json
+import sys
 import pandas as pd
 import numpy as np
 from pathlib import Path
 from datetime import datetime
 import logging
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from _vault_root import VAULT_ROOT, vault_glob_paths as vault_glob, vault_read_parquet  # noqa: E402
 
 logging.basicConfig(
     level=logging.INFO,
@@ -48,7 +52,7 @@ logger = logging.getLogger(__name__)
 # CONFIGURATION
 # =============================================================================
 
-VAULT_DIR    = Path("lekwankwa-historical-vault")
+VAULT_DIR    = VAULT_ROOT
 PRODUCT      = "wages_and_employment"
 COUNTRY      = "USA"
 SOURCES      = ["bls_ces", "bls_cps"]
@@ -101,22 +105,22 @@ def _log_result(r):
 
 
 def load_sample(source: str) -> pd.DataFrame:
-    path  = VAULT_DIR / f"product={PRODUCT}" / f"country={COUNTRY}" / f"source={source}"
-    files = [f for f in path.rglob("*.parquet")
+    path  = f"{VAULT_DIR}/product={PRODUCT}/country={COUNTRY}/source={source}"
+    files = [f for f in vault_glob(path, "*.parquet")
              if "outliers" not in f.name and "changelog" not in f.name]
     step  = max(1, len(files) // SAMPLE_FILES)
     dfs   = []
     for f in files[::step][:SAMPLE_FILES]:
         try:
-            dfs.append(pd.read_parquet(f))
+            dfs.append(vault_read_parquet(f))
         except Exception as e:
             logger.warning(f"  Could not read {f}: {e}")
     return pd.concat(dfs, ignore_index=True) if dfs else pd.DataFrame()
 
 
 def all_data_files(source: str):
-    path = VAULT_DIR / f"product={PRODUCT}" / f"country={COUNTRY}" / f"source={source}"
-    return [f for f in path.rglob("*.parquet")
+    path = f"{VAULT_DIR}/product={PRODUCT}/country={COUNTRY}/source={source}"
+    return [f for f in vault_glob(path, "*.parquet")
             if "outliers" not in f.name and "changelog" not in f.name]
 
 
@@ -249,7 +253,7 @@ def chk_partition_integrity(source):
     empty = []
     for f in files:
         try:
-            pf = pd.read_parquet(f)
+            pf = vault_read_parquet(f)
             if len(pf) == 0:
                 empty.append(str(f))
         except Exception as e:

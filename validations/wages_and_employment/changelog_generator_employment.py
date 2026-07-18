@@ -11,12 +11,16 @@ Author: Lekwankwa Corporation
 Date: 2026-06-07
 """
 
+import sys
 import pandas as pd
 from pathlib import Path
 from datetime import datetime
 from typing import List, Dict, Any
 import hashlib
 import logging
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from _vault_root import VAULT_ROOT, vault_exists, vault_glob_paths as vault_glob, vault_subdirs, vault_read_parquet  # noqa: E402
 
 logging.basicConfig(
     level=logging.INFO,
@@ -32,7 +36,7 @@ logger = logging.getLogger(__name__)
 # CONFIGURATION
 # =============================================================================
 
-VAULT_DIR = Path("lekwankwa-historical-vault")
+VAULT_DIR = VAULT_ROOT
 PRODUCT = "wages_and_employment"
 COUNTRY = "USA"
 SOURCES = ["bls_ces", "bls_jolts"]
@@ -106,11 +110,11 @@ def log_quality_metrics(df: pd.DataFrame, year: int, source: str) -> Dict[str, A
     null_count = int(numeric_vals.isna().sum())
     complete_pct = round((1 - null_count / max(len(df), 1)) * 100, 2)
 
-    outlier_file = VAULT_DIR / f"product={PRODUCT}" / f"country={COUNTRY}" / f"source={source}" / f"year={year}" / "outliers.parquet"
+    outlier_file = f"{VAULT_DIR}/product={PRODUCT}/country={COUNTRY}/source={source}/year={year}/outliers.parquet"
     outlier_count = 0
-    if outlier_file.exists():
+    if vault_exists(outlier_file):
         try:
-            outlier_count = len(pd.read_parquet(outlier_file))
+            outlier_count = len(vault_read_parquet(outlier_file))
         except Exception:
             pass
 
@@ -156,18 +160,17 @@ def log_pit_status(df: pd.DataFrame, year: int, source: str) -> Dict[str, Any]:
 # YEAR-LEVEL CHANGELOG GENERATION
 # =============================================================================
 
-def generate_changelog_for_year(source: str, year_folder: Path, year: int):
+def generate_changelog_for_year(source: str, year_folder, year: int):
     """Load all month data for a year and generate year-level changelog."""
-    month_folders = sorted([d for d in year_folder.iterdir()
-                            if d.is_dir() and d.name.startswith("month=")])
+    month_folders = vault_subdirs(str(year_folder), "month=")
 
     dfs = []
     for mf in month_folders:
-        data_files = [f for f in mf.glob("*.parquet")
+        data_files = [f for f in vault_glob(str(mf), "*.parquet")
                       if "outliers" not in f.name and "changelog" not in f.name]
         for f in data_files:
             try:
-                dfs.append(pd.read_parquet(f))
+                dfs.append(vault_read_parquet(f))
             except Exception as e:
                 logger.warning(f"Could not read {f}: {e}")
 
@@ -221,13 +224,12 @@ def run_changelog_generation():
     total_years = 0
 
     for source in SOURCES:
-        source_path = VAULT_DIR / f"product={PRODUCT}" / f"country={COUNTRY}" / f"source={source}"
-        if not source_path.exists():
+        source_path = f"{VAULT_DIR}/product={PRODUCT}/country={COUNTRY}/source={source}"
+        if not vault_exists(source_path):
             logger.error(f"Path not found: {source_path}")
             continue
 
-        year_folders = sorted([d for d in source_path.iterdir()
-                               if d.is_dir() and d.name.startswith("year=")])
+        year_folders = vault_subdirs(source_path, "year=")
         logger.info(f"\nSource: {source} | Years: {len(year_folders)}")
 
         for year_folder in year_folders:

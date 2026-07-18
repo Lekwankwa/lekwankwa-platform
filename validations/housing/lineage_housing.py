@@ -41,12 +41,15 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from _vault_root import VAULT_ROOT, vault_glob_paths as vault_glob, vault_read_parquet  # noqa: E402
+
 # =============================================================================
 # CONFIGURATION
 # =============================================================================
 
-VAULT_DIR  = Path("lekwankwa-historical-vault")
-PRODUCT    = "housing"
+VAULT_DIR  = VAULT_ROOT
+PRODUCT    = "Housing_Supply_and_Shelter_Inflation"
 COUNTRY    = "USA"
 SOURCES    = ["bls_cpi_shelter", "census_bps"]
 
@@ -72,12 +75,12 @@ EXPECTED_FILES = {
 # =============================================================================
 
 def _load_source(source: str) -> tuple[pd.DataFrame, list[Path]]:
-    src_path = VAULT_DIR / f"product={PRODUCT}" / f"country={COUNTRY}" / f"source={source}"
-    files = sorted(src_path.rglob("*.parquet"))
+    src_path = f"{VAULT_DIR}/product={PRODUCT}/country={COUNTRY}/source={source}"
+    files = sorted(vault_glob(src_path, "*.parquet"))
     dfs = []
     for f in files:
         try:
-            df = pd.read_parquet(f)
+            df = vault_read_parquet(f)
             df["__file__"] = str(f)
             dfs.append(df)
         except Exception as exc:
@@ -142,7 +145,7 @@ def check_partition_integrity(source: str, files: list[Path]) -> dict:
     """Each file should sit under year=YYYY/month=MM and contain data for that period."""
     mismatches = []
     for f in files:
-        parts = f.parts
+        parts = str(f).split("/")
         try:
             year_part  = next(p for p in parts if p.startswith("year="))
             month_part = next(p for p in parts if p.startswith("month="))
@@ -152,7 +155,7 @@ def check_partition_integrity(source: str, files: list[Path]) -> dict:
             continue   # non-partitioned file — skip
 
         try:
-            df_part = pd.read_parquet(f, columns=["data_timestamp"])
+            df_part = vault_read_parquet(f, columns=["data_timestamp"])
         except Exception:
             continue
 
@@ -221,7 +224,7 @@ def check_cross_source_isolation(files_by_source: dict) -> dict:
     for source, files in files_by_source.items():
         for f in files[:20]:   # sample to keep run time short
             try:
-                df = pd.read_parquet(f, columns=["source"])
+                df = vault_read_parquet(f, columns=["source"])
                 wrong = df[df["source"] != source]
                 if not wrong.empty:
                     violations.append(

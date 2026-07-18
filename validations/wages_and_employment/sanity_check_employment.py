@@ -16,6 +16,7 @@ Author: Lekwankwa Corporation
 Date: 2026-06-07
 """
 
+import sys
 import pandas as pd
 import json
 from pathlib import Path
@@ -32,11 +33,14 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from _vault_root import VAULT_ROOT, vault_exists, vault_glob_paths as vault_glob, vault_subdirs, vault_read_parquet  # noqa: E402
+
 # =============================================================================
 # CONFIGURATION
 # =============================================================================
 
-VAULT_DIR = Path("lekwankwa-historical-vault")
+VAULT_DIR = VAULT_ROOT
 PRODUCT = "wages_and_employment"
 COUNTRY = "USA"
 SOURCES = ["bls_ces", "bls_cps"]
@@ -71,7 +75,7 @@ def validate_partition(parquet_file: Path, source: str, year: str, month: str) -
     }
 
     try:
-        df = pd.read_parquet(parquet_file)
+        df = vault_read_parquet(parquet_file)
         result["row_count"] = len(df)
 
         # CHECK 1: Empty payload
@@ -157,22 +161,22 @@ def run_sanity_check():
     total_records = 0
 
     for source in SOURCES:
-        source_path = VAULT_DIR / f"product={PRODUCT}" / f"country={COUNTRY}" / f"source={source}"
+        source_path = f"{VAULT_DIR}/product={PRODUCT}/country={COUNTRY}/source={source}"
 
-        if not source_path.exists():
+        if not vault_exists(source_path):
             logger.error(f"Source path not found: {source_path}")
             continue
 
-        year_folders = sorted([d for d in source_path.iterdir() if d.is_dir() and d.name.startswith("year=")])
+        year_folders = vault_subdirs(source_path, "year=")
         logger.info(f"\nSource: {source} | Years: {len(year_folders)}")
 
         for year_folder in year_folders:
             year = year_folder.name.split("=")[1]
-            month_folders = sorted([d for d in year_folder.iterdir() if d.is_dir() and d.name.startswith("month=")])
+            month_folders = vault_subdirs(str(year_folder), "month=")
 
             for month_folder in month_folders:
                 month = month_folder.name.split("=")[1]
-                parquet_files = list(month_folder.glob("*.parquet"))
+                parquet_files = list(vault_glob(str(month_folder), "*.parquet"))
                 parquet_files = [f for f in parquet_files if "outliers" not in f.name and "changelog" not in f.name]
 
                 for pf in parquet_files:

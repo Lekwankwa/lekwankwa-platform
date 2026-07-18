@@ -22,9 +22,10 @@ from bitemporal_core import (  # noqa: E402
     check_supersession_integrity,
     write_report,
 )
+from _vault_root import VAULT_ROOT, vault_glob_since as vault_glob, vault_read_parquet  # noqa: E402
 
 # ── Config ────────────────────────────────────────────────────────────────────
-VAULT_BASE   = Path("lekwankwa-historical-vault")
+VAULT_BASE   = VAULT_ROOT
 PRODUCT      = "Housing_Supply_and_Shelter_Inflation"
 COUNTRY      = "USA"
 SOURCES      = ["bls_cpi_shelter", "census_bps"]
@@ -56,12 +57,11 @@ logger = logging.getLogger(__name__)
 def _load() -> pd.DataFrame:
     dfs = []
     for src in SOURCES:
-        src_path = (VAULT_BASE / f"product={PRODUCT}" / f"country={COUNTRY}"
-                    / f"source={src}")
-        files = sorted(src_path.rglob("*_data.parquet"))  # Only _data.parquet files
+        src_path = f"{VAULT_BASE}/product={PRODUCT}/country={COUNTRY}/source={src}"
+        files = sorted(vault_glob(src_path, "*_data.parquet"))  # Only _data.parquet files
         for f in files:
             try:
-                df = pd.read_parquet(f)
+                df = vault_read_parquet(f)
                 df["__source__"] = src
                 dfs.append(df)
             except Exception as exc:

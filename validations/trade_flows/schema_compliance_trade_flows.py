@@ -38,11 +38,14 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from _vault_root import VAULT_ROOT, vault_glob_paths as vault_glob, vault_read_parquet  # noqa: E402
+
 # =============================================================================
 # CONFIGURATION
 # =============================================================================
 
-VAULT_DIR = Path("lekwankwa-historical-vault")
+VAULT_DIR = VAULT_ROOT
 PRODUCT   = "trade_flows"
 COUNTRY   = "USA"
 SOURCES   = ["census_ft900"]
@@ -73,9 +76,9 @@ CENSUS_PORTAL             = "https://www.census.gov/foreign-trade/"
 
 def load_sample(source: str, max_files: int = 60) -> pd.DataFrame:
     """Load a representative sample (avoid loading all ~85K records)."""
-    source_path = VAULT_DIR / f"product={PRODUCT}" / f"country={COUNTRY}" / f"source={source}"
+    source_path = f"{VAULT_DIR}/product={PRODUCT}/country={COUNTRY}/source={source}"
     all_files   = [
-        f for f in source_path.rglob("*.parquet")
+        f for f in vault_glob(source_path, "*.parquet")
         if "outliers" not in f.name and "changelog" not in f.name
     ]
     step    = max(1, len(all_files) // max_files)
@@ -84,7 +87,7 @@ def load_sample(source: str, max_files: int = 60) -> pd.DataFrame:
     dfs = []
     for f in sampled:
         try:
-            dfs.append(pd.read_parquet(f))
+            dfs.append(vault_read_parquet(f))
         except Exception as exc:
             logger.warning(f"Could not read {f}: {exc}")
 

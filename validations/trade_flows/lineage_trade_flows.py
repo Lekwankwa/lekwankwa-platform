@@ -42,11 +42,14 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from _vault_root import VAULT_ROOT, vault_glob_paths as vault_glob, vault_read_parquet  # noqa: E402
+
 # =============================================================================
 # CONFIGURATION
 # =============================================================================
 
-VAULT_DIR    = Path("lekwankwa-historical-vault")
+VAULT_DIR    = VAULT_ROOT
 PRODUCT      = "trade_flows"
 COUNTRY      = "USA"
 SOURCE       = "census_ft900"
@@ -91,22 +94,22 @@ def _log(r):
 
 
 def _load_sample(n: int) -> pd.DataFrame:
-    base  = VAULT_DIR / f"product={PRODUCT}" / f"country={COUNTRY}" / f"source={SOURCE}"
-    files = [f for f in base.rglob("*.parquet")
+    base  = f"{VAULT_DIR}/product={PRODUCT}/country={COUNTRY}/source={SOURCE}"
+    files = [f for f in vault_glob(base, "*.parquet")
              if "outliers" not in f.name and "changelog" not in f.name]
     step  = max(1, len(files) // n)
     dfs   = []
     for f in files[::step][:n]:
         try:
-            dfs.append(pd.read_parquet(f))
+            dfs.append(vault_read_parquet(f))
         except Exception as exc:
             logger.warning(f"  Skipping {f}: {exc}")
     return pd.concat(dfs, ignore_index=True) if dfs else pd.DataFrame()
 
 
 def _all_partitions():
-    base = VAULT_DIR / f"product={PRODUCT}" / f"country={COUNTRY}" / f"source={SOURCE}"
-    return [f for f in base.rglob("*.parquet")
+    base = f"{VAULT_DIR}/product={PRODUCT}/country={COUNTRY}/source={SOURCE}"
+    return [f for f in vault_glob(base, "*.parquet")
             if "outliers" not in f.name and "changelog" not in f.name]
 
 
@@ -235,7 +238,7 @@ def chk_partition_integrity(files):
     empty = []
     for f in files:
         try:
-            if pd.read_parquet(f).empty:
+            if vault_read_parquet(f).empty:
                 empty.append(str(f))
         except Exception as exc:
             empty.append(f"{f} (read error: {exc})")

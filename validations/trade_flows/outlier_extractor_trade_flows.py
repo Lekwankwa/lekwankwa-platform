@@ -41,11 +41,14 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from _vault_root import VAULT_ROOT, IS_GCS, vault_glob_paths as vault_glob, vault_read_parquet  # noqa: E402
+
 # =============================================================================
 # CONFIGURATION
 # =============================================================================
 
-VAULT_DIR    = Path("lekwankwa-historical-vault")
+VAULT_DIR    = VAULT_ROOT
 PRODUCT      = "trade_flows"
 COUNTRY      = "USA"
 SOURCE       = "census_ft900"
@@ -84,13 +87,13 @@ KNOWN_EVENTS = {
 
 def _load_source_df() -> pd.DataFrame:
     """Load the COMPLETE vault history for the source (required for accurate MoM statistics)."""
-    base  = VAULT_DIR / f"product={PRODUCT}" / f"country={COUNTRY}" / f"source={SOURCE}"
-    files = [f for f in base.rglob("*.parquet")
+    base  = f"{VAULT_DIR}/product={PRODUCT}/country={COUNTRY}/source={SOURCE}"
+    files = [f for f in vault_glob(base, "*.parquet")
              if "outliers" not in f.name and "changelog" not in f.name]
     dfs   = []
     for f in files:
         try:
-            dfs.append(pd.read_parquet(f))
+            dfs.append(vault_read_parquet(f))
         except Exception as exc:
             logger.warning(f"  Skipping {f}: {exc}")
     if not dfs:
@@ -223,9 +226,10 @@ def write_outliers_for_year(year: int, outlier_list: List[Dict]) -> None:
     # Group outliers by month and write to month partitions
     df_out['_month'] = pd.to_datetime(df_out['data_timestamp']).dt.month
     for month, group in df_out.groupby('_month'):
-        path = (VAULT_DIR / f"product={PRODUCT}" / f"country={COUNTRY}"
-                / f"source={SOURCE}" / f"year={year}" / f"month={month:02d}" / "outliers.parquet")
-        path.parent.mkdir(parents=True, exist_ok=True)
+        path = (f"{VAULT_DIR}/product={PRODUCT}/country={COUNTRY}"
+                f"/source={SOURCE}/year={year}/month={month:02d}/outliers.parquet")
+        if not IS_GCS:
+            Path(path).parent.mkdir(parents=True, exist_ok=True)
         group[OUTLIER_COLUMNS].to_parquet(path, engine="pyarrow", index=False)
     logger.info(f"  year={year}: {len(df_out)} outliers written to month partitions")
 

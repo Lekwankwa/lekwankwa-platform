@@ -20,6 +20,7 @@ Author: Lekwankwa Corporation
 Date: 2026-06-13
 """
 
+import sys
 import pandas as pd
 import numpy as np
 from pathlib import Path
@@ -38,11 +39,14 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from _vault_root import VAULT_ROOT, IS_GCS, vault_exists, vault_glob_paths as vault_glob, vault_subdirs, vault_read_parquet  # noqa: E402
+
 # ══════════════════════════════════════════════════════════════════════════════
 #  CONFIGURATION
 # ══════════════════════════════════════════════════════════════════════════════
 
-VAULT_DIR = Path("lekwankwa-historical-vault")
+VAULT_DIR = VAULT_ROOT
 PRODUCT   = "Housing_Supply_and_Shelter_Inflation"
 COUNTRY   = "USA"
 SOURCES   = ["bls_cpi_shelter", "census_bps"]
@@ -257,9 +261,9 @@ def _load_source_df(vault_path: Path, source: str) -> pd.DataFrame:
     # nothing. Ancillary sidecars (outliers.parquet, changelog.parquet) don't
     # end in _data.parquet and are naturally excluded.
     dfs = []
-    for parquet_file in sorted(vault_path.rglob("*_data.parquet")):
+    for parquet_file in sorted(vault_glob(vault_path, "*_data.parquet")):
         try:
-            dfs.append(pd.read_parquet(parquet_file))
+            dfs.append(vault_read_parquet(parquet_file))
         except Exception as e:
             logger.warning(f"Could not read {parquet_file}: {e}")
 
@@ -311,10 +315,7 @@ def extract_outliers_for_source(vault_path: Path, source: str) -> Dict[int, pd.D
         outliers_df["_year"] = pd.Series(dtype=int)
 
     # Gather the set of actual years with data in the vault
-    year_folders = [
-        d for d in vault_path.iterdir()
-        if d.is_dir() and d.name.startswith("year=")
-    ]
+    year_folders = vault_subdirs(vault_path, "year=")
 
     year_map: Dict[int, pd.DataFrame] = {}
     for yf in year_folders:
@@ -343,9 +344,9 @@ def run_outlier_extraction():
     any_success    = False
 
     for source in SOURCES:
-        vault_path = VAULT_DIR / f"product={PRODUCT}" / f"country={COUNTRY}" / f"source={source}"
+        vault_path = f"{VAULT_DIR}/product={PRODUCT}/country={COUNTRY}/source={source}"
 
-        if not vault_path.exists():
+        if not vault_exists(vault_path):
             logger.warning(f"Vault path not found for source '{source}': {vault_path}")
             continue
 
@@ -362,19 +363,21 @@ def run_outlier_extraction():
 
         source_outliers = 0
         for year, outliers_df in sorted(year_map.items()):
-            year_folder   = vault_path / f"year={year}"
+            year_folder   = f"{vault_path}/year={year}"
             # Group by month and write to month partitions
             if not outliers_df.empty:
                 outliers_df['_month'] = pd.to_datetime(outliers_df['data_timestamp']).dt.month
                 for month, group in outliers_df.groupby('_month'):
-                    outliers_file = year_folder / f"month={month:02d}" / "outliers.parquet"
-                    outliers_file.parent.mkdir(parents=True, exist_ok=True)
+                    outliers_file = f"{year_folder}/month={month:02d}/outliers.parquet"
+                    if not IS_GCS:
+                        Path(outliers_file).parent.mkdir(parents=True, exist_ok=True)
                     group.drop(columns=['_month']).to_parquet(
                         outliers_file, engine="pyarrow", compression="snappy", index=False
                     )
             else:
-                outliers_file = year_folder / "month=01" / "outliers.parquet"
-                outliers_file.parent.mkdir(parents=True, exist_ok=True)
+                outliers_file = f"{year_folder}/month=01/outliers.parquet"
+                if not IS_GCS:
+                    Path(outliers_file).parent.mkdir(parents=True, exist_ok=True)
                 outliers_df.to_parquet(
                     outliers_file, engine="pyarrow", compression="snappy", index=False
                 )

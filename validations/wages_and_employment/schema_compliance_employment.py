@@ -43,6 +43,9 @@ from typing import Dict, List, Tuple
 import logging
 import sys
 
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from _vault_root import VAULT_ROOT, vault_glob_paths as vault_glob, vault_read_parquet  # noqa: E402
+
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
@@ -57,7 +60,7 @@ logger = logging.getLogger(__name__)
 # CONFIGURATION
 # =============================================================================
 
-VAULT_DIR = Path("lekwankwa-historical-vault")
+VAULT_DIR = VAULT_ROOT
 PRODUCT = "wages_and_employment"
 COUNTRY = "USA"
 SOURCES = ["bls_ces", "bls_cps"]
@@ -112,8 +115,8 @@ VALID_EXTRACTION_METHODS = {'api', 'scraper', 'manual'}
 
 def load_sample(source: str, max_files: int = 50) -> pd.DataFrame:
     """Load a representative sample for schema validation (avoid loading 760K rows)."""
-    source_path = VAULT_DIR / f"product={PRODUCT}" / f"country={COUNTRY}" / f"source={source}"
-    all_files = [f for f in source_path.rglob("*.parquet")
+    source_path = f"{VAULT_DIR}/product={PRODUCT}/country={COUNTRY}/source={source}"
+    all_files = [f for f in vault_glob(source_path, "*.parquet")
                  if "outliers" not in f.name and "changelog" not in f.name]
 
     # Sample evenly across years
@@ -123,7 +126,7 @@ def load_sample(source: str, max_files: int = 50) -> pd.DataFrame:
     dfs = []
     for f in sampled:
         try:
-            dfs.append(pd.read_parquet(f))
+            dfs.append(vault_read_parquet(f))
         except Exception as e:
             logger.warning(f"Could not read {f}: {e}")
 

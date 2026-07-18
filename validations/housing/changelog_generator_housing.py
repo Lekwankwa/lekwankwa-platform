@@ -26,6 +26,7 @@ Author: Lekwankwa Corporation
 Date: 2026-06-13
 """
 
+import sys
 import pandas as pd
 from pathlib import Path
 from datetime import datetime
@@ -44,11 +45,14 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from _vault_root import VAULT_ROOT, IS_GCS, vault_exists, vault_glob_paths as vault_glob, vault_subdirs, vault_read_parquet  # noqa: E402
+
 # ══════════════════════════════════════════════════════════════════════════════
 #  CONFIGURATION
 # ══════════════════════════════════════════════════════════════════════════════
 
-VAULT_DIR = Path("lekwankwa-historical-vault")
+VAULT_DIR = VAULT_ROOT
 PRODUCT   = "Housing_Supply_and_Shelter_Inflation"
 COUNTRY   = "USA"
 SOURCES   = ["bls_cpi_shelter", "census_bps"]
@@ -253,14 +257,12 @@ def detect_schema_evolution(df: pd.DataFrame, year: int, previous_schema: Dict) 
 #  MAIN CHANGELOG GENERATION PIPELINE
 # ══════════════════════════════════════════════════════════════════════════════
 
-def generate_changelog_for_year(year_folder: Path, year: int, source: str, previous_schema: Dict = None) -> Dict:
+def generate_changelog_for_year(year_folder, year: int, source: str, previous_schema: Dict = None) -> Dict:
     """
     Generate changelog.parquet for a year.
     Always creates the file (minimum 1 entry).
     """
-    month_folders = sorted(
-        [d for d in year_folder.iterdir() if d.is_dir() and d.name.startswith("month=")]
-    )
+    month_folders = vault_subdirs(str(year_folder), "month=")
 
     if not month_folders:
         logger.warning(f"No month folders found in {year_folder.name}")
@@ -273,10 +275,10 @@ def generate_changelog_for_year(year_folder: Path, year: int, source: str, previ
             # convention. USA housing filenames vary (housing_hicp_rent_data.parquet,
             # permits_eu27_data.parquet) and never matched the old hardcoded
             # bls/census names; ancillary sidecars don't end in _data.parquet.
-            data_files = sorted(month_folder.glob("*_data.parquet"))
+            data_files = sorted(vault_glob(str(month_folder), "*_data.parquet"))
             if data_files:
                 for pf in data_files:
-                    all_dfs.append(pd.read_parquet(pf))
+                    all_dfs.append(vault_read_parquet(pf))
             else:
                 logger.warning(f"No *_data.parquet in {month_folder.name}")
 
@@ -289,9 +291,9 @@ def generate_changelog_for_year(year_folder: Path, year: int, source: str, previ
 
         # Load outliers count
         outliers_count = 0
-        outliers_file = year_folder / "outliers.parquet"
-        if outliers_file.exists():
-            outliers_count = len(pd.read_parquet(outliers_file))
+        outliers_file = f"{year_folder}/outliers.parquet"
+        if vault_exists(outliers_file):
+            outliers_count = len(vault_read_parquet(outliers_file))
 
         # Generate changelog entries
         changelog_entries = [
@@ -309,7 +311,9 @@ def generate_changelog_for_year(year_folder: Path, year: int, source: str, previ
             if col not in changelog_df.columns:
                 changelog_df[col] = None
 
-        changelog_file = year_folder / "changelog.parquet"
+        changelog_file = f"{year_folder}/changelog.parquet"
+        if not IS_GCS:
+            Path(changelog_file).parent.mkdir(parents=True, exist_ok=True)
         changelog_df.to_parquet(
             changelog_file, engine='pyarrow', compression='snappy', index=False
         )
@@ -342,15 +346,13 @@ def run_changelog_generation():
     overall_year_count = 0
 
     for source in SOURCES:
-        vault_path = VAULT_DIR / f"product={PRODUCT}" / f"country={COUNTRY}" / f"source={source}"
+        vault_path = f"{VAULT_DIR}/product={PRODUCT}/country={COUNTRY}/source={source}"
 
-        if not vault_path.exists():
+        if not vault_exists(vault_path):
             logger.warning(f"Vault path not found for source '{source}': {vault_path}")
             continue
 
-        year_folders = sorted(
-            [d for d in vault_path.iterdir() if d.is_dir() and d.name.startswith("year=")]
-        )
+        year_folders = vault_subdirs(vault_path, "year=")
 
         if not year_folders:
             logger.warning(f"No year folders found in {vault_path}")

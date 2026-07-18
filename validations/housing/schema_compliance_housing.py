@@ -55,11 +55,14 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from _vault_root import VAULT_ROOT, vault_glob_paths as vault_glob, vault_read_parquet  # noqa: E402
+
 # =============================================================================
 # CONFIGURATION
 # =============================================================================
 
-VAULT_DIR = Path("lekwankwa-historical-vault")
+VAULT_DIR = VAULT_ROOT
 PRODUCT   = "Housing_Supply_and_Shelter_Inflation"
 COUNTRY   = "USA"
 SOURCES   = ["bls_cpi_shelter", "census_bps"]
@@ -100,14 +103,14 @@ VINTAGE_PERMITS_PATTERN = re.compile(r"^CENSUS-(?:PERMIT|BPS)-[A-Z0-9_]+-\d{4}-\
 # =============================================================================
 
 def load_sample(source: str, max_files: int = 60) -> pd.DataFrame:
-    source_path = VAULT_DIR / f"product={PRODUCT}" / f"country={COUNTRY}" / f"source={source}"
-    all_files   = sorted(source_path.rglob("*_data.parquet"))
+    source_path = f"{VAULT_DIR}/product={PRODUCT}/country={COUNTRY}/source={source}"
+    all_files   = sorted(vault_glob(source_path, "*_data.parquet"))
     step        = max(1, len(all_files) // max_files)
     sampled     = all_files[::step][:max_files]
     dfs = []
     for f in sampled:
         try:
-            dfs.append(pd.read_parquet(f))
+            dfs.append(vault_read_parquet(f))
         except Exception as exc:
             logger.warning(f"  Cannot read {f}: {exc}")
     if not dfs:

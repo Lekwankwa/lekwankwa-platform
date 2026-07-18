@@ -32,11 +32,15 @@ Date: 2026-06-07
 
 import re
 import json
+import sys
 import pandas as pd
 import numpy as np
 from pathlib import Path
 from datetime import datetime
 import logging
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from _vault_root import VAULT_ROOT, vault_exists, vault_glob_paths as vault_glob, vault_read_parquet  # noqa: E402
 
 logging.basicConfig(
     level=logging.INFO,
@@ -52,7 +56,7 @@ logger = logging.getLogger(__name__)
 # CONFIGURATION
 # =============================================================================
 
-VAULT_DIR = Path("lekwankwa-historical-vault")
+VAULT_DIR = VAULT_ROOT
 PRODUCT   = "wages_and_employment"
 COUNTRY   = "USA"
 SOURCES   = ["bls_ces", "bls_cps"]
@@ -100,19 +104,19 @@ def _result(status, check, message, details=None):
 
 
 def _load_sample(source, n_files):
-    pattern = VAULT_DIR / f"product={PRODUCT}" / f"country={COUNTRY}" / f"source={source}" / "year=*" / "month=*" / "*.parquet"
-    files   = sorted(Path(".").glob(str(pattern)))
+    path    = f"{VAULT_DIR}/product={PRODUCT}/country={COUNTRY}/source={source}"
+    files   = sorted(vault_glob(path, "*.parquet"))
     step    = max(1, len(files) // n_files)
     sampled = files[::step][:n_files]
     if not sampled:
         return pd.DataFrame()
-    return pd.concat([pd.read_parquet(f) for f in sampled], ignore_index=True)
+    return pd.concat([vault_read_parquet(f) for f in sampled], ignore_index=True)
 
 
 def _get_ym_set(product, source, file_glob):
-    pattern = VAULT_DIR / f"product={product}" / f"country={COUNTRY}" / f"source={source}" / "year=*" / "month=*" / file_glob
+    path = f"{VAULT_DIR}/product={product}/country={COUNTRY}/source={source}"
     yms = set()
-    for f in Path(".").glob(str(pattern)):
+    for f in vault_glob(path, file_glob):
         year  = int(f.parent.parent.name.split("=")[1])
         month = int(f.parent.name.split("=")[1])
         yms.add((year, month))
@@ -270,14 +274,13 @@ def chk_pit_fields_consistency(ces_df, cps_df):
 
 def chk_country_alignment_with_food(ces_df):
     """Spot-check employment country_code matches food country_code."""
-    food_files = sorted(Path(".").glob(str(
-        VAULT_DIR / "product=food_micropricing" / f"country={COUNTRY}"
-        / f"source={FOOD_BLS_SRC}" / "year=2020" / "month=01" / "base_data.parquet"
-    )))
+    food_path = (f"{VAULT_DIR}/product=food_micropricing/country={COUNTRY}"
+                 f"/source={FOOD_BLS_SRC}/year=2020/month=01/base_data.parquet")
+    food_files = [food_path] if vault_exists(food_path) else []
     if not food_files:
         return _result("SKIP", "Country Code Alignment w/ Food",
                        "Food vault not found — skipping cross-dataset check")
-    food_df  = pd.read_parquet(food_files[0])
+    food_df  = vault_read_parquet(food_files[0])
     emp_cc   = set(ces_df["country_code"].dropna().unique())
     food_cc  = set(food_df["country_code"].dropna().unique()) if "country_code" in food_df.columns else set()
     if not (emp_cc <= {"US", "USA"}) or not (food_cc <= {"US", "USA"}):
@@ -290,12 +293,11 @@ def chk_country_alignment_with_food(ces_df):
 def chk_employment_series_isolation_from_food():
     """Verify no CES or CPS series IDs appear in food_micropricing data."""
     food_series = set()
-    food_files = sorted(Path(".").glob(str(
-        VAULT_DIR / "product=food_micropricing" / f"country={COUNTRY}"
-        / f"source={FOOD_BLS_SRC}" / "year=2020" / "month=01" / "base_data.parquet"
-    )))
+    food_path = (f"{VAULT_DIR}/product=food_micropricing/country={COUNTRY}"
+                 f"/source={FOOD_BLS_SRC}/year=2020/month=01/base_data.parquet")
+    food_files = [food_path] if vault_exists(food_path) else []
     for f in food_files[:2]:
-        df = pd.read_parquet(f)
+        df = vault_read_parquet(f)
         col = "sovereign_series_id" if "sovereign_series_id" in df.columns else "source_series_id"
         if col in df.columns:
             food_series.update(df[col].dropna().unique())
@@ -321,23 +323,21 @@ def chk_source_vocabulary_isolation():
     issues = []
 
     # Check food BLS
-    food_files = sorted(Path(".").glob(str(
-        VAULT_DIR / "product=food_micropricing" / f"country={COUNTRY}"
-        / f"source={FOOD_BLS_SRC}" / "year=2020" / "month=01" / "base_data.parquet"
-    )))
+    food_path = (f"{VAULT_DIR}/product=food_micropricing/country={COUNTRY}"
+                 f"/source={FOOD_BLS_SRC}/year=2020/month=01/base_data.parquet")
+    food_files = [food_path] if vault_exists(food_path) else []
     if food_files:
-        df = pd.read_parquet(food_files[0])
+        df = vault_read_parquet(food_files[0])
         bad = set(df.get("source", pd.Series()).dropna().unique()) & {"bls_ces", "bls_cps", "eia"}
         if bad:
             issues.append(f"Food contains employment/electricity source values: {bad}")
 
     # Check electricity
-    elec_files = sorted(Path(".").glob(str(
-        VAULT_DIR / "product=electricity" / f"country={COUNTRY}"
-        / f"source={ELEC_SRC}" / "year=2020" / "month=01" / "generation_data.parquet"
-    )))
+    elec_path = (f"{VAULT_DIR}/product=electricity/country={COUNTRY}"
+                 f"/source={ELEC_SRC}/year=2020/month=01/generation_data.parquet")
+    elec_files = [elec_path] if vault_exists(elec_path) else []
     if elec_files:
-        df = pd.read_parquet(elec_files[0])
+        df = vault_read_parquet(elec_files[0])
         bad = set(df.get("source", pd.Series()).dropna().unique()) & {"bls_ces", "bls_cps", "bls", "usda"}
         if bad:
             issues.append(f"Electricity contains employment/food source values: {bad}")

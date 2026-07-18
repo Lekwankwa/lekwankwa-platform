@@ -16,9 +16,10 @@ from bitemporal_core import (  # noqa: E402
     check_bitemporal_uniqueness, check_supersession_integrity,
     write_report,
 )
+from _vault_root import VAULT_ROOT, vault_glob_paths as vault_glob, vault_read_parquet  # noqa: E402
 
 # ── Config ────────────────────────────────────────────────────────────────────
-VAULT_BASE   = Path("lekwankwa-historical-vault")
+VAULT_BASE   = VAULT_ROOT
 PRODUCT      = "trade_flows"
 COUNTRY      = "USA"
 SOURCES      = ["census_ft900"]
@@ -43,12 +44,12 @@ logger = logging.getLogger(__name__)
 def _load():
     dfs = []
     for src in SOURCES:
-        base = VAULT_BASE / f"product={PRODUCT}" / f"country={COUNTRY}" / f"source={src}"
-        files = [f for f in base.rglob("*.parquet")
+        base = f"{VAULT_BASE}/product={PRODUCT}/country={COUNTRY}/source={src}"
+        files = [f for f in vault_glob(base, "*.parquet")
                  if "outliers" not in f.name and "changelog" not in f.name]
         for f in files:
             try:
-                dfs.append(pd.read_parquet(f))
+                dfs.append(vault_read_parquet(f))
             except Exception as exc:
                 logger.warning(f"Skipping {f}: {exc}")
     if not dfs:

@@ -31,11 +31,15 @@ Date: 2026-06-07
 """
 
 import json
+import sys
 import pandas as pd
 import numpy as np
 from pathlib import Path
 from datetime import datetime
 import logging
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from _vault_root import VAULT_ROOT, vault_glob_paths as vault_glob, vault_read_parquet  # noqa: E402
 
 logging.basicConfig(
     level=logging.INFO,
@@ -51,7 +55,7 @@ logger = logging.getLogger(__name__)
 # CONFIGURATION
 # =============================================================================
 
-VAULT_DIR = Path("lekwankwa-historical-vault")
+VAULT_DIR = VAULT_ROOT
 PRODUCT   = "wages_and_employment"
 COUNTRY   = "USA"
 
@@ -95,23 +99,21 @@ _ANCILLARY_NAMES = ("outliers", "changelog", "change_log", "audit")
 
 
 def _all_partitions(source):
+    path = f"{VAULT_DIR}/product={PRODUCT}/country={COUNTRY}/source={source}"
     return sorted(
-        p for p in Path(".").glob(str(
-            VAULT_DIR / f"product={PRODUCT}" / f"country={COUNTRY}"
-            / f"source={source}" / "year=*" / "month=*" / "*.parquet"
-        ))
+        p for p in vault_glob(path, "*.parquet")
         if not any(a in p.name.lower() for a in _ANCILLARY_NAMES)
     )
 
 
-def _partition_ym(path: Path):
+def _partition_ym(path):
     return int(path.parent.parent.name.split("=")[1]), int(path.parent.name.split("=")[1])
 
 
 def _load_sample(source, n):
     files = _all_partitions(source)
     step  = max(1, len(files) // n)
-    return pd.concat([pd.read_parquet(f) for f in files[::step][:n]], ignore_index=True)
+    return pd.concat([vault_read_parquet(f) for f in files[::step][:n]], ignore_index=True)
 
 
 def _get_ym_set(source):
@@ -157,7 +159,7 @@ def chk_ces_partition_path_alignment(files, n_sample=60):
     sampled = files[::max(1, len(files) // n_sample)][:n_sample]
     for f in sampled:
         p_year, p_month = _partition_ym(f)
-        df = pd.read_parquet(f, columns=["data_timestamp"])
+        df = vault_read_parquet(f, columns=["data_timestamp"])
         if df.empty:
             continue
         ts  = pd.to_datetime(df["data_timestamp"], utc=True)
@@ -200,7 +202,7 @@ def chk_ces_anchor_series(all_ces_files):
 
     for f_list, label in [(files_1939, str(CES_START_YEAR)), (files_2024, "2024")]:
         for f in f_list[:2]:
-            df = pd.read_parquet(f, columns=["sovereign_series_id", "data_timestamp"])
+            df = vault_read_parquet(f, columns=["sovereign_series_id", "data_timestamp"])
             if CES_ANCHOR_SERIES in df["sovereign_series_id"].values:
                 anchor_records.append(label)
                 break
@@ -224,7 +226,7 @@ def chk_ces_intra_series_gaps(all_ces_files):
 
     frames = []
     for f in dense:
-        df = pd.read_parquet(f, columns=["sovereign_series_id", "data_timestamp"])
+        df = vault_read_parquet(f, columns=["sovereign_series_id", "data_timestamp"])
         frames.append(df)
     combined = pd.concat(frames, ignore_index=True)
     combined["_dt"] = pd.to_datetime(combined["data_timestamp"], utc=True)
@@ -280,7 +282,7 @@ def chk_cps_partition_path_alignment(files, n_sample=60):
     sampled = files[::max(1, len(files) // n_sample)][:n_sample]
     for f in sampled:
         p_year, p_month = _partition_ym(f)
-        df = pd.read_parquet(f, columns=["data_timestamp"])
+        df = vault_read_parquet(f, columns=["data_timestamp"])
         if df.empty:
             continue
         ts  = pd.to_datetime(df["data_timestamp"], utc=True)
@@ -318,11 +320,11 @@ def chk_cps_intra_series_gaps(all_cps_files):
         sid_col = None
         # support both v1 (source_series_id) and v2 (sovereign_series_id)
         try:
-            sample = pd.read_parquet(f, columns=["sovereign_series_id", "data_timestamp"])
+            sample = vault_read_parquet(f, columns=["sovereign_series_id", "data_timestamp"])
             sid_col = "sovereign_series_id"
         except Exception:
             try:
-                sample = pd.read_parquet(f, columns=["source_series_id", "data_timestamp"])
+                sample = vault_read_parquet(f, columns=["source_series_id", "data_timestamp"])
                 sid_col = "source_series_id"
             except Exception:
                 continue

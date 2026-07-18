@@ -85,6 +85,32 @@ def vault_glob(path_str: str, pattern: str) -> list[str]:
     return sorted(str(p).replace("\\", "/") for p in base.rglob(pattern))
 
 
+def vault_subdirs(path_str: str, prefix: str) -> list["VaultFilePath"]:
+    """
+    Return immediate Hive-partition subdirectories under path_str whose
+    name starts with `prefix` (e.g. "year=", "month="), as VaultFilePath
+    objects — for scripts that walk year=/month= folders one level at a
+    time (e.g. changelog generators) rather than just globbing files.
+    """
+    if IS_GCS:
+        import gcsfs
+        fs = gcsfs.GCSFileSystem()
+        if not fs.exists(path_str):
+            return []
+        entries = [f"gs://{p}" for p in fs.ls(path_str, detail=False)]
+        return sorted(
+            VaultFilePath(e) for e in entries
+            if e.rstrip("/").rsplit("/", 1)[-1].startswith(prefix)
+        )
+    base = Path(path_str)
+    if not base.exists():
+        return []
+    return sorted(
+        VaultFilePath(str(d).replace("\\", "/")) for d in base.iterdir()
+        if d.is_dir() and d.name.startswith(prefix)
+    )
+
+
 class VaultFilePath:
     """
     Path-like wrapper whose .parent/.name use simple POSIX splitting, but whose

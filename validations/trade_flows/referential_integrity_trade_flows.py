@@ -38,11 +38,14 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from _vault_root import VAULT_ROOT, vault_glob_paths as vault_glob, vault_read_parquet  # noqa: E402
+
 # =============================================================================
 # CONFIGURATION
 # =============================================================================
 
-VAULT_DIR    = Path("lekwankwa-historical-vault")
+VAULT_DIR    = VAULT_ROOT
 PRODUCT      = "trade_flows"
 COUNTRY      = "USA"
 SOURCE       = "census_ft900"
@@ -72,24 +75,24 @@ def _result(status, check, message, details=None):
 
 
 def _load_sample(product, country, source, n: int) -> pd.DataFrame:
-    base  = VAULT_DIR / f"product={product}" / f"country={country}" / f"source={source}"
-    files = [f for f in base.rglob("*.parquet")
+    base  = f"{VAULT_DIR}/product={product}/country={country}/source={source}"
+    files = [f for f in vault_glob(base, "*.parquet")
              if "outliers" not in f.name and "changelog" not in f.name]
     step  = max(1, len(files) // n)
     dfs   = []
     for f in files[::step][:n]:
         try:
-            dfs.append(pd.read_parquet(f))
+            dfs.append(vault_read_parquet(f))
         except Exception:
             pass
     return pd.concat(dfs, ignore_index=True) if dfs else pd.DataFrame()
 
 
 def _ym_set(product, country, source) -> set:
-    base  = VAULT_DIR / f"product={product}" / f"country={country}" / f"source={source}"
+    base  = f"{VAULT_DIR}/product={product}/country={country}/source={source}"
     result = set()
-    for f in base.glob("year=*/month=*/*.parquet"):
-        parts = f.parts
+    for f in vault_glob(base, "*.parquet"):
+        parts = str(f).split("/")
         y = next((p.split("=")[1] for p in parts if p.startswith("year=")),  None)
         m = next((p.split("=")[1] for p in parts if p.startswith("month=")), None)
         if y and m:

@@ -49,11 +49,14 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from _vault_root import VAULT_ROOT, vault_glob_paths as vault_glob, vault_read_parquet  # noqa: E402
+
 # =============================================================================
 # CONFIGURATION
 # =============================================================================
 
-VAULT_DIR      = Path("lekwankwa-historical-vault")
+VAULT_DIR      = VAULT_ROOT
 PRODUCT        = "Housing_Supply_and_Shelter_Inflation"
 COUNTRY        = "USA"
 SHELTER_SOURCE = "bls_cpi_shelter"
@@ -107,12 +110,12 @@ SHELTER_PUB_LAG_MAX_DAYS = 45
 # =============================================================================
 
 def _load_source(source: str) -> pd.DataFrame:
-    src_path = VAULT_DIR / f"product={PRODUCT}" / f"country={COUNTRY}" / f"source={source}"
-    files = sorted(src_path.rglob("*.parquet"))
+    src_path = f"{VAULT_DIR}/product={PRODUCT}/country={COUNTRY}/source={source}"
+    files = sorted(vault_glob(src_path, "*.parquet"))
     dfs = []
     for f in files:
         try:
-            dfs.append(pd.read_parquet(f))
+            dfs.append(vault_read_parquet(f))
         except Exception as exc:
             logger.warning(f"  Skipping {f}: {exc}")
     if not dfs:

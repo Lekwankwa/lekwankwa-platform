@@ -44,11 +44,14 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from _vault_root import VAULT_ROOT, vault_exists, vault_glob_paths as vault_glob, vault_read_parquet  # noqa: E402
+
 # =============================================================================
 # CONFIGURATION
 # =============================================================================
 
-VAULT_DIR = Path("lekwankwa-historical-vault")
+VAULT_DIR = VAULT_ROOT
 PRODUCT   = "Housing_Supply_and_Shelter_Inflation"
 COUNTRY   = "USA"
 
@@ -86,14 +89,14 @@ OVERLAP_START_YEAR = 1959
 # =============================================================================
 
 def _load_all(source: str, max_files: int = 100) -> pd.DataFrame:
-    src_path = VAULT_DIR / f"product={PRODUCT}" / f"country={COUNTRY}" / f"source={source}"
-    files = sorted(src_path.rglob("*_data.parquet"))
+    src_path = f"{VAULT_DIR}/product={PRODUCT}/country={COUNTRY}/source={source}"
+    files = sorted(vault_glob(src_path, "*_data.parquet"))
     step = max(1, len(files) // max_files)
     sampled = files[::step][:max_files]
     dfs = []
     for f in sampled:
         try:
-            dfs.append(pd.read_parquet(f))
+            dfs.append(vault_read_parquet(f))
         except Exception as exc:
             logger.warning(f"  Skipping {f}: {exc}")
     if not dfs:
@@ -235,13 +238,13 @@ def check_cross_product_isolation() -> dict:
     contaminations  = []
 
     for product_name, product_dir_part in OTHER_PRODUCTS.items():
-        product_path = VAULT_DIR / product_dir_part
-        if not product_path.exists():
+        product_path = f"{VAULT_DIR}/{product_dir_part}"
+        if not vault_exists(product_path):
             continue
-        files = list(product_path.rglob("*.parquet"))[:10]   # sample
+        files = list(vault_glob(product_path, "*.parquet"))[:10]   # sample
         for f in files:
             try:
-                df = pd.read_parquet(f, columns=["source"])
+                df = vault_read_parquet(f, columns=["source"])
                 bleed = df[df["source"].isin(housing_sources)]
                 if not bleed.empty:
                     contaminations.append(

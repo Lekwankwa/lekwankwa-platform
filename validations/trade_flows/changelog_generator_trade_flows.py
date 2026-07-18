@@ -29,11 +29,14 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from _vault_root import VAULT_ROOT, IS_GCS, vault_exists, vault_glob_paths as vault_glob, vault_subdirs, vault_read_parquet  # noqa: E402
+
 # =============================================================================
 # CONFIGURATION
 # =============================================================================
 
-VAULT_DIR = Path("lekwankwa-historical-vault")
+VAULT_DIR = VAULT_ROOT
 PRODUCT   = "trade_flows"
 COUNTRY   = "USA"
 SOURCE    = "census_ft900"
@@ -111,12 +114,12 @@ def log_quality_metrics(df: pd.DataFrame, year: int) -> Dict[str, Any]:
     null_ct   = int(numeric.isna().sum())
     complete  = round((1 - null_ct / max(len(df), 1)) * 100, 2)
 
-    outlier_path = (VAULT_DIR / f"product={PRODUCT}" / f"country={COUNTRY}"
-                    / f"source={SOURCE}" / f"year={year}" / "outliers.parquet")
+    outlier_path = (f"{VAULT_DIR}/product={PRODUCT}/country={COUNTRY}"
+                    f"/source={SOURCE}/year={year}/outliers.parquet")
     outlier_count = 0
-    if outlier_path.exists():
+    if vault_exists(outlier_path):
         try:
-            outlier_count = len(pd.read_parquet(outlier_path))
+            outlier_count = len(vault_read_parquet(outlier_path))
         except Exception:
             pass
 
@@ -152,9 +155,9 @@ def log_quality_metrics(df: pd.DataFrame, year: int) -> Dict[str, Any]:
 # PER-YEAR GENERATOR
 # =============================================================================
 
-def generate_changelog_for_year(year_folder: Path, year: int) -> List[Dict[str, Any]]:
+def generate_changelog_for_year(year_folder, year: int) -> List[Dict[str, Any]]:
     entries = []
-    data_files = [f for f in year_folder.glob("*.parquet")
+    data_files = [f for f in vault_glob(str(year_folder), "*.parquet")
                   if "outliers" not in f.name and "changelog" not in f.name]
     if not data_files:
         return entries
@@ -162,7 +165,7 @@ def generate_changelog_for_year(year_folder: Path, year: int) -> List[Dict[str, 
     dfs = []
     for f in data_files:
         try:
-            dfs.append(pd.read_parquet(f))
+            dfs.append(vault_read_parquet(f))
         except Exception as exc:
             logger.warning(f"  Could not read {f}: {exc}")
     if not dfs:
@@ -184,8 +187,8 @@ def run():
     logger.info("TRADE FLOWS — CHANGELOG GENERATION")
     logger.info("=" * 70)
 
-    base = VAULT_DIR / f"product={PRODUCT}" / f"country={COUNTRY}" / f"source={SOURCE}"
-    year_dirs = sorted(base.glob("year=*"))
+    base = f"{VAULT_DIR}/product={PRODUCT}/country={COUNTRY}/source={SOURCE}"
+    year_dirs = vault_subdirs(base, "year=")
 
     if not year_dirs:
         logger.warning("  No year partitions found. Run scraper first.")
@@ -210,11 +213,13 @@ def run():
             if col not in df_changelog.columns:
                 df_changelog[col] = None
 
-        out_path = year_dir / "changelog.parquet"
+        out_path = f"{year_dir}/changelog.parquet"
+        if not IS_GCS:
+            Path(out_path).parent.mkdir(parents=True, exist_ok=True)
         df_changelog[CHANGELOG_COLUMNS].to_parquet(out_path, engine="pyarrow", index=False)
         total_years   += 1
         total_entries += len(entries)
-        logger.info(f"  year={year}: {len(entries)} changelog entries -> {out_path.name}")
+        logger.info(f"  year={year}: {len(entries)} changelog entries -> {Path(out_path).name}")
 
     logger.info("")
     logger.info(f"  Changelog generation complete: {total_years} years, {total_entries} total entries")
