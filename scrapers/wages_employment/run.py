@@ -71,14 +71,18 @@ def run_source(country: str, cfg: dict, source_filter: str | None,
         log.info("[DRY-RUN] Would scrape %s/%s/%s", PRODUCT, country, source)
         return True
 
-    try:
-        import importlib
-        from scrapers.utilities.call_scraper_entry import call_scraper_entry
-        mod = importlib.import_module(cfg["module"])
-        fn  = getattr(mod, cfg["fn"])
-        call_scraper_entry(fn, mode, since, cfg["kwargs"])
-        log.info("Completed scrape %s/%s/%s", PRODUCT, country, source)
-    except Exception as exc:
+            pass
+        return False
+
+    # USA sanity checks iterate over multiple sources (bls_ces + bls_cps)
+    # sequentially; historical depth (80+ years) can push combined runtime
+    # past the default 600s timeout. Grant extra headroom for this stage.
+    stage_timeout_overrides = {"Sanity Checks": 1800} if country == "USA" else None
+    val = run_9_stage_validation(product=PRODUCT, country=country,
+                                  stage_timeout_overrides=stage_timeout_overrides)
+    if val.severity in ("CRITICAL", "HIGH"):
+        from tools.self_healing.handler import handle_validation_finding
+        handle_validation_finding(    except Exception as exc:
         log.error("Scraper failed %s/%s/%s: %s", PRODUCT, country, source, exc,
                   exc_info=True)
         try:
