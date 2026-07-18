@@ -29,12 +29,39 @@ from tools.release_calendar_extractor import is_release_due
 from tools.vault_audit import run_9_stage_validation
 from tools.live_feed_audit import run_post_delta_audit
 log = logging.getLogger(__name__)
+}
 
-PRODUCT = "trade_flows"
-TODAY   = date.today().isoformat()
 
-COUNTRY_ROUTER: dict[str, dict] = {
-    "USA":  {"source": "census_ft900", "module": "scrapers.trade_flows.census_ft900_usa_scraper",   "fn": "main"},
+def _repair_vault_schema(country: str, source: str) -> None:
+    """Normalize dtype of the 'source' column across existing vault parquet
+    parts to prevent ArrowTypeError when pandas/pyarrow attempt to merge
+    schemas across partitions during read_parquet. Some historical parts were
+    written with a dictionary-encoded 'source' column while newer parts use a
+    plain string column; this repairs any drifted parts in place before the
+    scraper reads/merges them.
+    """
+    import glob
+
+    import pyarrow as pa
+    import pyarrow.parquet as pq
+
+    vault_glob = f"data_vault/{PRODUCT}/{country}/{source}/*.parquet"
+    for fp in glob.glob(vault_glob):
+        try:
+            table = pq.read_table(fp)
+        except Exception:
+            continue
+        if "source" in table.column_names:
+            idx = table.schema.get_field_index("source")
+            col = table.column("source")
+            if pa.types.is_dictionary(col.type):
+                table = table.set_column(idx, "source", col.cast(pa.string()))
+                pq.write_table(table, fp)
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="trade_flows cloud scraper entry point"
     "GBR":  {"source": "ons",          "module": "scrapers.trade_flows.ons_trade_scraper",           "fn": "scrape_gbr_trade"},
     "CAN":  {"source": "statcan",      "module": "scrapers.trade_flows.statcan_trade_scraper",       "fn": "scrape_can_trade"},
     "EU27": {"source": "eurostat",     "module": "scrapers.trade_flows.eurostat_trade_scraper",      "fn": "scrape_eu27_trade"},
@@ -67,13 +94,17 @@ def main():
         log.info("No release due today for %s/%s/%s — skipping.",
                  PRODUCT, args.country, source)
         sys.exit(0)
-
-    if args.dry_run:
-        log.info("[DRY-RUN] Would scrape %s/%s/%s", PRODUCT, args.country, source)
-        sys.exit(0)
-
     try:
         import importlib
+        from scrapers.utilities.call_scraper_entry import call_scraper_entry
+        try:
+            _repair_vault_schema(args.country, source)
+        except Exception as repair_exc:
+            log.warning("Vault schema repair skipped for %s/%s: %s",
+                        args.country, source, repair_exc)
+        mod = importlib.import_module(cfg["module"])
+        fn  = getattr(mod, cfg["fn"])
+        call_scraper_entry(fn, args.mode, args.since, cfg.get("kwargs", {}))        import importlib
         from scrapers.utilities.call_scraper_entry import call_scraper_entry
         mod = importlib.import_module(cfg["module"])
         fn  = getattr(mod, cfg["fn"])
