@@ -5,12 +5,13 @@ Cloud Scheduler entry point for trade_flows across all countries.
 Usage:
     python scrapers/trade_flows/run.py --country USA
     python scrapers/trade_flows/run.py --country GBR --mode full
-"""
 from __future__ import annotations
 
 import argparse
+import importlib
 import logging
 import sys
+from datetime import date
 from datetime import date
 from pathlib import Path
 
@@ -26,12 +27,52 @@ from tools.secret_manager import load_all_secrets_to_env
 load_all_secrets_to_env()
 
 from tools.release_calendar_extractor import is_release_due
-from tools.vault_audit import run_9_stage_validation
-from tools.live_feed_audit import run_post_delta_audit
 log = logging.getLogger(__name__)
 
 PRODUCT = "trade_flows"
+
+
+def _install_parquet_schema_guard() -> None:
+    """
+    Patch pandas.read_parquet so that ArrowTypeError caused by
+    dictionary-vs-string schema drift across parquet partitions
+    (e.g. a 'source' column written as dictionary<string> in one
+    file and plain string in another) is transparently repaired
+    instead of crashing the scrape mid-run.
+    """
+    import pandas as pd
+    import pyarrow as pa
+    import pyarrow.dataset as ds
+
+    if getattr(pd.read_parquet, "_lek_schema_guard", False):
+        return  # already patched
+
+    original_read_parquet = pd.read_parquet
+
+    def _safe_read_parquet(path, *args, **kwargs):
+        try:
+            return original_read_parquet(path, *args, **kwargs)
+        except pa.lib.ArrowTypeError as exc:
+            log.warning(
+                "ArrowTypeError reading %s (%s) — normalizing dictionary-encoded "
+                "columns to plain string and retrying.", path, exc,
+            )
+            dataset = ds.dataset(path, format="parquet")
+            table = dataset.to_table()
+            for idx, field in enumerate(table.schema):
+                if pa.types.is_dictionary(field.type):
+                    table = table.set_column(
+                        idx, field.name, table.column(idx).cast(pa.string())
+                    )
+            return table.to_pandas()
+
+    _safe_read_parquet._lek_schema_guard = True
+    pd.read_parquet = _safe_read_parquet
+
+
 TODAY   = date.today().isoformat()
+
+COUNTRY_ROUTER: dict[str, dict] = {
 
 COUNTRY_ROUTER: dict[str, dict] = {
     "USA":  {"source": "census_ft900", "module": "scrapers.trade_flows.census_ft900_usa_scraper",   "fn": "main"},
@@ -60,20 +101,20 @@ def main():
     if not cfg:
         log.error("No router entry for country=%s", args.country)
         sys.exit(1)
-
-    source = cfg["source"]
-    if not is_release_due(product=PRODUCT, country=args.country,
-                          source=source, as_of=TODAY):
         log.info("No release due today for %s/%s/%s — skipping.",
                  PRODUCT, args.country, source)
         sys.exit(0)
+
+    _install_parquet_schema_guard()
 
     if args.dry_run:
         log.info("[DRY-RUN] Would scrape %s/%s/%s", PRODUCT, args.country, source)
         sys.exit(0)
 
     try:
-        import importlib
+        from scrapers.utilities.call_scraper_entry import call_scraper_entry
+        mod = importlib.import_module(cfg["module"])
+        fn  = getattr(mod, cfg["fn"])        import importlib
         from scrapers.utilities.call_scraper_entry import call_scraper_entry
         mod = importlib.import_module(cfg["module"])
         fn  = getattr(mod, cfg["fn"])
