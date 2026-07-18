@@ -72,27 +72,27 @@ def run_source(country: str, cfg: dict, source_filter: str | None,
         return True
 
     try:
-        import importlib
-        from scrapers.utilities.call_scraper_entry import call_scraper_entry
-        mod = importlib.import_module(cfg["module"])
-        fn  = getattr(mod, cfg["fn"])
-        call_scraper_entry(fn, mode, since, cfg["kwargs"])
-        log.info("Completed scrape %s/%s/%s", PRODUCT, country, source)
+        except ImportError:
+            pass
+        return False
+
+    try:
+        val = run_9_stage_validation(product=PRODUCT, country=country)
     except Exception as exc:
-        log.error("Scraper failed %s/%s/%s: %s", PRODUCT, country, source, exc,
-                  exc_info=True)
+        log.error("Validation stage raised uncaught exception %s/%s/%s: %s",
+                  PRODUCT, country, source, exc, exc_info=True)
         try:
             from tools.self_healing.handler import handle_exception
             handle_exception(
                 program=__file__, exception=exc,
                 context={"product": PRODUCT, "country": country,
-                         "source": source, "run_date": TODAY, "layer": "SCRAPER"},
+                         "source": source, "run_date": TODAY,
+                         "layer": "VALIDATION"},
             )
         except ImportError:
             pass
         return False
 
-    val = run_9_stage_validation(product=PRODUCT, country=country)
     if val.severity in ("CRITICAL", "HIGH"):
         from tools.self_healing.handler import handle_validation_finding
         handle_validation_finding(
@@ -101,6 +101,37 @@ def run_source(country: str, cfg: dict, source_filter: str | None,
                      "run_date": TODAY, "layer": "VALIDATION"},
             result=val,
         )
+        return False
+
+    try:
+        audit = run_post_delta_audit(product=PRODUCT, country=country)
+    except Exception as exc:
+        log.error("Live feed audit raised uncaught exception %s/%s/%s: %s",
+                  PRODUCT, country, source, exc, exc_info=True)
+        try:
+            from tools.self_healing.handler import handle_exception
+            handle_exception(
+                program=__file__, exception=exc,
+                context={"product": PRODUCT, "country": country,
+                         "source": source, "run_date": TODAY,
+                         "layer": "LIVE_FEED_AUDIT"},
+            )
+        except ImportError:
+            pass
+        return False
+
+    if audit.severity in ("CRITICAL", "HIGH"):
+        from tools.self_healing.handler import handle_validation_finding
+        handle_validation_finding(
+            program=__file__,
+            context={"product": PRODUCT, "country": country, "source": source,
+                     "run_date": TODAY, "layer": "LIVE_FEED_AUDIT"},
+            result=audit,
+        )
+        return False
+    from tools.trigger_downstream import trigger_all_metadata
+    trigger_all_metadata()
+    return True        )
         return False
 
     audit = run_post_delta_audit(product=PRODUCT, country=country)
