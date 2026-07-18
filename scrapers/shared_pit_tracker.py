@@ -105,7 +105,22 @@ def write_partition(
     part.mkdir(parents=True, exist_ok=True)
     out = part / filename
     if out.exists():
-        existing = pd.read_parquet(out)
+        try:
+            existing = pd.read_parquet(out)
+        except Exception as read_exc:
+            # Existing partition file is unreadable (corrupt footer, or
+            # pyarrow's dataset-schema-unification quirk across sibling Hive
+            # partitions with differing column encodings). Rebuild from the
+            # incoming data rather than crashing the whole scrape — this
+            # self-heals the partition going forward. Same fix already
+            # applied to scrapers/eurostat/revision_tracker.py and already
+            # used by scrapers/utilities/incremental.py for USA scrapers.
+            log.warning("Could not read existing partition %s (%s) — rewriting from incoming data.",
+                        out, read_exc)
+            combined = df.drop_duplicates(subset=["data_vintage_id"], keep="first")
+            combined.to_parquet(out, index=False, engine="pyarrow")
+            log.debug("Written %d rows → %s", len(combined), out)
+            return
         combined = pd.concat([existing, df], ignore_index=True)
         combined = combined.drop_duplicates(subset=["data_vintage_id"], keep="first")
     else:
