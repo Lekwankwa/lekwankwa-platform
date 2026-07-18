@@ -52,12 +52,13 @@ COUNTRY_ROUTER: dict[str, list[dict]] = {
     ],
     "GBR": [{"source": "ons",      "module": "scrapers.housing.ons_housing_scraper",      "fn": "scrape_gbr_housing", "kwargs": {}}],
     "EU27": [{"source": "eurostat", "module": "scrapers.housing.eurostat_housing_scraper", "fn": "scrape_eu27_housing", "kwargs": {}}],
-}
-
-
-def run_source(country: str, cfg: dict, source_filter: str | None,
-               mode: str, since: str | None, dry_run: bool) -> bool:
-    source = cfg["source"]
+    try:
+        import importlib
+        from scrapers.utilities.call_scraper_entry import call_scraper_entry
+        from tools.vault_audit import vault_data_exists
+        mod = importlib.import_module(cfg["module"])
+        fn  = getattr(mod, cfg["fn"])
+        call_scraper_entry(fn, mode, since, cfg["kwargs"])
     if source_filter and source != source_filter:
         return True
 
@@ -68,13 +69,33 @@ def run_source(country: str, cfg: dict, source_filter: str | None,
         return True
 
     if dry_run:
-        log.info("[DRY-RUN] Would scrape %s/%s/%s", PRODUCT, country, source)
-        return True
+            pass
+        return False
 
-    try:
-        import importlib
-        from scrapers.utilities.call_scraper_entry import call_scraper_entry
-        mod = importlib.import_module(cfg["module"])
+    # Guard: confirm the scrape actually persisted data to the vault before
+    # handing off to the validation suite. A "successful" scraper call that
+    # writes nothing (e.g. empty upstream API response) must be treated as a
+    # delivery failure, not allowed to crash the PIT validation stage.
+    if not vault_data_exists(product=PRODUCT, country=country, source=source):
+        no_data_exc = RuntimeError(
+            f"No vault data found after scrape for {PRODUCT}/{country}/{source} "
+            f"— treating as scraper delivery failure."
+        )
+        log.error(str(no_data_exc))
+        try:
+            from tools.self_healing.handler import handle_exception
+            handle_exception(
+                program=__file__, exception=no_data_exc,
+                context={"product": PRODUCT, "country": country,
+                         "source": source, "run_date": TODAY, "layer": "SCRAPER"},
+            )
+        except ImportError:
+            pass
+        return False
+
+    val = run_9_stage_validation(product=PRODUCT, country=country)
+    if val.severity in ("CRITICAL", "HIGH"):
+        from tools.self_healing.handler import handle_validation_finding        mod = importlib.import_module(cfg["module"])
         fn  = getattr(mod, cfg["fn"])
         call_scraper_entry(fn, mode, since, cfg["kwargs"])
         log.info("Completed scrape %s/%s/%s", PRODUCT, country, source)
