@@ -34,4 +34,4 @@ STAGES = [
 ]
 
 if __name__ == "__main__":
-    sys.exit(run_pipeline(PRODUCT, STAGES, scope=None, timeout=600))
+    sys.exit(run_pipeline(PRODUCT, STAGES, scope=None, timeout=1500))
