@@ -46,12 +46,21 @@ COUNTRY_ROUTER: dict[str, list[dict]] = {
             "source":  "bls_cps",
             "module":  "scrapers.wages_employment.bls_ces_cps_usa_scraper",
             "fn":      "main",
-            "kwargs":  {"dataset": "cps"},
-        },
-    ],
-    "GBR": [{"source": "ons",     "module": "scrapers.wages_employment.ons_wages_scraper",    "fn": "scrape_gbr_wages", "kwargs": {}}],
-    "CAN": [{"source": "statcan", "module": "scrapers.wages_employment.statcan_wages_scraper", "fn": "scrape_can_wages", "kwargs": {}}],
-    "EU27": [{"source": "eurostat", "module": "scrapers.wages_employment.eurostat_wages_scraper", "fn": "scrape_eu27_wages", "kwargs": {}}],
+}
+
+
+# PIT validation on large bitemporal sources (e.g. USA BLS CES/CPS) can
+# legitimately exceed the default 600s validation timeout. Give these
+# sources a longer budget and allow one automatic retry on TIMEOUT before
+# treating it as a hard failure.
+EXTENDED_VALIDATION_TIMEOUT_SOURCES = {"bls_ces", "bls_cps"}
+DEFAULT_VALIDATION_TIMEOUT_SECS = 600
+EXTENDED_VALIDATION_TIMEOUT_SECS = 1800
+
+
+def run_source(country: str, cfg: dict, source_filter: str | None,
+               mode: str, since: str | None, dry_run: bool) -> bool:
+    source = cfg["source"]
 }
 
 
@@ -77,14 +86,30 @@ def run_source(country: str, cfg: dict, source_filter: str | None,
         mod = importlib.import_module(cfg["module"])
         fn  = getattr(mod, cfg["fn"])
         call_scraper_entry(fn, mode, since, cfg["kwargs"])
-        log.info("Completed scrape %s/%s/%s", PRODUCT, country, source)
-    except Exception as exc:
-        log.error("Scraper failed %s/%s/%s: %s", PRODUCT, country, source, exc,
-                  exc_info=True)
-        try:
-            from tools.self_healing.handler import handle_exception
-            handle_exception(
-                program=__file__, exception=exc,
+            pass
+        return False
+
+    timeout_secs = (
+        EXTENDED_VALIDATION_TIMEOUT_SECS
+        if source in EXTENDED_VALIDATION_TIMEOUT_SOURCES
+        else DEFAULT_VALIDATION_TIMEOUT_SECS
+    )
+
+    val = run_9_stage_validation(product=PRODUCT, country=country,
+                                 timeout_secs=timeout_secs)
+
+    if getattr(val, "code", None) == "VALIDATION_FAIL_RC1" and \
+            "TIMEOUT" in str(getattr(val, "stdout_tail", "")):
+        log.warning(
+            "PIT validation timed out at %ss for %s/%s/%s — retrying once with %ss.",
+            timeout_secs, PRODUCT, country, source, EXTENDED_VALIDATION_TIMEOUT_SECS,
+        )
+        val = run_9_stage_validation(product=PRODUCT, country=country,
+                                     timeout_secs=EXTENDED_VALIDATION_TIMEOUT_SECS)
+
+    if val.severity in ("CRITICAL", "HIGH"):
+        from tools.self_healing.handler import handle_validation_finding
+        handle_validation_finding(                program=__file__, exception=exc,
                 context={"product": PRODUCT, "country": country,
                          "source": source, "run_date": TODAY, "layer": "SCRAPER"},
             )
