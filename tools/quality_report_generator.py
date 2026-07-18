@@ -1174,27 +1174,44 @@ def write_extractor_marker(vault_root: Path, product: str, run_date: str) -> Non
     """Write a local extractor completion marker (used in --mode live after success)."""
     marker_dir = vault_root / "run_markers"
     marker_dir.mkdir(parents=True, exist_ok=True)
-    (marker_dir / f"extractor_{product}_{run_date}.complete").touch()
+        send_alert_email(subject, html_body, plain_body, dry_run=dry_run_alerts)
 
-
-# ---------------------------------------------------------------------------
-# Granular report builder
-# ---------------------------------------------------------------------------
-
-def generate_granular_report(
-    product: str,
-    vault_root: Path,
-    search_root: Path,
-    run_date: str,
-    today: datetime.date,
-    prior_status_map: dict[str, dict],
-    history_file: Optional[Path],
-    min_consecutive_for_frozen: int = 3,
-) -> ProductReport:
-    """Build one granular product report across all countries."""
-    country_results: list[CountryResult] = []
-    all_findings: list[Finding] = []
-    generation_errors: list[str] = []
+        # Self-healing escalation for CRITICAL/HIGH findings.
+        # Only escalate findings that are NEW this run (consecutive_months <= 1).
+        # Findings that were already OPEN in a prior run have already been
+        # escalated to self-healing once; re-submitting them every subsequent
+        # run produces duplicate PRs / duplicate MAJOR EXCEPTION REPORTS for
+        # the same underlying, already-triaged issue. The ALERT JSON and
+        # email above still surface ALL open CRITICAL/HIGH findings for
+        # client/operator visibility — only the self-healing trigger is
+        # deduplicated here.
+        new_escalation_findings = [
+            f for f in (master.critical_findings + master.high_findings)
+            if f.consecutive_months <= 1
+        ]
+        try:
+            if new_escalation_findings:
+                from tools.self_healing.handler import handle_quality_finding
+                heal_context = {
+                    "product":  "multi",
+                    "country":  "multi",
+                    "source":   "quality_report_generator",
+                    "run_date": run_date,
+                    "layer":    "QUALITY_REPORT",
+                }
+                findings_as_dicts = [
+                    dataclasses.asdict(f) for f in new_escalation_findings
+                ]
+                handle_quality_finding(__file__, heal_context, findings_as_dicts)
+            else:
+                print(
+                    "  → all open CRITICAL/HIGH findings were already "
+                    "escalated in a prior run — skipping duplicate "
+                    "self-healing trigger this run."
+                )
+        except Exception as _sh_exc:
+            print(f"[SELF-HEAL] Failed to trigger self-healing: {_sh_exc}",
+                  file=sys.stderr)    generation_errors: list[str] = []
 
     # Load prior vault_latest history for FROZEN detection
     prior_vault_latest: dict[str, list[str]] = {}  # country → [dates from last N runs]
