@@ -72,14 +72,30 @@ def run_source(country: str, cfg: dict, source_filter: str | None,
         return True
 
     try:
-        import importlib
-        from scrapers.utilities.call_scraper_entry import call_scraper_entry
-        mod = importlib.import_module(cfg["module"])
-        fn  = getattr(mod, cfg["fn"])
-        call_scraper_entry(fn, mode, since, cfg["kwargs"])
-        log.info("Completed scrape %s/%s/%s", PRODUCT, country, source)
+            pass
+        return False
+
+    try:
+        val = run_9_stage_validation(product=PRODUCT, country=country)
     except Exception as exc:
-        log.error("Failed %s/%s/%s: %s", PRODUCT, country, source, exc, exc_info=True)
+        log.error("Validation stage crashed/timed out for %s/%s/%s: %s",
+                  PRODUCT, country, source, exc, exc_info=True)
+        try:
+            from tools.self_healing.handler import handle_validation_finding
+            handle_validation_finding(
+                program=__file__,
+                context={"product": PRODUCT, "country": country, "source": source,
+                         "run_date": TODAY, "layer": "VALIDATION"},
+                result={"overall": "TIMEOUT", "severity": "CRITICAL",
+                        "code": "VALIDATION_TIMEOUT",
+                        "detail": str(exc)},
+            )
+        except ImportError:
+            pass
+        return False
+    if val.severity in ("CRITICAL", "HIGH"):
+        from tools.self_healing.handler import handle_validation_finding
+        handle_validation_finding(        log.error("Failed %s/%s/%s: %s", PRODUCT, country, source, exc, exc_info=True)
         try:
             from tools.self_healing.handler import handle_exception
             handle_exception(
