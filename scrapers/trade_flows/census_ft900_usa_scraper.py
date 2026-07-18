@@ -370,11 +370,24 @@ def save_to_vault(df: pd.DataFrame) -> tuple[int, int]:
 
         # Preserve existing rows for the OTHER trade flow direction
         if path.exists():
-            existing = pd.read_parquet(path, engine="pyarrow")
-            keep = existing[~existing["trade_flow"].isin(incoming_flows)]
-            if not keep.empty:
-                # Write keeper rows back first, then upsert incoming
-                keep.to_parquet(path, engine="pyarrow", index=False)
+            try:
+                existing = pd.read_parquet(path, engine="pyarrow")
+            except Exception as read_exc:
+                # Unreadable partition (corrupt footer, or pyarrow's dataset-
+                # schema-unification quirk across sibling Hive partitions
+                # with differing column encodings). Skip the preserve-other-
+                # flow-direction step rather than crashing the whole scrape;
+                # revision_upsert() below already handles this same failure
+                # mode safely for the incoming rows themselves.
+                logger.warning("Could not read existing partition %s (%s) — "
+                               "skipping other-direction preserve for this partition.",
+                               path, read_exc)
+                existing = None
+            if existing is not None:
+                keep = existing[~existing["trade_flow"].isin(incoming_flows)]
+                if not keep.empty:
+                    # Write keeper rows back first, then upsert incoming
+                    keep.to_parquet(path, engine="pyarrow", index=False)
 
         added, revs = revision_upsert(
             path, new_rows,

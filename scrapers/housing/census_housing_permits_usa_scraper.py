@@ -219,10 +219,19 @@ def save_to_vault(df: pd.DataFrame) -> int:
         out = group.drop(columns=["_year", "_month"], errors="ignore")
 
         if path.exists():
-            existing = pd.read_parquet(path)
-            out = pd.concat([existing, out], ignore_index=True).drop_duplicates(
-                subset=["sovereign_series_id", "data_timestamp"], keep="last"
-            )
+            try:
+                existing = pd.read_parquet(path)
+            except Exception as read_exc:
+                # Unreadable partition (corrupt footer, or pyarrow's dataset-
+                # schema-unification quirk across sibling Hive partitions with
+                # differing column encodings) — rebuild from incoming data
+                # rather than crashing the whole scrape.
+                logger.warning("Could not read existing partition %s (%s) — "
+                               "rewriting from incoming data.", path, read_exc)
+            else:
+                out = pd.concat([existing, out], ignore_index=True).drop_duplicates(
+                    subset=["sovereign_series_id", "data_timestamp"], keep="last"
+                )
         out.to_parquet(path, engine="pyarrow", index=False)
         written += 1
 
