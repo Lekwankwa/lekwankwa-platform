@@ -27,12 +27,51 @@ load_all_secrets_to_env()
 
 from tools.release_calendar_extractor import is_release_due
 from tools.vault_audit import run_9_stage_validation
-from tools.live_feed_audit import run_post_delta_audit
-log = logging.getLogger(__name__)
+}
 
-PRODUCT = "trade_flows"
-TODAY   = date.today().isoformat()
 
+def _install_parquet_schema_safety_patch() -> None:
+    """
+    Guard against ArrowTypeError when a vault's partitioned parquet dataset
+    contains mixed-encoded columns (e.g. plain `string` vs
+    `dictionary<values=string, indices=int32>` for the same field, such as
+    `source` in census_ft900). PyArrow's dataset factory refuses to unify
+    those types by default; this patch falls back to a manual per-file
+    read + cast + concat with schema promotion.
+    """
+    import pandas as pd
+    import pyarrow as pa
+    import pyarrow.parquet as pq
+
+    if getattr(pd.read_parquet, "_lekwankwa_schema_safe", False):
+        return  # already patched
+
+    _original_read_parquet = pd.read_parquet
+
+    def _schema_safe_read_parquet(path, *args, **kwargs):
+        try:
+            return _original_read_parquet(path, *args, **kwargs)
+        except pa.ArrowTypeError:
+            log.warning("Schema drift detected reading %s — normalizing "
+                        "dictionary vs string columns before merge.", path)
+            dataset = pq.ParquetDataset(path, use_legacy_dataset=False)
+            tables = []
+            for frag in dataset.fragments:
+                t = frag.to_table()
+                for i, field in enumerate(t.schema):
+                    if pa.types.is_dictionary(field.type):
+                        t = t.set_column(i, field.name, t.column(i).cast(pa.string()))
+                tables.append(t)
+            merged = pa.concat_tables(tables, promote=True)
+            return merged.to_pandas()
+
+    _schema_safe_read_parquet._lekwankwa_schema_safe = True
+    pd.read_parquet = _schema_safe_read_parquet
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="trade_flows cloud scraper entry point"
 COUNTRY_ROUTER: dict[str, dict] = {
     "USA":  {"source": "census_ft900", "module": "scrapers.trade_flows.census_ft900_usa_scraper",   "fn": "main"},
     "GBR":  {"source": "ons",          "module": "scrapers.trade_flows.ons_trade_scraper",           "fn": "scrape_gbr_trade"},
@@ -57,13 +96,14 @@ def main():
     log.info("=" * 60)
 
     cfg = COUNTRY_ROUTER.get(args.country)
-    if not cfg:
-        log.error("No router entry for country=%s", args.country)
-        sys.exit(1)
+        log.info("[DRY-RUN] Would scrape %s/%s/%s", PRODUCT, args.country, source)
+        sys.exit(0)
 
-    source = cfg["source"]
-    if not is_release_due(product=PRODUCT, country=args.country,
-                          source=source, as_of=TODAY):
+    _install_parquet_schema_safety_patch()
+
+    try:
+        import importlib
+        from scrapers.utilities.call_scraper_entry import call_scraper_entry                          source=source, as_of=TODAY):
         log.info("No release due today for %s/%s/%s — skipping.",
                  PRODUCT, args.country, source)
         sys.exit(0)
