@@ -1,11 +1,12 @@
-"""
-scrapers/housing/run.py — Lekwankwa Corporation
-Cloud Scheduler entry point for Housing_Supply_and_Shelter_Inflation.
+from __future__ import annotations
 
-Usage:
-    python scrapers/housing/run.py --country USA --source bls_cpi_shelter
-    python scrapers/housing/run.py --country USA --source census_bps
-    python scrapers/housing/run.py --country GBR
+import argparse
+import logging
+import sys
+from pathlib import Path as _Path
+from datetime import date
+from pathlib import Path
+
     python scrapers/housing/run.py --country EU27
 """
 from __future__ import annotations
@@ -46,12 +47,31 @@ COUNTRY_ROUTER: dict[str, list[dict]] = {
         {
             "source": "census_bps",
             "module": "scrapers.housing.bls_census_housing_usa_scraper",
-            "fn":     "main",
-            "kwargs": {"dataset": "permits"},
-        },
-    ],
-    "GBR": [{"source": "ons",      "module": "scrapers.housing.ons_housing_scraper",      "fn": "scrape_gbr_housing", "kwargs": {}}],
-    "EU27": [{"source": "eurostat", "module": "scrapers.housing.eurostat_housing_scraper", "fn": "scrape_eu27_housing", "kwargs": {}}],
+}
+
+
+def _verify_vault_write(product: str, country: str) -> bool:
+    """
+    Confirm the scraper actually persisted data to the vault before we
+    hand off to validation. Prevents silent no-op scrapes from surfacing
+    as an uncaught FileNotFoundError deep inside PIT validation.
+    """
+    from tools.vault_paths import get_vault_partition_path  # existing helper
+
+    try:
+        partition_path = get_vault_partition_path(product=product, country=country)
+    except Exception:
+        # Fallback to conventional layout if helper unavailable.
+        partition_path = _Path("vault") / f"product={product}" / f"country={country}"
+
+    if not partition_path.exists() or not any(partition_path.iterdir()):
+        return False
+    return True
+
+
+def run_source(country: str, cfg: dict, source_filter: str | None,
+               mode: str, since: str | None, dry_run: bool) -> bool:
+    source = cfg["source"]
 }
 
 
@@ -68,13 +88,18 @@ def run_source(country: str, cfg: dict, source_filter: str | None,
         return True
 
     if dry_run:
-        log.info("[DRY-RUN] Would scrape %s/%s/%s", PRODUCT, country, source)
-        return True
+        fn  = getattr(mod, cfg["fn"])
+        call_scraper_entry(fn, mode, since, cfg["kwargs"])
+        log.info("Completed scrape %s/%s/%s", PRODUCT, country, source)
 
-    try:
-        import importlib
-        from scrapers.utilities.call_scraper_entry import call_scraper_entry
-        mod = importlib.import_module(cfg["module"])
+        if not _verify_vault_write(PRODUCT, country):
+            raise RuntimeError(
+                f"No vault data written for {PRODUCT}/country={country}/source={source} "
+                f"after scraper completed — treating as scraper failure."
+            )
+    except Exception as exc:
+        log.error("Failed %s/%s/%s: %s", PRODUCT, country, source, exc, exc_info=True)
+        try:        mod = importlib.import_module(cfg["module"])
         fn  = getattr(mod, cfg["fn"])
         call_scraper_entry(fn, mode, since, cfg["kwargs"])
         log.info("Completed scrape %s/%s/%s", PRODUCT, country, source)
