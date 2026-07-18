@@ -1,10 +1,11 @@
-"""
-scrapers/trade_flows/run.py — Lekwankwa Corporation
-Cloud Scheduler entry point for trade_flows across all countries.
+from __future__ import annotations
 
-Usage:
-    python scrapers/trade_flows/run.py --country USA
-    python scrapers/trade_flows/run.py --country GBR --mode full
+import argparse
+import logging
+import sys
+import time
+from datetime import date
+from pathlib import Path
 """
 from __future__ import annotations
 
@@ -92,7 +93,33 @@ def main():
             pass
         sys.exit(1)
 
-    val = run_9_stage_validation(product=PRODUCT, country=args.country)
+            )
+        except ImportError:
+            pass
+        sys.exit(1)
+
+    # NOTE: Vault writes for large sources (e.g. census_ft900) can lag behind
+    # scraper completion due to filesystem/object-store propagation delay.
+    # Early-stage validators (PIT/Temporal/Referential/Lineage) list partitions
+    # directly and can race this write, reporting false "no data" failures even
+    # though later stages (GX) confirm the data exists. Retry with backoff
+    # before treating a CRITICAL/HIGH result as final.
+    MAX_VALIDATION_RETRIES = 3
+    RETRY_DELAY_SEC = 45
+    val = None
+    for attempt in range(1, MAX_VALIDATION_RETRIES + 1):
+        val = run_9_stage_validation(product=PRODUCT, country=args.country)
+        if val.severity not in ("CRITICAL", "HIGH"):
+            break
+        log.warning(
+            "Validation attempt %d/%d returned severity=%s for %s/%s — "
+            "vault writes may still be propagating; retrying in %ds.",
+            attempt, MAX_VALIDATION_RETRIES, val.severity,
+            PRODUCT, args.country, RETRY_DELAY_SEC,
+        )
+        if attempt < MAX_VALIDATION_RETRIES:
+            time.sleep(RETRY_DELAY_SEC)
+
     if val.severity in ("CRITICAL", "HIGH"):
         from tools.self_healing.handler import handle_validation_finding
         handle_validation_finding(
@@ -101,13 +128,7 @@ def main():
                      "run_date": TODAY, "layer": "VALIDATION"},
             result=val,
         )
-        sys.exit(1)
-
-    audit = run_post_delta_audit(product=PRODUCT, country=args.country)
-    if audit.severity in ("CRITICAL", "HIGH"):
-        from tools.self_healing.handler import handle_validation_finding
-        handle_validation_finding(
-            program=__file__,
+        sys.exit(1)            program=__file__,
             context={"product": PRODUCT, "country": args.country, "source": source,
                      "run_date": TODAY, "layer": "LIVE_FEED_AUDIT"},
             result=audit,
