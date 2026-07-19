@@ -1,23 +1,36 @@
-"""
-quality_report_generator.py — Lekwankwa Corporation
-=====================================================
-
-Event-driven quality monitor.  Runs automatically after each vault_extractor
-data-release ingestion (NOT on a fixed calendar schedule).  Produces geo-split
-granular reports, live and archive masters, an ALERT JSON on CRITICAL/HIGH
-findings, and an append-only run-history index.
-
-TRIGGER CHAIN (GCS event-driven — fires on every new data release)
--------------------------------------------------------------------
-1.  vault_extractor --mode live writes a completion marker on success:
-      {vault_root}/run_markers/extractor_{product}_{YYYY-MM-DD}.complete
-2.  A Cloud Storage OBJECT_FINALIZE trigger fires this Cloud Function when any
-    extractor_{product}_*.complete object lands in the bucket.
-3.  This function checks markers for all required live products on that run date.
-    If any are missing → exits cleanly; re-triggered when the next extractor
-    writes its marker.
-4.  Once all required live-product markers are present, the full quality report
-    (geo-split) is generated and uploaded to GCS.
+            if val_overall == "FAIL" and val_summary and country_iso3 == representative:
+                for stage in val_summary.get("stage_results", []):
+                    if stage.get("status") == "FAIL":
+                        sev = stage_fail_severity(product, stage.get("name", ""))
+                        stage_detail = (
+                            stage.get("failure_detail")
+                            or stage.get("details")
+                            or stage.get("failed_expectations")
+                            or stage.get("error")
+                            or None
+                        )
+                        f = make_finding(
+                            product=product,
+                            country_group=country_group,
+                            check_type="VALIDATION_STAGE",
+                            code=f"STAGE_FAIL_S{stage.get('stage', '?')}",
+                            severity=sev,
+                            message=(
+                                f"{product} / {country_group}: Validation stage "
+                                f"'{stage.get('name')}' FAILED."
+                                + (f" Detail: {stage_detail}" if stage_detail else
+                                   " (no failure-detail payload found in validation_summary — "
+                                   "check GX validator output for this run.)")
+                            ),
+                            detail={
+                                "stage": stage.get("stage"),
+                                "name": stage.get("name"),
+                                "failure_detail": stage_detail,
+                            },
+                            run_date=run_date,
+                            prior_status_map=prior_status_map,
+                        )
+                        findings.append(f)    (geo-split) is generated and uploaded to GCS.
 5.  Archive products (housing, global_macro) trigger separately via
     extractor_archive_*.complete markers.
 
