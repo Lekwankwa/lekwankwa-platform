@@ -125,17 +125,24 @@ def _validate_product(product: str) -> None:
         return
 
     if val.severity in ("CRITICAL", "HIGH"):
-        from tools.self_healing.handler import handle_validation_finding
-        handle_validation_finding(program=__file__, context=context, result=val)
-
-
-def run() -> int:
-    log.info("=" * 70)
-    log.info("ONS GBR -- All 5 vault products")
-    log.info("Series: %d  |  pit_coverage_type: RELEASE_DATE_ONLY/accumulating", len(SERIES))
-    log.info("=" * 70)
 
     total = 0
+    rows_by_product: dict[str, int] = {}
+    for entry in SERIES:
+        cdid = entry[0]
+        try:
+            rows = _ingest_cdid(*entry)
+        except Exception as exc:
+            log.error(
+                "  FAILED ingesting cdid=%s (%s): %s -- continuing with remaining series",
+                cdid, entry[2], exc, exc_info=True,
+            )
+            rows = 0
+        total += rows
+        vault_product = entry[3]
+        rows_by_product[vault_product] = rows_by_product.get(vault_product, 0) + rows
+
+    log.info("\nONS GBR ingestion complete: %d rows written", total)    total = 0
     rows_by_product: dict[str, int] = {}
     for entry in SERIES:
         rows = _ingest_cdid(*entry)
