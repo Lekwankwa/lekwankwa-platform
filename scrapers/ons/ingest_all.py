@@ -1,9 +1,10 @@
-"""
-ONS GBR full ingestion — all 5 vault products.
+from __future__ import annotations
 
-Fetches 12 confirmed series via direct ONS website URIs, builds
-PIT-compliant vault rows, and writes to Hive-partitioned parquet vault.
+import logging
+import time
+import sys
 
+import pandas as pd
 URIs are hardcoded (ONS search API does not index economic CDIDs).
 Data endpoint: https://www.ons.gov.uk{uri}/data
 
@@ -27,16 +28,30 @@ from scrapers.ons.series_map import (
     ISO3, PIT_COVERAGE, SERIES, SOURCE, SOURCE_AGENCY, VAULT_PRODUCT_MAP,
 )
 from scrapers.shared_pit_tracker import build_vault_row, write_partition
+) -> int:
+    log.info("  ONS %-6s (%s) -> %s", cdid, metric_code, vault_product)
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s %(levelname)s %(message)s",
-    handlers=[logging.StreamHandler(sys.stdout)],
-)
-log = logging.getLogger(__name__)
+    df_raw = pd.DataFrame()
+    max_attempts = 3
+    for attempt in range(1, max_attempts + 1):
+        df_raw = fetch_timeseries(cdid, uri)
+        if not df_raw.empty:
+            break
+        log.warning(
+            "  %s: empty response on attempt %d/%d, retrying...",
+            cdid, attempt, max_attempts,
+        )
+        time.sleep(2 ** attempt)
 
-_VAULT_BASE = get_vault_root("lekwankwa-historical-vault")
-def _ingest_cdid(
+    if df_raw.empty:
+        raise RuntimeError(
+            f"ONS fetch_timeseries returned no data for cdid={cdid} "
+            f"(metric={metric_code}, product={vault_product}) after "
+            f"{max_attempts} attempts — cannot guarantee downstream PIT/data "
+            f"delivery for this series."
+        )
+
+    log.info("  %s: %d obs", cdid, len(df_raw))def _ingest_cdid(
     cdid: str,
     uri: str,
     metric_code: str,
