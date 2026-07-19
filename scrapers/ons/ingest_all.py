@@ -105,12 +105,36 @@ def _ingest_cdid(
 
     return len(df_vault)
 
+        handle_validation_finding(program=__file__, context=context, result=val)
 
-def _validate_product(product: str) -> None:
-    """Run the 9-stage validation for one product's GBR data. Escalates to
-    self-healing on exception or CRITICAL/HIGH findings."""
+
+def _escalate_zero_rows(product: str) -> None:
+    """Escalate to self-healing when a product received zero rows from all
+    of its ONS CDIDs, so the failure is caught at ingestion time instead of
+    silently reaching downstream scheduled validation with an empty vault."""
     from datetime import date
-    context = {"product": product, "country": ISO3,
+    context = {
+        "product": product,
+        "country": ISO3,
+        "source": SOURCE,
+        "run_date": date.today().isoformat(),
+        "layer": "INGESTION",
+    }
+    exc = RuntimeError(
+        f"ONS ingestion produced 0 rows for product={product} country={ISO3}; "
+        "all series returned empty data from fetch_timeseries."
+    )
+    log.error(str(exc))
+    try:
+        from tools.self_healing.handler import handle_exception
+        handle_exception(program=__file__, exception=exc, context=context)
+    except ImportError:
+        pass
+
+
+def run() -> int:
+    log.info("=" * 70)
+    log.info("ONS GBR -- All 5 vault products")
                "source": SOURCE, "run_date": date.today().isoformat(), "layer": "VALIDATION"}
     try:
         from tools.vault_audit import run_9_stage_validation
@@ -122,18 +146,20 @@ def _validate_product(product: str) -> None:
             handle_exception(program=__file__, exception=exc, context=context)
         except ImportError:
             pass
-        return
+    log.info("\nONS GBR ingestion complete: %d rows written", total)
 
-    if val.severity in ("CRITICAL", "HIGH"):
-        from tools.self_healing.handler import handle_validation_finding
-        handle_validation_finding(program=__file__, context=context, result=val)
+    for product, rows in rows_by_product.items():
+        if rows > 0:
+            log.info("  Validating %s ...", product)
+            _validate_product(product)
+        else:
+            log.error("  %s: 0 rows written — escalating instead of validating stale vault", product)
+            _escalate_zero_rows(product)
 
-
-def run() -> int:
-    log.info("=" * 70)
-    log.info("ONS GBR -- All 5 vault products")
-    log.info("Series: %d  |  pit_coverage_type: RELEASE_DATE_ONLY/accumulating", len(SERIES))
-    log.info("=" * 70)
+    if total > 0:
+        from tools.trigger_downstream import trigger_all_metadata
+        trigger_all_metadata()
+    return total    log.info("=" * 70)
 
     total = 0
     rows_by_product: dict[str, int] = {}
