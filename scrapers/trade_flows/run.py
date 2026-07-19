@@ -18,12 +18,13 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 logging.basicConfig(
     level=logging.INFO,
-    format="%(asctime)s %(levelname)s %(message)s",
-    handlers=[logging.StreamHandler(sys.stdout)],
-)
-
 from tools.secret_manager import load_all_secrets_to_env
 load_all_secrets_to_env()
+
+from tools.partition_repair import fix_orphaned_partitions
+from tools.release_calendar_extractor import is_release_due
+from tools.vault_audit import run_9_stage_validation
+from tools.live_feed_audit import run_post_delta_audit
 
 from tools.release_calendar_extractor import is_release_due
 from tools.vault_audit import run_9_stage_validation
@@ -73,13 +74,24 @@ def main():
         sys.exit(0)
 
     try:
-        import importlib
-        from scrapers.utilities.call_scraper_entry import call_scraper_entry
-        mod = importlib.import_module(cfg["module"])
-        fn  = getattr(mod, cfg["fn"])
-        call_scraper_entry(fn, args.mode, args.since, cfg.get("kwargs", {}))
-        log.info("Completed scrape %s/%s", PRODUCT, args.country)
-    except Exception as exc:
+        except ImportError:
+            pass
+        sys.exit(1)
+
+    # Guard against malformed Hive partitions (missing year=YYYY level) that
+    # crash the temporal consistency validator with a ValueError. This can
+    # happen when a scraper writes directly under source=<name>/ without
+    # first creating the year=YYYY/ parent directory.
+    try:
+        fix_orphaned_partitions(product=PRODUCT, country=args.country, source=source)
+    except Exception as repair_exc:
+        log.warning(
+            "Partition repair pre-check failed for %s/%s/%s: %s",
+            PRODUCT, args.country, source, repair_exc,
+        )
+
+    val = run_9_stage_validation(product=PRODUCT, country=args.country)
+    if val.severity in ("CRITICAL", "HIGH"):    except Exception as exc:
         log.error("Failed %s/%s: %s", PRODUCT, args.country, exc, exc_info=True)
         try:
             from tools.self_healing.handler import handle_exception
