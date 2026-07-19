@@ -70,12 +70,22 @@ def main():
 
     if args.dry_run:
         log.info("[DRY-RUN] Would scrape %s/%s/%s", PRODUCT, args.country, source)
-        sys.exit(0)
+        call_scraper_entry(fn, args.mode, args.since, cfg.get("kwargs", {}))
+        log.info("Completed scrape %s/%s", PRODUCT, args.country)
 
-    try:
-        import importlib
-        from scrapers.utilities.call_scraper_entry import call_scraper_entry
-        mod = importlib.import_module(cfg["module"])
+        # Repair any partitions written with an extraneous 'source=<name>'
+        # directory level (e.g. year=YYYY/source=census_ft900/... instead of
+        # year=YYYY/month=MM/...). Downstream validators such as
+        # temporal_consistency_trade_flows.py assume a strict
+        # year=YYYY/month=MM hierarchy and will crash on the malformed layout.
+        try:
+            from tools.partition_repair import normalize_partition_layout
+            normalize_partition_layout(product=PRODUCT, country=args.country, source=source)
+        except ImportError:
+            log.warning("partition_repair utility unavailable; skipping normalization")
+    except Exception as exc:
+        log.error("Failed %s/%s: %s", PRODUCT, args.country, exc, exc_info=True)
+        try:        mod = importlib.import_module(cfg["module"])
         fn  = getattr(mod, cfg["fn"])
         call_scraper_entry(fn, args.mode, args.since, cfg.get("kwargs", {}))
         log.info("Completed scrape %s/%s", PRODUCT, args.country)
