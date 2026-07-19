@@ -1,8 +1,8 @@
-"""
-scrapers/housing/run.py — Lekwankwa Corporation
-Cloud Scheduler entry point for Housing_Supply_and_Shelter_Inflation.
-
-Usage:
+def run_source(country: str, cfg: dict, source_filter: str | None,
+               mode: str, since: str | None, dry_run: bool) -> bool:
+    source = cfg["source"]
+    if source_filter and source != source_filter:
+        return True
     python scrapers/housing/run.py --country USA --source bls_cpi_shelter
     python scrapers/housing/run.py --country USA --source census_bps
     python scrapers/housing/run.py --country GBR
@@ -69,15 +69,38 @@ def run_source(country: str, cfg: dict, source_filter: str | None,
 
     if dry_run:
         log.info("[DRY-RUN] Would scrape %s/%s/%s", PRODUCT, country, source)
-        return True
+        except ImportError:
+            pass
+        return False
 
     try:
-        import importlib
-        from scrapers.utilities.call_scraper_entry import call_scraper_entry
-        mod = importlib.import_module(cfg["module"])
-        fn  = getattr(mod, cfg["fn"])
-        call_scraper_entry(fn, mode, since, cfg["kwargs"])
-        log.info("Completed scrape %s/%s/%s", PRODUCT, country, source)
+        val = run_9_stage_validation(
+            product=PRODUCT,
+            country=country,
+            # USA housing runs bls_cpi_shelter + census_bps and the full
+            # 10-stage suite (lineage + outlier extraction over full
+            # history) has been observed taking 45-60+ minutes. The
+            # previous default timeout was killing the harness mid-run
+            # (VALIDATION_TIMEOUT) before Stage 8/9/10 could complete.
+            timeout_seconds=7200,
+        )
+    except Exception as exc:
+        log.error("Validation harness raised %s for %s/%s/%s: %s",
+                 type(exc).__name__, PRODUCT, country, source, exc, exc_info=True)
+        try:
+            from tools.self_healing.handler import handle_exception
+            handle_exception(
+                program=__file__, exception=exc,
+                context={"product": PRODUCT, "country": country,
+                         "source": source, "run_date": TODAY, "layer": "VALIDATION"},
+            )
+        except ImportError:
+            pass
+        return False
+
+    if val.severity in ("CRITICAL", "HIGH"):
+        from tools.self_healing.handler import handle_validation_finding
+        handle_validation_finding(        log.info("Completed scrape %s/%s/%s", PRODUCT, country, source)
     except Exception as exc:
         log.error("Failed %s/%s/%s: %s", PRODUCT, country, source, exc, exc_info=True)
         try:
