@@ -136,17 +136,37 @@ def run() -> int:
     log.info("=" * 70)
 
     total = 0
-    rows_by_product: dict[str, int] = {}
-    for entry in SERIES:
-        rows = _ingest_cdid(*entry)
-        total += rows
-        vault_product = entry[3]
-        rows_by_product[vault_product] = rows_by_product.get(vault_product, 0) + rows
 
     log.info("\nONS GBR ingestion complete: %d rows written", total)
 
-    for product, rows in rows_by_product.items():
+    expected_products = {entry[3] for entry in SERIES}
+    for product in expected_products:
+        rows = rows_by_product.get(product, 0)
         if rows > 0:
+            log.info("  Validating %s ...", product)
+            _validate_product(product)
+        else:
+            log.error(
+                "  NO DATA ingested for product %s (country=%s, source=%s) — "
+                "all upstream series returned empty results",
+                product, ISO3, SOURCE,
+            )
+            from datetime import date
+            context = {"product": product, "country": ISO3, "source": SOURCE,
+                       "run_date": date.today().isoformat(), "layer": "INGESTION"}
+            exc = RuntimeError(
+                f"No rows ingested for product={product} country={ISO3} "
+                f"source={SOURCE}: all series returned empty dataframes"
+            )
+            try:
+                from tools.self_healing.handler import handle_exception
+                handle_exception(program=__file__, exception=exc, context=context)
+            except ImportError:
+                log.error("self-healing handler unavailable; raising directly")
+                raise exc
+
+    if total > 0:
+        from tools.trigger_downstream import trigger_all_metadata        if rows > 0:
             log.info("  Validating %s ...", product)
             _validate_product(product)
 
