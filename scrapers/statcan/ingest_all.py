@@ -133,16 +133,33 @@ def _validate_product(product: str) -> None:
 
 def run() -> int:
     log.info("=" * 70)
-    log.info("StatCan CAN — All 5 vault products")
-    log.info("Series: %d  |  pit_coverage_type: RELEASE_DATE_ONLY/accumulating", len(SERIES))
-    log.info("=" * 70)
+    log.info("\nStatCan CAN ingestion complete: %d rows written", total)
 
-    total = 0
-    rows_by_product: dict[str, int] = {}
-    for entry in SERIES:
-        rows = _ingest_vector(*entry)
-        total += rows
-        vault_product = entry[3]
+    for product, rows in rows_by_product.items():
+        if rows == 0:
+            log.error(
+                "  No rows ingested for product=%s country=%s — vault partition "
+                "will be empty; escalating instead of silently skipping validation",
+                product, ISO3,
+            )
+            from datetime import date
+            context = {"product": product, "country": ISO3, "source": SOURCE,
+                       "run_date": date.today().isoformat(), "layer": "INGESTION"}
+            try:
+                from tools.self_healing.handler import handle_exception
+                handle_exception(
+                    program=__file__,
+                    exception=RuntimeError(f"No data ingested for product {product} ({ISO3})"),
+                    context=context,
+                )
+            except ImportError:
+                pass
+            continue
+        log.info("  Validating %s ...", product)
+        _validate_product(product)
+
+    if total > 0:
+        from tools.trigger_downstream import trigger_all_metadata        vault_product = entry[3]
         rows_by_product[vault_product] = rows_by_product.get(vault_product, 0) + rows
 
     log.info("\nStatCan CAN ingestion complete: %d rows written", total)
