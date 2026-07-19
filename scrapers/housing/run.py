@@ -65,14 +65,25 @@ def run_source(country: str, cfg: dict, source_filter: str | None,
                           source=source, as_of=TODAY):
         log.info("No release due today for %s/%s/%s — skipping.",
                  PRODUCT, country, source)
-        return True
-
-    if dry_run:
-        log.info("[DRY-RUN] Would scrape %s/%s/%s", PRODUCT, country, source)
-        return True
+            pass
+        return False
 
     try:
-        import importlib
+        val = run_9_stage_validation(product=PRODUCT, country=country,
+                                      timeout_seconds=5400)
+    except TimeoutError as exc:
+        log.error("Validation timed out for %s/%s/%s: %s",
+                  PRODUCT, country, source, exc, exc_info=True)
+        from tools.self_healing.handler import handle_exception
+        handle_exception(
+            program=__file__, exception=exc,
+            context={"product": PRODUCT, "country": country,
+                     "source": source, "run_date": TODAY, "layer": "VALIDATION_TIMEOUT"},
+        )
+        return False
+    if val.severity in ("CRITICAL", "HIGH"):
+        from tools.self_healing.handler import handle_validation_finding
+        handle_validation_finding(        import importlib
         from scrapers.utilities.call_scraper_entry import call_scraper_entry
         mod = importlib.import_module(cfg["module"])
         fn  = getattr(mod, cfg["fn"])
