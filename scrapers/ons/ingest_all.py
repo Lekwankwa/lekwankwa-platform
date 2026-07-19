@@ -137,13 +137,39 @@ def run() -> int:
 
     total = 0
     rows_by_product: dict[str, int] = {}
-    for entry in SERIES:
-        rows = _ingest_cdid(*entry)
-        total += rows
-        vault_product = entry[3]
-        rows_by_product[vault_product] = rows_by_product.get(vault_product, 0) + rows
 
     log.info("\nONS GBR ingestion complete: %d rows written", total)
+
+    if total == 0:
+        log.error(
+            "ONS GBR ingestion produced 0 rows across all %d series -- "
+            "likely upstream fetch failure (ONS API unreachable or empty "
+            "responses). Escalating instead of running validation on stale/"
+            "missing data.",
+            len(SERIES),
+        )
+        try:
+            from datetime import date
+            from tools.self_healing.handler import handle_exception
+            context = {
+                "product": "global_macro", "country": ISO3,
+                "source": SOURCE, "run_date": date.today().isoformat(),
+                "layer": "INGESTION",
+            }
+            handle_exception(
+                program=__file__,
+                exception=RuntimeError(
+                    "ONS GBR ingestion returned 0 rows for all series"
+                ),
+                context=context,
+            )
+        except ImportError:
+            pass
+        return total
+
+    for product, rows in rows_by_product.items():
+        if rows > 0:
+            log.info("  Validating %s ...", product)    log.info("\nONS GBR ingestion complete: %d rows written", total)
 
     for product, rows in rows_by_product.items():
         if rows > 0:
