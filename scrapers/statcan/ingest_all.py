@@ -100,19 +100,35 @@ def _ingest_vector(
         write_partition(
             grp.drop(columns=["_obs_date"]),
             vault_root,
-            int(year),
-            int(month),
-            filename,
-        )
-
     return len(df_vault)
+
+
+def _invalidate_vault_cache() -> None:
+    """Invalidate any cached gcsfs directory listings so validation reads
+    the partitions just written by this process instead of a stale cache."""
+    try:
+        import gcsfs
+        fs = gcsfs.GCSFileSystem()
+        fs.invalidate_cache()
+    except Exception as exc:  # pragma: no cover - best-effort cache clear
+        log.warning("Could not invalidate gcsfs cache before validation: %s", exc)
+    try:
+        _VAULT_BASE.fs.invalidate_cache()  # type: ignore[attr-defined]
+    except Exception:
+        pass
 
 
 def _validate_product(product: str) -> None:
     """Run the 9-stage validation for one product's CAN data. Escalates to
     self-healing on exception or CRITICAL/HIGH findings."""
-    from datetime import date
+
     context = {"product": product, "country": ISO3,
+               "source": SOURCE, "run_date": date.today().isoformat(), "layer": "VALIDATION"}
+    try:
+        _invalidate_vault_cache()
+        from tools.vault_audit import run_9_stage_validation
+        val = run_9_stage_validation(product=product, country=ISO3)
+    except Exception as exc:
                "source": SOURCE, "run_date": date.today().isoformat(), "layer": "VALIDATION"}
     try:
         from tools.vault_audit import run_9_stage_validation
@@ -137,13 +153,13 @@ def run() -> int:
     log.info("Series: %d  |  pit_coverage_type: RELEASE_DATE_ONLY/accumulating", len(SERIES))
     log.info("=" * 70)
 
-    total = 0
-    rows_by_product: dict[str, int] = {}
-    for entry in SERIES:
-        rows = _ingest_vector(*entry)
-        total += rows
-        vault_product = entry[3]
-        rows_by_product[vault_product] = rows_by_product.get(vault_product, 0) + rows
+
+    log.info("\nStatCan CAN ingestion complete: %d rows written", total)
+
+    _invalidate_vault_cache()
+    for product, rows in rows_by_product.items():
+        if rows > 0:
+            log.info("  Validating %s ...", product)        rows_by_product[vault_product] = rows_by_product.get(vault_product, 0) + rows
 
     log.info("\nStatCan CAN ingestion complete: %d rows written", total)
 
