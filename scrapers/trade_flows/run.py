@@ -92,7 +92,27 @@ def main():
             pass
         sys.exit(1)
 
-    val = run_9_stage_validation(product=PRODUCT, country=args.country)
+            log.error("Failed %s/%s: %s", PRODUCT, args.country, exc, exc_info=True)
+        except ImportError:
+            pass
+        sys.exit(1)
+
+    try:
+        val = run_9_stage_validation(product=PRODUCT, country=args.country)
+    except Exception as exc:
+        log.error("Validation stage crashed for %s/%s: %s",
+                  PRODUCT, args.country, exc, exc_info=True)
+        try:
+            from tools.self_healing.handler import handle_exception
+            handle_exception(
+                program=__file__, exception=exc,
+                context={"product": PRODUCT, "country": args.country,
+                         "source": source, "run_date": TODAY, "layer": "VALIDATION"},
+            )
+        except ImportError:
+            pass
+        sys.exit(1)
+
     if val.severity in ("CRITICAL", "HIGH"):
         from tools.self_healing.handler import handle_validation_finding
         handle_validation_finding(
@@ -101,13 +121,7 @@ def main():
                      "run_date": TODAY, "layer": "VALIDATION"},
             result=val,
         )
-        sys.exit(1)
-
-    audit = run_post_delta_audit(product=PRODUCT, country=args.country)
-    if audit.severity in ("CRITICAL", "HIGH"):
-        from tools.self_healing.handler import handle_validation_finding
-        handle_validation_finding(
-            program=__file__,
+        sys.exit(1)            program=__file__,
             context={"product": PRODUCT, "country": args.country, "source": source,
                      "run_date": TODAY, "layer": "LIVE_FEED_AUDIT"},
             result=audit,
