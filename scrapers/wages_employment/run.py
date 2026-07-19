@@ -84,14 +84,29 @@ def run_source(country: str, cfg: dict, source_filter: str | None,
         try:
             from tools.self_healing.handler import handle_exception
             handle_exception(
+            pass
+        return False
+
+    try:
+        val = run_9_stage_validation(product=PRODUCT, country=country)
+    except Exception as exc:
+        log.error("Validation stage raised an exception for %s/%s/%s: %s",
+                  PRODUCT, country, source, exc, exc_info=True)
+        try:
+            from tools.self_healing.handler import handle_exception
+            handle_exception(
                 program=__file__, exception=exc,
                 context={"product": PRODUCT, "country": country,
-                         "source": source, "run_date": TODAY, "layer": "SCRAPER"},
+                         "source": source, "run_date": TODAY,
+                         "layer": "VALIDATION"},
             )
         except ImportError:
             pass
         return False
 
+    if val.severity in ("CRITICAL", "HIGH"):
+        from tools.self_healing.handler import handle_validation_finding
+        handle_validation_finding(
     val = run_9_stage_validation(product=PRODUCT, country=country)
     if val.severity in ("CRITICAL", "HIGH"):
         from tools.self_healing.handler import handle_validation_finding
