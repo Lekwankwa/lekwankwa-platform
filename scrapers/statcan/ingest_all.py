@@ -1,9 +1,10 @@
-"""
-Statistics Canada CAN full ingestion — all 5 vault products.
+from __future__ import annotations
 
-Downloads NDM CSV tables, extracts specific vectors, builds PIT-compliant
-vault rows, and writes to Hive-partitioned parquet vault.
+import logging
+import time
+import sys
 
+import pandas as pd
 Usage:
     python -m scrapers.statcan.ingest_all
 """
@@ -34,13 +35,26 @@ log = logging.getLogger(__name__)
 
 _VAULT_BASE = get_vault_root("lekwankwa-historical-vault")
 
+) -> int:
+    log.info("  StatCan %s/%s (%s) -> %s", table_id, vector_str, metric_code, vault_product)
 
-def _ingest_vector(
-    table_id: str,
-    vector_str: str,
-    metric_code: str,
-    vault_product: str,
-    macro_metric_name: str,
+    df_raw = pd.DataFrame()
+    last_exc = None
+    for attempt in range(1, 4):
+        try:
+            df_raw = fetch_vector(table_id, vector_str)
+            if not df_raw.empty:
+                break
+            log.warning("  attempt %d/3: empty response for %s/%s, retrying...",
+                        attempt, table_id, vector_str)
+        except Exception as exc:  # noqa: BLE001
+            last_exc = exc
+            log.warning("  attempt %d/3 failed for %s/%s: %s", attempt, table_id, vector_str, exc)
+        time.sleep(2 * attempt)
+
+    if df_raw.empty:
+        log.warning("  SKIP %s/%s: no data", table_id, vector_str)
+        return 0
     unit: str,
     lag: int,
     freq: str,
@@ -122,21 +136,40 @@ def _validate_product(product: str) -> None:
         try:
             from tools.self_healing.handler import handle_exception
             handle_exception(program=__file__, exception=exc, context=context)
-        except ImportError:
-            pass
-        return
+    total = 0
+    rows_by_product: dict[str, int] = {}
+    products_with_series: dict[str, int] = {}
+    for entry in SERIES:
+        rows = _ingest_vector(*entry)
+        total += rows
+        vault_product = entry[3]
+        rows_by_product[vault_product] = rows_by_product.get(vault_product, 0) + rows
+        products_with_series[vault_product] = products_with_series.get(vault_product, 0) + 1
 
-    if val.severity in ("CRITICAL", "HIGH"):
-        from tools.self_healing.handler import handle_validation_finding
-        handle_validation_finding(program=__file__, context=context, result=val)
+    log.info("\nStatCan CAN ingestion complete: %d rows written", total)
 
+    for product, expected in products_with_series.items():
+        if rows_by_product.get(product, 0) == 0:
+            msg = (f"No rows ingested for product={product} country={ISO3} "
+                   f"despite {expected} configured series; aborting before validation.")
+            log.error(msg)
+            exc = RuntimeError(msg)
+            try:
+                from tools.self_healing.handler import handle_exception
+                from datetime import date
+                handle_exception(
+                    program=__file__,
+                    exception=exc,
+                    context={"product": product, "country": ISO3, "source": SOURCE,
+                             "run_date": date.today().isoformat(), "layer": "INGESTION"},
+                )
+            except ImportError:
+                pass
 
-def run() -> int:
-    log.info("=" * 70)
-    log.info("StatCan CAN — All 5 vault products")
-    log.info("Series: %d  |  pit_coverage_type: RELEASE_DATE_ONLY/accumulating", len(SERIES))
-    log.info("=" * 70)
-
+    for product, rows in rows_by_product.items():
+        if rows > 0:
+            log.info("  Validating %s ...", product)
+            _validate_product(product)
     total = 0
     rows_by_product: dict[str, int] = {}
     for entry in SERIES:
